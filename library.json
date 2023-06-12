@@ -1,0 +1,42 @@
+{
+  "name": "RaftMotorControl",
+  "version": "0.1.0",
+  "description": "Motor Control for the Raft ESP32 framework",
+  "keywords": "esp32, esp32s3, framework",
+  "repository":
+  {
+    "type": "git",
+    "url": "https://github.com/robdobsn/RaftMotorControl"
+  },
+  "authors":
+  [
+    {
+      "name": "Rob Dobson",
+      "email": "rob@dobson.com",
+      "url": "https://robdobson.com",
+      "maintainer": true
+    }
+  ],
+  "license": "MIT",
+  "homepage": "https://github.com/robdobsn/RaftMotorControl",
+  "frameworks": ["arduino", "espidf"],
+  "platforms": ["espressif32"],
+  "build": {
+    "srcDir": "components/MotorControl",
+    "includeDir": "components/MotorControl",
+    "libLDFMode": "deep+",
+    "libArchive": false,
+    "extraScript": "lib_script.py",
+    "flags": [
+      "-Icomponents/MotorControl",
+      "-Icomponents/MotorControl/Axes",
+      "-Icomponents/MotorControl/Controller",
+      "-Icomponents/MotorControl/EndStops",
+      "-Icomponents/MotorControl/Geometries",
+      "-Icomponents/MotorControl/HWTiming",
+      "-Icomponents/MotorControl/MotorEnabler",
+      "-Icomponents/MotorControl/RampGenerator",
+      "-Icomponents/MotorControl/Steppers"
+    ]
+  }
+}
