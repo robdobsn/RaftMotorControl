@@ -15,6 +15,7 @@ idf_component_register(
         "RampGenerator/RampGenTimer.cpp"
         "RampGenerator/RampGenerator.cpp"
         "RampGenerator/MotionBlock.cpp"
+        "RampGenerator/MotionPipeline.cpp"
         "Steppers/StepDriverBase.cpp"
         "Steppers/StepDriverTMC2209.cpp"
       INCLUDE_DIRS

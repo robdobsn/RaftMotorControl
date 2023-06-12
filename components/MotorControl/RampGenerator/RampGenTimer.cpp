@@ -291,7 +291,7 @@ void IRAM_ATTR RampGenTimer::_staticLegacyISR(void* arg)
     if (!arg)
         return;
     RampGenTimer* pTimer = (RampGenTimer*)arg;
-    pTimer->_nonStaticISR();
+    pTimer->_nonStaticLegacyISR();
 }
 
 void IRAM_ATTR RampGenTimer::_nonStaticLegacyISR()
@@ -426,7 +426,7 @@ String RampGenTimer::getDebugStr()
 #ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
         gptimer_get_raw_count(_timerHandle, &timerCount);
 #else
-        timerCount = _timerCount
+        timerCount = _timerCount;
 #endif            
     char tmpStr[50];
     snprintf(tmpStr, sizeof(tmpStr), "%llu", timerCount);

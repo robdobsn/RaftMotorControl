@@ -12,7 +12,7 @@
 // Peek at next item in pipeline
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-virtual MotionBlock* IRAM_ATTR MotionPipeline::peekGet() override final
+MotionBlock* IRAM_ATTR MotionPipeline::peekGet()
 {
     // Check if queue is empty
     if (!_pipelinePosn.canGet())
