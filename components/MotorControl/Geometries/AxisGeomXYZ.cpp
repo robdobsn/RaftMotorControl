@@ -11,9 +11,11 @@
 #include "AxisValues.h"
 #include "AxesParams.h"
 
-static const char* MODULE_PREFIX = "GeomXYZ";
-
 // #define DEBUG_XYBOT_MOTION
+
+#if defined(DEBUG_XYBOT_MOTION)
+static const char* MODULE_PREFIX = "GeomXYZ";
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Coord transform from real-world coords to actuator
