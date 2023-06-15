@@ -9,7 +9,7 @@ set(IDF_TARGET "esp32s3")
 FetchContent_Declare(
   raftcore
   GIT_REPOSITORY https://github.com/robdobsn/RaftCore.git
-  GIT_TAG        v0.4.9
+  GIT_TAG        v0.4.11
 )
 
 # Populate first so we have a folder that we can add in EXTRA_COMPONENT_DIRS

@@ -3,13 +3,11 @@
   "version": "0.1.2",
   "description": "Motor Control for the Raft ESP32 framework",
   "keywords": "esp32, esp32s3, framework",
-  "repository":
-  {
+  "repository": {
     "type": "git",
     "url": "https://github.com/robdobsn/RaftMotorControl"
   },
-  "authors":
-  [
+  "authors": [
     {
       "name": "Rob Dobson",
       "email": "rob@dobson.com",
@@ -19,8 +17,13 @@
   ],
   "license": "MIT",
   "homepage": "https://github.com/robdobsn/RaftMotorControl",
-  "frameworks": ["arduino", "espidf"],
-  "platforms": ["espressif32"],
+  "frameworks": [
+    "arduino",
+    "espidf"
+  ],
+  "platforms": [
+    "espressif32"
+  ],
   "build": {
     "srcDir": "components/MotorControl",
     "includeDir": "components/MotorControl",
