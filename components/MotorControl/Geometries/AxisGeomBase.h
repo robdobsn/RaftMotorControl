@@ -41,7 +41,8 @@ public:
     {
     }
 
-    // Pre-process coordinates (used for coordinate systems like Theta-Rho which are position dependent)
+    // Convert coordinates (used for coordinate systems like Theta-Rho which are position dependent)
+    // This doesn't convert coords - just checks for things like wrap around in circular coordinate systems
     // Note that values are modified in-place
     virtual void preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams)
     {

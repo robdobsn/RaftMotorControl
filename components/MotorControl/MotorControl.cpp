@@ -23,6 +23,8 @@ MotorControl::MotorControl()
 
 MotorControl::~MotorControl()
 {
+    // Tell motion controller to stop
+    _motionController.teardown();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -100,7 +102,7 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh)
         {
             // Get axis position
             isFresh = true;
-            AxesPosValues pos = _motionController.getLastPos();
+            AxesPosValues pos = _motionController.getLastMonitoredPos();
             switch(tolower(param[0]))
             {
                 case 'x': return pos.getVal(0);
@@ -252,3 +254,11 @@ void MotorControl::handleCmdBinary_MoveTo(const uint8_t* pData, uint32_t dataLen
     _motionController.moveTo((const MotionArgs&)*pData);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get debug str
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String MotorControl::getDebugStr()
+{
+    return _motionController.getDebugStr();
+}

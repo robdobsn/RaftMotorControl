@@ -31,7 +31,6 @@ MotionBlockManager::MotionBlockManager(MotionPipeline& motionPipeline,
                     _motorEnabler(motorEnabler), 
                     _axesParams(axesParams)
 {
-    _pAxisGeometry = NULL;
     clear();
 }
 
@@ -234,11 +233,28 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Convert actuator coords to real-world
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void MotionBlockManager::coordsActuatorToRealWorld(const AxesParamVals<AxisStepsDataType> &targetActuator, 
+            AxesPosValues &outPt) const
+{
+    if (!_pAxisGeometry)
+    {
+        LOG_W(MODULE_PREFIX, "coordsActuatorToRealWorld no geometry set");
+        return;
+    }
+
+    _pAxisGeometry->actuatorToPt(targetActuator, outPt, _curPosition, _axesParams);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Pre-process coordinates (used for coordinate systems like Theta-Rho which are position dependent)
+// This doesn't convert coords - just checks for things like wrap around in circular coordinate systems
 // Note that values are modified in-place
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionBlockManager::preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams)
+void MotionBlockManager::preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams) const
 {
     if (_pAxisGeometry)
         _pAxisGeometry->preProcessCoords(axisPositions, axesParams);
@@ -248,26 +264,17 @@ void MotionBlockManager::preProcessCoords(AxesPosValues& axisPositions, const Ax
 // Set current position as home
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionBlockManager::setCurPositionAsHome(bool allAxes, uint32_t axisIdx)
+void MotionBlockManager::setCurPositionAsHome(uint32_t axisIdx)
 {
-    if (!allAxes && (axisIdx >= AXIS_VALUES_MAX_AXES))
+    if (axisIdx >= AXIS_VALUES_MAX_AXES)
         return;
-    for (uint32_t i = (allAxes ? 0 : axisIdx); i < (allAxes ? AXIS_VALUES_MAX_AXES : axisIdx+1); i++)
-    {
-        _lastCommandedAxesPositions.unitsFromHome.setVal(i, _axesParams.getHomeOffsetVal(i));
-        _lastCommandedAxesPositions.setUnitsFromHomeValidity(true);
-        _lastCommandedAxesPositions.stepsFromHome.setVal(i, _axesParams.gethomeOffSteps(i));
-        // _trinamicsController.setTotalStepPosition(i, _axesParams.gethomeOffSteps(i));
-    }
+    _lastCommandedAxesPositions.unitsFromHome.setVal(axisIdx, _axesParams.getHomeOffsetVal(axisIdx));
+    _lastCommandedAxesPositions.setUnitsFromHomeValidity(true);
+    _lastCommandedAxesPositions.stepsFromHome.setVal(axisIdx, _axesParams.gethomeOffSteps(axisIdx));
+    // _trinamicsController.setTotalStepPosition(i, _axesParams.gethomeOffSteps(i));
 #ifdef DEBUG_COORD_UPDATES
-        LOG_I(MODULE_PREFIX, "setCurPosAsHome curMM X%0.2f Y%0.2f Z%0.2f steps %d,%d,%d (allAxes %d axisIdx %d)",
-                    _lastCommandedAxesPositions.unitsFromHome.getVal(0),
-                    _lastCommandedAxesPositions.unitsFromHome.getVal(1),
-                    _lastCommandedAxesPositions.unitsFromHome.getVal(2),
-                    _lastCommandedAxesPositions.stepsFromHome.getVal(0),
-                    _lastCommandedAxesPositions.stepsFromHome.getVal(1),
-                    _lastCommandedAxesPositions.stepsFromHome.getVal(2),
-                    allAxes,
-                    axisIdx);
+        LOG_I(MODULE_PREFIX, "setCurPosAsHome axisIdx %d curMM %0.2f steps %d", axisIdx,
+                    _lastCommandedAxesPositions.unitsFromHome.getVal(axisIdx),
+                    _lastCommandedAxesPositions.stepsFromHome.getVal(axisIdx));
 #endif
 }

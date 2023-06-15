@@ -26,40 +26,39 @@ TEST_CASE("test_RampGenTimer", "[RampGenTimer]")
     LOG_I(MODULE_PREFIX, "RampGenTimer Test");
 
     RampGenTimer rampGenTimer;
-    rampGenTimer.setup(20000);
+    const int timerPeriodUs = 100;
+    rampGenTimer.setup(timerPeriodUs);
     rampGenTimer.enable(true);
 
-    // Test timer counts up
-    int64_t lastTimerCount = -1;
-    for (int i = 0; i < 5; i++)
-    {
-        delay(1);
-        if (lastTimerCount == -1)
-            lastTimerCount = rampGenTimer.getTimerCount();
-        else
-        {
-            int64_t timerCount = rampGenTimer.getTimerCount();
-            TEST_ASSERT_NOT_EQUAL(lastTimerCount, timerCount);
-            lastTimerCount = timerCount;
-        }
-    }
+    // Test raw count changes - note that the raw count may reset to 0 around every
+    // timerPeriodUs microseconds
+    uint64_t rawCount = rampGenTimer.getDebugRawCount();
+    delayMicroseconds((int)(timerPeriodUs*1.23));
+    uint64_t rawCount2 = rampGenTimer.getDebugRawCount();
+    delayMicroseconds((int)(timerPeriodUs*1.63));
+    uint64_t rawCount3 = rampGenTimer.getDebugRawCount();
+    TEST_ASSERT((rawCount2 != rawCount) || (rawCount3 != rawCount2));
 
     // Attach hook
     rampGenTimer.hookTimer(rampGenTimerCallback, (void*)&rampGenTimerCallback);
 
     // Test timer counts up
-    int lastTimerCount2 = -1;
+    int lastCallbackCount = -1;
+    const int timePeriodForTestLoopMs = 100;
+    const int expectedIncrementPerLoop = (timePeriodForTestLoopMs*1000)/timerPeriodUs;
+    const int errorMargin = expectedIncrementPerLoop / 10;
     for (int i = 0; i < 5; i++)
     {
-        delay(100);
-        if (lastTimerCount2 == -1)
-            lastTimerCount2 = localTimerCount;
+        delay(timePeriodForTestLoopMs);
+        if (lastCallbackCount == -1)
+            lastCallbackCount = localTimerCount;
         else
         {
-            TEST_ASSERT_NOT_EQUAL(lastTimerCount2, localTimerCount);
-            lastTimerCount2 = localTimerCount;
+            int expectedApproxCount = lastCallbackCount + expectedIncrementPerLoop;
+            TEST_ASSERT_DOUBLE_WITHIN(localTimerCount, expectedApproxCount - errorMargin, expectedApproxCount + errorMargin);
+            lastCallbackCount = localTimerCount;
         }
-        // LOG_I(MODULE_PREFIX, "localTimerCount %d", localTimerCount);
+        LOG_I(MODULE_PREFIX, "localTimerCount %d expected %d errorMargin %d", localTimerCount, expectedIncrementPerLoop, errorMargin);
     }
 
     // Unattach hook

@@ -18,8 +18,8 @@ static const char* MODULE_PREFIX = "StepDrvBase";
 
 // Debug
 // #define DEBUG_REGISTER_READ_PROCESS
-#define DEBUG_REGISTER_READ_VALUE
-#define DEBUG_REGISTER_WRITE
+// #define DEBUG_REGISTER_READ_VALUE
+// #define DEBUG_REGISTER_WRITE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor/Destructor

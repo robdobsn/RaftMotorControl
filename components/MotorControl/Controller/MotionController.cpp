@@ -27,13 +27,6 @@
 
 static const char* MODULE_PREFIX = "MotionController";
 
-// Ramp generator timer
-RampGenTimer MotionController::_rampGenTimer;
-
-#ifdef DEBUG_MOTION_CONTROL_TIMER
-uint32_t MotionController::_testRampGenCount = 0;
-#endif
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup serial bus and bus reversal
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -138,6 +131,26 @@ void MotionController::setup(const ConfigBase& config, const char* pConfigPrefix
     // If no homing required then set the current position as home
     if (!_homingNeededBeforeAnyMove)
         setCurPositionAsHome(true);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Teardown
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void MotionController::teardown()
+{
+    // Stop timer
+    _rampGenTimer.enable(false);
+
+    // Stop any motion
+    _rampGenerator.stop();
+    _motorEnabler.deinit();
+
+    // Clear block manager
+    _blockManager.clear();
+
+    // Remove any config
+    deinit();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -283,12 +296,12 @@ bool MotionController::moveToRamped(const MotionArgs& args)
     // Get the target axis position
     AxesPosValues targetAxisPos = args.getAxesPositions();
 
-    // Convert coords to real-world if required - this depends on the coordinate type and
-    // does nothing
+    // Convert coords to real-world if required - this depends on the coordinate type
+    // This doesn't convert coords - just checks for things like wrap around in circular coordinate systems
     _blockManager.preProcessCoords(targetAxisPos, _axesParams);
 
     // Fill in the targetAxisPos for axes for which values not specified
-    // Handle relative motion calculatiuon if required
+    // Handle relative motion calculation if required
     // Setup flags to indicate if each axis should be included in distance calculation
     bool includeAxisDistCalc[AXIS_VALUES_MAX_AXES];
     for (int i = 0; i < AXIS_VALUES_MAX_AXES; i++)
@@ -347,8 +360,13 @@ bool MotionController::moveToRamped(const MotionArgs& args)
 
 void MotionController::setCurPositionAsHome(bool allAxes, uint32_t axisIdx)
 {
-    _rampGenerator.setTotalStepPosition(axisIdx, _axesParams.gethomeOffSteps(axisIdx));
-    _blockManager.setCurPositionAsHome(allAxes, axisIdx);
+    if (!allAxes && (axisIdx >= AXIS_VALUES_MAX_AXES))
+        return;
+    for (uint32_t i = (allAxes ? 0 : axisIdx); i < (allAxes ? AXIS_VALUES_MAX_AXES : axisIdx+1); i++)
+    {
+        _rampGenerator.setTotalStepPosition(i, _axesParams.gethomeOffSteps(i));
+        _blockManager.setCurPositionAsHome(i);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -393,8 +411,8 @@ void MotionController::deinit()
     {
         if (pDriver)
             delete pDriver;
+        pDriver = nullptr;
     }
-    _stepperDrivers.clear();
 
     // Remote endstops
     for (EndStops*& pEndStops : _axisEndStops)
@@ -411,6 +429,11 @@ void MotionController::deinit()
 
 void MotionController::setupAxes(const ConfigBase& config, const char* pConfigPrefix)
 {
+    // Setup stepper driver array
+    _stepperDrivers.resize(AXIS_VALUES_MAX_AXES);
+    for (StepDriverBase*& pDriver : _stepperDrivers)
+        pDriver = nullptr;
+
     // Setup axes params
     _axesParams.setupAxes(config, pConfigPrefix);
 
@@ -422,7 +445,7 @@ void MotionController::setupAxes(const ConfigBase& config, const char* pConfigPr
         for (String& axisConfigStr : axesVec)
         {
             // Setup driver
-            setupAxisHardware(axisConfigStr);
+            setupAxisHardware(axisIdx, axisConfigStr);
 
             // Next
             axisIdx++;
@@ -434,23 +457,23 @@ void MotionController::setupAxes(const ConfigBase& config, const char* pConfigPr
 // Setup axis hardware
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupAxisHardware(const ConfigBase& config)
+void MotionController::setupAxisHardware(uint32_t axisIdx, const ConfigBase& config)
 {
     // Axis name
     String axisName = config.getString("name", "");
 
     // Configure the driver
-    setupStepDriver(axisName, "driver", config);
+    setupStepDriver(axisIdx, axisName, "driver", config);
 
     // Configure the endstops
-    setupEndStops(axisName, "endstops", config);
+    setupEndStops(axisIdx, axisName, "endstops", config);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup stepper driver
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupStepDriver(const String& axisName, const char* jsonElem, const ConfigBase& mainConfig)
+void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, const ConfigBase& mainConfig)
 {
     // TODO refactor to use JSON paths
 
@@ -540,14 +563,15 @@ void MotionController::setupStepDriver(const String& axisName, const char* jsonE
     }
 
     // Add driver
-    _stepperDrivers.push_back(pStepDriver);
+    if (axisIdx < _stepperDrivers.size())
+        _stepperDrivers[axisIdx] = pStepDriver;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup end stops
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupEndStops(const String& axisName, const char* jsonElem, const ConfigBase& mainConfig)
+void MotionController::setupEndStops(uint32_t axisIdx, const String& axisName, const char* jsonElem, const ConfigBase& mainConfig)
 {
     // Endstops
     EndStops* pEndStops = new EndStops();
@@ -664,6 +688,42 @@ void MotionController::setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCu
     // Set max motor current
     if (axisIdx < _stepperDrivers.size())
         _stepperDrivers[axisIdx]->setMaxMotorCurrentAmps(maxMotorCurrentAmps);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get last commanded position
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+AxesPosValues MotionController::getLastCommandedPos() const
+{
+    return _blockManager.getLastPos();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get last monitored position
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+AxesPosValues MotionController::getLastMonitoredPos() const
+{
+    // Get current position
+    AxesParamVals<AxisStepsDataType> curActuatorPos;
+    _rampGenerator.getTotalStepPosition(curActuatorPos);
+    // Use reverse kinematics to get location
+    AxesPosValues lastMonitoredPos;
+    _blockManager.coordsActuatorToRealWorld(curActuatorPos, lastMonitoredPos);
+    return lastMonitoredPos;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get debug string
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+String MotionController::getDebugStr() const
+{
+    String str;
+    str += _rampGenTimer.getDebugStr() + ", ";
+    str += getLastMonitoredPos().getDebugStr();
+    return str;
 }
 
 #ifdef asdasdasd
@@ -799,11 +859,6 @@ void MotionController::debugShowTopBlock()
 {
     _motionPipeline.debugShowTopBlock(_axesParams);
 }
-
-// String MotionController::getDebugStr()
-// {
-//     return _rampGenerator.getDebugStr();
-// }
 
 int MotionController::testGetPipelineCount()
 {

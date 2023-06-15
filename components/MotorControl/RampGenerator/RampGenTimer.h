@@ -14,7 +14,7 @@
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 
-// #define USE_SEMAPHORE_FOR_LIST_ACCESS
+// #define RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
 
 // General purpose timer used for ramp generation
 #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
@@ -37,6 +37,7 @@ public:
     RampGenTimer();
     virtual ~RampGenTimer();
     bool setup(uint32_t timerPeriodUs);
+    void shutdown();
     void enable(bool en);
     uint32_t getPeriodUs()
     {
@@ -44,8 +45,11 @@ public:
     }
     bool hookTimer(RampGenTimerCB timerCB, void* pObject);
     void unhookTimer(void* pObject);
-    uint64_t getTimerCount();
-    String getDebugStr();
+
+    // Debug
+    uint32_t getDebugISRCount();
+    uint64_t getDebugRawCount();
+    String getDebugStr() const;
     
     // Default ramp generation timer period us
     static constexpr uint32_t RAMP_GEN_PERIOD_US_DEFAULT = 20;
@@ -65,14 +69,14 @@ private:
     timer_group_t _timerGroup = TIMER_GROUP_0;
     timer_idx_t _timerIdx = TIMER_0;
 
-    // Debug timer count
-    volatile uint64_t _timerCount = 0;
-
 #else
     // Timer handle
     gptimer_handle_t _timerHandle;
 
 #endif
+
+    // Debug timer count
+    volatile uint32_t _timerISRCount = 0;
 
     // Hook info for timer callback
     struct TimerCBHook
@@ -84,7 +88,7 @@ private:
     static const uint32_t MAX_TIMER_CB_HOOKS = 20;
     std::vector<TimerCBHook> _timerCBHooks;
 
-#ifdef USE_SEMAPHORE_FOR_LIST_ACCESS
+#ifdef RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
     // Mutex for callback hooks vector
     static SemaphoreHandle_t _hookListMutex;
 #endif

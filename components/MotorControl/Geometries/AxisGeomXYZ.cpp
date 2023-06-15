@@ -13,7 +13,7 @@
 
 static const char* MODULE_PREFIX = "GeomXYZ";
 
-#define DEBUG_XYBOT_MOTION
+// #define DEBUG_XYBOT_MOTION
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Coord transform from real-world coords to actuator

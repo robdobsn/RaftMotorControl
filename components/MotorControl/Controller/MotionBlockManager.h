@@ -37,7 +37,7 @@ public:
     void pumpBlockSplitter();
 
     // Check is busy
-    bool isBusy()
+    bool isBusy() const
     {
         return _numBlocks != 0;
     }
@@ -51,26 +51,31 @@ public:
                 uint32_t numBlocks);
 
     // Get last commanded position in axes units
-    AxesPosValues getLastPos()
+    AxesPosValues getLastPos() const
     {
         return _lastCommandedAxesPositions.unitsFromHome;
     }
 
     // Check last commanded position is valid
-    bool lastPosValid()
+    bool lastPosValid() const
     {
         return _lastCommandedAxesPositions.unitsFromHomeValid();
     }
 
-    // Pre-process coordinates (used for coordinate systems like Theta-Rho which are position dependent)
+    // Convert actuator coords to real-world coords
+    void coordsActuatorToRealWorld(const AxesParamVals<AxisStepsDataType> &targetActuator, 
+                AxesPosValues &outPt) const;
+
+    // Convert coordinates (used for coordinate systems like Theta-Rho which are position dependent)
+    // This doesn't convert coords - just checks for things like wrap around in circular coordinate systems
     // Note that values are modified in-place
-    void preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams);
+    void preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams) const;
 
     // Set current position as home
-    void setCurPositionAsHome(bool allAxes = true, uint32_t axisIdx = 0);
+    void setCurPositionAsHome(uint32_t axisIdx);
 
     // Homing needed before any move
-    bool isHomingNeededBeforeMove()
+    bool isHomingNeededBeforeMove() const
     {
         return _homingNeededBeforeAnyMove;
     }
@@ -89,10 +94,10 @@ private:
     AxesPosValues _blockDeltaDistance;
 
     // Num blocks to split over
-    uint32_t _numBlocks;
+    uint32_t _numBlocks = 0;
 
     // Next block to return
-    uint32_t _nextBlockIdx;
+    uint32_t _nextBlockIdx = 0;
 
     // Motion pipeline to add blocks to
     MotionPipeline& _motionPipeline;
@@ -104,7 +109,7 @@ private:
     MotorEnabler& _motorEnabler;
 
     // Axis geometry
-    AxisGeomBase* _pAxisGeometry;
+    AxisGeomBase* _pAxisGeometry = nullptr;
 
     // Axes parameters
     AxesParams& _axesParams;
@@ -113,10 +118,10 @@ private:
     AxesPosition _lastCommandedAxesPositions;
 
     // Allow all out of bounds movement
-    bool _allowAllOutOfBounds;
+    bool _allowAllOutOfBounds = false;
 
     // Homing is needed before any movement
-    bool _homingNeededBeforeAnyMove;
+    bool _homingNeededBeforeAnyMove = false;
 
     // Helpers
     bool addToPlanner(const MotionArgs &args);

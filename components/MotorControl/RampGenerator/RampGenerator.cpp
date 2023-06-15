@@ -17,7 +17,7 @@
 #include <AxisInt32s.h>
 #include <AxisEndstopChecks.h>
 
-#define DEBUG_GENERATE_DETAILED_STATS
+#define RAMP_GEN_DETAILED_STATS
 // #define DEBUG_MOTION_PULSE_GEN
 // #define DEBUG_MOTION_PEEK_QUEUE
 // #define DEBUG_SETUP_NEW_BLOCK
@@ -143,7 +143,7 @@ void RampGenerator::resetTotalStepPosition()
         _totalStepsInc[i] = 0;
     }
 }
-void RampGenerator::getTotalStepPosition(AxisInt32s& actuatorPos)
+void RampGenerator::getTotalStepPosition(AxesParamVals<AxisStepsDataType>& actuatorPos) const
 {
     for (int i = 0; i < AXIS_VALUES_MAX_AXES; i++)
     {
@@ -165,12 +165,12 @@ void RampGenerator::clearEndstopReached()
     _endStopReached = false;
 }
 
-bool RampGenerator::isEndStopReached()
+bool RampGenerator::isEndStopReached() const
 {
     return _endStopReached;
 }
 
-void RampGenerator::getEndStopStatus(AxisEndstopChecks& axisEndStopVals)
+void RampGenerator::getEndStopStatus(AxisEndstopChecks& axisEndStopVals) const
 {
     // Iterate endstops
     for (int axisIdx = 0; (axisIdx < _axisEndStops.size()) && (axisIdx < AXIS_VALUES_MAX_AXES); axisIdx++)
@@ -205,15 +205,18 @@ void RampGenerator::getEndStopStatus(AxisEndstopChecks& axisEndStopVals)
 bool IRAM_ATTR RampGenerator::handleStepEnd()
 {
     bool anyPinReset = false;
-    for (int axisIdx = 0; (axisIdx < AXIS_VALUES_MAX_AXES) && (axisIdx < _stepperDrivers.size()); axisIdx++)
+    uint32_t axisIdx = 0;
+    for (auto& stepperDriver : _stepperDrivers)
     {
-        if (!_stepperDrivers[axisIdx])
-            continue;
-        if (_stepperDrivers[axisIdx]->stepEnd())
+        if (stepperDriver)
         {
-            anyPinReset = true;
-            _axisTotalSteps[axisIdx] = _axisTotalSteps[axisIdx] + _totalStepsInc[axisIdx];
+            if (stepperDriver->stepEnd())
+            {
+                anyPinReset = true;
+                _axisTotalSteps[axisIdx] = _axisTotalSteps[axisIdx] + _totalStepsInc[axisIdx];
+            }
         }
+        axisIdx++;
     }
     return anyPinReset;
 }
@@ -227,65 +230,69 @@ void IRAM_ATTR RampGenerator::setupNewBlock(MotionBlock *pBlock)
 {
     // Setup step counts, direction and endstops for each axis
     _endStopCheckNum = 0;
-    for (int axisIdx = 0; (axisIdx < AXIS_VALUES_MAX_AXES) && (axisIdx < _stepperDrivers.size()); axisIdx++)
+    uint32_t axisIdx = 0;
+    for (auto& stepperDriver : _stepperDrivers)
     {
-        if (!_stepperDrivers[axisIdx])
-            continue;
-
-        // Total steps
-        int32_t stepsTotal = pBlock->_stepsTotalMaybeNeg[axisIdx];
-        _stepsTotalAbs[axisIdx] = UTILS_ABS(stepsTotal);
-        _curStepCount[axisIdx] = 0;
-        _curAccumulatorRelative[axisIdx] = 0;
-        // Set direction for the axis
-        _stepperDrivers[axisIdx]->setDirection(stepsTotal >= 0);
-        _totalStepsInc[axisIdx] = (stepsTotal >= 0) ? 1 : -1;
+        if (stepperDriver)
+        {
+            // Total steps
+            int32_t stepsTotal = pBlock->_stepsTotalMaybeNeg[axisIdx];
+            _stepsTotalAbs[axisIdx] = UTILS_ABS(stepsTotal);
+            _curStepCount[axisIdx] = 0;
+            _curAccumulatorRelative[axisIdx] = 0;
+            // Set direction for the axis
+            stepperDriver->setDirection(stepsTotal >= 0);
+            _totalStepsInc[axisIdx] = (stepsTotal >= 0) ? 1 : -1;
 
 #ifdef DEBUG_SETUP_NEW_BLOCK
-        if (!_useRampGenTimer)
-        {
-            LOG_I(MODULE_PREFIX, "setupNewBlock setDirection %d stepsTotal %d numSteppers %d stepType %s", 
-                        stepsTotal >= 0, stepsTotal, _stepperDrivers.size(), _stepperDrivers[axisIdx]->getDriverType().c_str());
-        }
+            if (!_useRampGenTimer)
+            {
+                LOG_I(MODULE_PREFIX, "setupNewBlock setDirection %d stepsTotal %d numSteppers %d stepType %s", 
+                            stepsTotal >= 0, stepsTotal, _stepperDrivers.size(), stepperDriver->getDriverType().c_str());
+            }
 #endif
 
-        // Instrumentation
-        _stats.stepDirn(axisIdx, stepsTotal >= 0);
+            // Instrumentation
+            _stats.stepDirn(axisIdx, stepsTotal >= 0);
 
-        // Check if any endstops to setup
-        if (!pBlock->_endStopsToCheck.any())
-            continue;
-
-        // Check if the axis is moving in a direction which might result in hitting an active end-stop
-        for (int minMaxIdx = 0; minMaxIdx < AXIS_VALUES_MAX_ENDSTOPS_PER_AXIS; minMaxIdx++)
-        {
-            // See if anything to check for
-            AxisEndstopChecks::AxisMinMaxEnum minMaxType = pBlock->_endStopsToCheck.get(axisIdx, minMaxIdx);
-            if (minMaxType == AxisEndstopChecks::END_STOP_NONE)
-                continue;
-
-            // Check for towards - this is different from MAX or MIN because the axis will still move even if
-            // an endstop is hit if the movement is away from that endstop
-            if (minMaxType == AxisEndstopChecks::END_STOP_TOWARDS)
-            {
-                // Stop at max if we're heading towards max OR
-                // stop at min if we're heading towards min
-                if (!(((minMaxIdx == AxisEndstopChecks::MAX_VAL_IDX) && (stepsTotal > 0)) ||
-                        ((minMaxIdx == AxisEndstopChecks::MIN_VAL_IDX) && (stepsTotal < 0))))
-                    continue;
-            }
-            
-            // Config for end stop
-            if ((axisIdx <= _axisEndStops.size()) && (_axisEndStops[axisIdx]))
-            {
-                bool isValid = _axisEndStops[axisIdx]->isValid(minMaxIdx == AxisEndstopChecks::MAX_VAL_IDX);
-                if (isValid)
+            // Check if any endstops to setup
+            if (pBlock->_endStopsToCheck.any())
+            { 
+                // Check if the axis is moving in a direction which might result in hitting an active end-stop
+                for (int minMaxIdx = 0; minMaxIdx < AXIS_VALUES_MAX_ENDSTOPS_PER_AXIS; minMaxIdx++)
                 {
-                    _endStopChecks[_endStopCheckNum].axisIdx = axisIdx;
-                    _endStopChecks[_endStopCheckNum].checkHit = minMaxType != AxisEndstopChecks::END_STOP_NOT_HIT;
-                    _endStopCheckNum = _endStopCheckNum + 1;
+                    // See if anything to check for
+                    AxisEndstopChecks::AxisMinMaxEnum minMaxType = pBlock->_endStopsToCheck.get(axisIdx, minMaxIdx);
+                    if (minMaxType == AxisEndstopChecks::END_STOP_NONE)
+                        continue;
+
+                    // Check for towards - this is different from MAX or MIN because the axis will still move even if
+                    // an endstop is hit if the movement is away from that endstop
+                    if (minMaxType == AxisEndstopChecks::END_STOP_TOWARDS)
+                    {
+                        // Stop at max if we're heading towards max OR
+                        // stop at min if we're heading towards min
+                        if (!(((minMaxIdx == AxisEndstopChecks::MAX_VAL_IDX) && (stepsTotal > 0)) ||
+                                ((minMaxIdx == AxisEndstopChecks::MIN_VAL_IDX) && (stepsTotal < 0))))
+                            continue;
+                    }
+                    
+                    // Config for end stop
+                    if ((axisIdx <= _axisEndStops.size()) && (_axisEndStops[axisIdx]))
+                    {
+                        bool isValid = _axisEndStops[axisIdx]->isValid(minMaxIdx == AxisEndstopChecks::MAX_VAL_IDX);
+                        if (isValid)
+                        {
+                            _endStopChecks[_endStopCheckNum].axisIdx = axisIdx;
+                            _endStopChecks[_endStopCheckNum].checkHit = minMaxType != AxisEndstopChecks::END_STOP_NOT_HIT;
+                            _endStopCheckNum = _endStopCheckNum + 1;
+                        }
+                    }
                 }
             }
+
+            // Next axis
+            axisIdx++;
         }
     }
 
@@ -338,6 +345,8 @@ bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
 
     // Axis with most steps
     int axisIdxMaxSteps = pBlock->_axisIdxWithMaxSteps;
+    if ((axisIdxMaxSteps < 0) || (axisIdxMaxSteps >= _stepperDrivers.size()))
+        return false;
 
     // Subtract from accumulator leaving remainder
     _curAccumulatorStep = _curAccumulatorStep - MotionBlock::TTICKS_VALUE;
@@ -346,7 +355,8 @@ bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
     if (_curStepCount[axisIdxMaxSteps] < _stepsTotalAbs[axisIdxMaxSteps])
     {
         // Step this axis
-        _stepperDrivers[axisIdxMaxSteps]->stepStart();
+        if (_stepperDrivers[axisIdxMaxSteps])
+            _stepperDrivers[axisIdxMaxSteps]->stepStart();
         _curStepCount[axisIdxMaxSteps] = _curStepCount[axisIdxMaxSteps] + 1;
         if (_curStepCount[axisIdxMaxSteps] < _stepsTotalAbs[axisIdxMaxSteps])
             anyAxisMoving = true;
@@ -359,13 +369,14 @@ bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
         {
             LOG_I(MODULE_PREFIX, "handleStepMotion stepStart axisIdxMaxSteps %d axisDriver %p numStepperDrivers %d driverType %s", 
                         axisIdxMaxSteps, _stepperDrivers[axisIdxMaxSteps], _stepperDrivers.size(), 
-                        _stepperDrivers[axisIdxMaxSteps]->getDriverType().c_str());
+                        _stepperDrivers[axisIdxMaxSteps] ? _stepperDrivers[axisIdxMaxSteps]->getDriverType().c_str() : "null");
         }
 #endif
     }
 
     // Check if other axes need stepping
-    for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+    uint32_t axisIdx = 0;
+    for (auto& pStepperDriver : _stepperDrivers)
     {
         if ((axisIdx == axisIdxMaxSteps) || (_curStepCount[axisIdx] == _stepsTotalAbs[axisIdx]))
             continue;
@@ -378,7 +389,8 @@ bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
             _curAccumulatorRelative[axisIdx] = _curAccumulatorRelative[axisIdx] - _stepsTotalAbs[axisIdxMaxSteps];
 
             // Step the axis
-            _stepperDrivers[axisIdx]->stepStart();
+            if (pStepperDriver)
+                pStepperDriver->stepStart();
 
 #ifdef DEBUG_MOTION_PULSE_GEN
             if (!_useRampGenTimer)
@@ -534,7 +546,7 @@ void IRAM_ATTR RampGenerator::generateMotionPulses()
     // Bump the step accumulator
     _curAccumulatorStep = _curAccumulatorStep + UTILS_MAX(_curStepRatePerTTicks, _minStepRatePerTTicks);
 
-#ifdef DEBUG_GENERATE_DETAILED_STATS
+#ifdef RAMP_GEN_DETAILED_STATS
     _stats.update(_curAccumulatorStep, _curStepRatePerTTicks, _curAccumulatorNS,
                 pBlock->_axisIdxWithMaxSteps,
                 pBlock->_accStepsPerTTicksPerMS,
@@ -588,106 +600,4 @@ void IRAM_ATTR RampGenerator::rampGenTimerCallback(void* pObject)
 void RampGenerator::debugShowStats()
 {
     LOG_I(MODULE_PREFIX, "%s isrCount %d", _stats.getStatsStr().c_str(), _isrCount);
-}
-
-String RampGenerator::RampGenStats::getStatsStr()
-{
-#ifndef DEBUG_GENERATE_DETAILED_STATS
-    char dbg[100];
-    sprintf(dbg, "ISR Avg %0.2fus Max %dus", _isrAvgUs, _isrMaxUs);
-    return dbg;
-#else
-    char dbg[500];
-    sprintf(dbg, "AvgISRUs %0.2f MaxISRUs %d curAccumStep %lu curStepRtPerTTicks %lu curAccumNS %lu axisIdxMaxStp %d accStpPerTTicksPerMS %lu curStepCtMajAx %u stepsBeforeDecel %u maxStepRatePerTTicks %lu",
-        _isrAvgUs, 
-        (int)_isrMaxUs,
-        (long int)_curAccumulatorStep, 
-        (long int)_curStepRatePerTTicks, 
-        (long int)_curAccumulatorNS, 
-        _axisIdxWithMaxSteps, 
-        (long int)_accStepsPerTTicksPerMS, 
-        (int)_curStepCountMajorAxis, 
-        (int)_stepsBeforeDecel, 
-        (long int)_maxStepRatePerTTicks);
-    return dbg;
-#endif
-}
-
-RampGenerator::RampGenStats::RampGenStats()
-{
-    clear();
-}
-
-void RampGenerator::RampGenStats::clear()
-{
-    _isrStartUs = 0;
-    _isrAccUs = 0;
-    _isrCount = 0;
-    _isrAvgUs = 0;
-    _isrAvgValid = false;
-    _isrMaxUs = 0;
-#ifdef DEBUG_GENERATE_DETAILED_STATS
-    _curAccumulatorStep = 0;
-    _curStepRatePerTTicks = 0;
-    _curAccumulatorNS = 0;
-    _axisIdxWithMaxSteps = -1;
-    _accStepsPerTTicksPerMS = 0;
-    _curStepCountMajorAxis = 0;
-    _stepsBeforeDecel = 0;
-    _maxStepRatePerTTicks = 0;
-#endif
-}
-
-void IRAM_ATTR RampGenerator::RampGenStats::startMotionProcessing()
-{
-    _isrStartUs = micros();
-}
-
-void IRAM_ATTR RampGenerator::RampGenStats::endMotionProcessing()
-{
-    uint32_t elapsedUs = micros() - _isrStartUs;
-    // LOG_I(MODULE_PREFIX, "Elapsed uS %d", elapsedUs);
-    _isrAccUs += elapsedUs;
-    _isrCount++;
-    if (_isrCount > 1000)
-    {
-        _isrAvgUs = _isrAccUs * 1.0 / _isrCount;
-        _isrAvgValid = true;
-        _isrCount = 0;
-        _isrAccUs = 0;
-    }
-    if (_isrMaxUs < elapsedUs)
-        _isrMaxUs = elapsedUs;
-}
-
-void IRAM_ATTR RampGenerator::RampGenStats::update(uint32_t curAccumulatorStep, 
-        uint32_t curStepRatePerTTicks,
-        uint32_t curAccumulatorNS,
-        int axisIdxWithMaxSteps,
-        uint32_t accStepsPerTTicksPerMS,
-        uint32_t curStepCountMajorAxis,
-        uint32_t stepsBeforeDecel,
-        uint32_t maxStepRatePerTTicks)
-{
-#ifdef DEBUG_GENERATE_DETAILED_STATS
-    _curAccumulatorNS = curAccumulatorNS;
-    _curStepRatePerTTicks = curStepRatePerTTicks;
-    _axisIdxWithMaxSteps = axisIdxWithMaxSteps;
-    _accStepsPerTTicksPerMS = _accStepsPerTTicksPerMS;
-    _curStepCountMajorAxis = _curStepCountMajorAxis;
-    _stepsBeforeDecel = stepsBeforeDecel;
-    _maxStepRatePerTTicks = maxStepRatePerTTicks;
-#endif
-}
-
-void IRAM_ATTR RampGenerator::RampGenStats::stepDirn(uint32_t axisIdx, bool dirnPositive)
-{
-#ifdef DEBUG_GENERATE_DETAILED_STATS
-#endif
-}
-
-void IRAM_ATTR RampGenerator::RampGenStats::stepStart(uint32_t axisIdx)
-{
-#ifdef DEBUG_GENERATE_DETAILED_STATS
-#endif
 }

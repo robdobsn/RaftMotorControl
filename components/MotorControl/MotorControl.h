@@ -66,6 +66,9 @@ public:
         _motionController.setMaxMotorCurrentAmps(axisIdx, maxMotorCurrent);
     }
 
+    // Get debug str
+    String getDebugStr();
+
 private:
     // Motion controller
     MotionController _motionController;

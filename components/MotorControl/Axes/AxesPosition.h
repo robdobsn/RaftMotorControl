@@ -25,7 +25,7 @@ public:
         stepsFromHome.clear();
         _unitsFromHomeValid = false;
     }
-    bool unitsFromHomeValid()
+    bool unitsFromHomeValid() const
     {
         return _unitsFromHomeValid;
     }
