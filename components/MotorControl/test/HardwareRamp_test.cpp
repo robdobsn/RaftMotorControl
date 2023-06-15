@@ -53,7 +53,7 @@ ConfigBase testConfig = R"(
                 "name": "X",
                 "params": {
                     "unitsPerRot": 1,
-                    "stepsPerRot": 200,
+                    "stepsPerRot": 12800,
                     "maxSpeed": 50,
                     "maxAcc": 50
                 },
@@ -69,7 +69,7 @@ ConfigBase testConfig = R"(
                     "extVRef": 0,
                     "extMStep": 0,
                     "intpol": 1,
-                    "microsteps": 256,
+                    "microsteps": 64,
                     "rmsAmps": 0.01,
                     "holdModeOrFactor": 0.5,
                     "holdDelay": 1,
@@ -96,10 +96,6 @@ TEST_CASE("test_MotorControl", "[MotorControl]")
     motorControl.connectToBus(&busSerial);
     motorControl.postSetup();
 
-    // Get motor position
-    String motorInfo = motorControl.getDebugStr();
-    LOG_I(MODULE_PREFIX, "MotorInfo: %s", motorInfo.c_str());
-
     // Wait
     const int MAX_COUNT = 3000;
     for (int progressCount = 0; progressCount < MAX_COUNT; progressCount++)
@@ -110,7 +106,7 @@ TEST_CASE("test_MotorControl", "[MotorControl]")
         if (progressCount == 100)
         {
             // Motion command
-            String moveCmd = R"({"cmd":"motion","rel":1,"nosplit":1,"speed":10,"speedOk":1,"pos":[{"a":0,"p":10}]})";
+            String moveCmd = R"({"cmd":"motion","rel":1,"nosplit":1,"speed":1,"speedOk":1,"pos":[{"a":0,"p":1}]})";
             LOG_I(MODULE_PREFIX, "Start move X to 1000");
             motorControl.sendCmdJSON(moveCmd.c_str());
         }
@@ -121,8 +117,9 @@ TEST_CASE("test_MotorControl", "[MotorControl]")
         }
     }
 
-    // Check
-    String motorInfo2 = motorControl.getDebugStr();
-    LOG_I(MODULE_PREFIX, "MotorInfo: %s", motorInfo2.c_str());
-
+    // At the end of the test the position of the motor (axisIdx = 0, i.e. X axis) should be 1.0
+    bool isValid = false;
+    double xPos = motorControl.getNamedValue("x", isValid);
+    TEST_ASSERT(isValid);
+    TEST_ASSERT_EQUAL(xPos, 1.0);
 }
