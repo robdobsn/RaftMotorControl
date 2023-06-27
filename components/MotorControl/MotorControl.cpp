@@ -136,14 +136,14 @@ uint32_t MotorControl::getValsBinary(uint32_t formatCode, uint8_t* pBuf, uint32_
 // Send encoded command
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
+RaftRetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
 {
     // Check format code
     if (formatCode == MULTISTEPPER_CMD_BINARY_FORMAT_1)
     {
         // Check length ok
         if (dataLen < MULTISTEPPER_OPCODE_POS + 1)
-            return RaftRetCode::INVALID_DATA;
+            return RaftRetCode::RAFT_RET_INVALID_DATA;
 
         // Check op-code
         switch(pData[MULTISTEPPER_OPCODE_POS])
@@ -155,14 +155,14 @@ RaftRetCode::RetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint
             }
         }
     }
-    return RaftRetCode::OK;
+    return RaftRetCode::RAFT_RET_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Handle JSON command
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RaftRetCode::RetCode MotorControl::sendCmdJSON(const char* cmdJSON)
+RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 {
     // Extract command from JSON
     JSONParams jsonInfo(cmdJSON);
@@ -229,7 +229,7 @@ RaftRetCode::RetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 //             _evaluatorGCode.interpretGcode(gCode);
 //         }
 //     }
-    return RaftRetCode::OK;
+    return RaftRetCode::RAFT_RET_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

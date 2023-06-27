@@ -37,10 +37,10 @@ public:
     virtual double getNamedValue(const char* param, bool& isFresh) override final;
 
     // Send binary command
-    virtual RaftRetCode::RetCode sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen) override final;
+    virtual RaftRetCode sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen) override final;
 
     // Send JSON command
-    virtual RaftRetCode::RetCode sendCmdJSON(const char* jsonCmd) override final;
+    virtual RaftRetCode sendCmdJSON(const char* jsonCmd) override final;
 
     // Has capability
     virtual bool hasCapability(const char* pCapabilityStr) override final;
