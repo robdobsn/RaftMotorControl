@@ -7,7 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "StepDriverTMC2209.h"
-#include "ArduinoOrAlt.h"
+#include "RaftArduino.h"
 #include "math.h"
 
 static const char* MODULE_PREFIX = "StepDrv2209";

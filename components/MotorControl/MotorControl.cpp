@@ -143,7 +143,7 @@ RaftRetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint8_t* pDat
     {
         // Check length ok
         if (dataLen < MULTISTEPPER_OPCODE_POS + 1)
-            return RaftRetCode::RAFT_RET_INVALID_DATA;
+            return RAFT_INVALID_DATA;
 
         // Check op-code
         switch(pData[MULTISTEPPER_OPCODE_POS])
@@ -155,7 +155,7 @@ RaftRetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint8_t* pDat
             }
         }
     }
-    return RaftRetCode::RAFT_RET_OK;
+    return RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -229,7 +229,7 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 //             _evaluatorGCode.interpretGcode(gCode);
 //         }
 //     }
-    return RaftRetCode::RAFT_RET_OK;
+    return RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -11,7 +11,7 @@
 #include <esp_intr_alloc.h>
 #include <MotionPipelineIF.h>
 #include <RampGenTimer.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <StepDriverBase.h>
 #include <EndStops.h>
 #include <AxisInt32s.h>

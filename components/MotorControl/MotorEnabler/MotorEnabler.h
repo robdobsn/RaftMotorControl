@@ -10,7 +10,7 @@
 
 #include "RaftUtils.h"
 #include "time.h"
-#include "ArduinoOrAlt.h"
+#include "RaftArduino.h"
 #include "ConfigPinMap.h"
 
 class MotorEnabler

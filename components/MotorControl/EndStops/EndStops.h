@@ -10,7 +10,7 @@
 
 #include "stdint.h"
 #include "RaftUtils.h"
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 
 class EndStops
 {

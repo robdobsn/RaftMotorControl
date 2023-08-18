@@ -9,7 +9,7 @@
 #include <Logger.h>
 #include <MotorControl.h>
 #include <BusSerial.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <limits.h>
 #include "unity.h"
 

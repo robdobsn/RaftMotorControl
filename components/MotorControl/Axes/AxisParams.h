@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include "RdJson.h"
+#include "RaftJson.h"
 #include <Logger.h>
 #include <RaftUtils.h>
 #include "AxisValues.h"
@@ -97,18 +97,18 @@ public:
     void setFromJSON(const char *axisJSON)
     {
         // Stepper motor
-        _maxVelocityUnitsPerSec = AxisVelocityDataType(RdJson::getDouble("maxSpeed", AxisParams::maxVelocity_default, axisJSON));
-        _maxAccelUnitsPerSec2 = AxisAccDataType(RdJson::getDouble("maxAcc", AxisParams::acceleration_default, axisJSON));
-        _stepsPerRot = AxisStepsFactorDataType(RdJson::getDouble("stepsPerRot", AxisParams::stepsPerRot_default, axisJSON));
-        _unitsPerRot = AxisPosFactorDataType(RdJson::getDouble("unitsPerRot", AxisParams::posUnitsPerRot_default, axisJSON));
-        _maxRPM = AxisRPMDataType(RdJson::getDouble("maxRPM", AxisParams::maxRPM_default, axisJSON));
-        _minVal = AxisPosDataType(RdJson::getDouble("minVal", 0, _minValValid, axisJSON));
-        _maxVal = AxisPosDataType(RdJson::getDouble("maxVal", 0, _maxValValid, axisJSON));
-        _homeOffsetVal = AxisPosDataType(RdJson::getDouble("homeOffsetVal", 0, axisJSON));
-        _homeOffSteps = AxisStepsDataType(RdJson::getDouble("homeOffSteps", 0, axisJSON));
-        _isDominantAxis = RdJson::getBool("isDominantAxis", 0, axisJSON);
-        _isPrimaryAxis = RdJson::getBool("isPrimaryAxis", 1, axisJSON);
-        _isServoAxis = RdJson::getBool("isServoAxis", 0, axisJSON);
+        _maxVelocityUnitsPerSec = AxisVelocityDataType(RaftJson::getDouble("maxSpeed", AxisParams::maxVelocity_default, axisJSON));
+        _maxAccelUnitsPerSec2 = AxisAccDataType(RaftJson::getDouble("maxAcc", AxisParams::acceleration_default, axisJSON));
+        _stepsPerRot = AxisStepsFactorDataType(RaftJson::getDouble("stepsPerRot", AxisParams::stepsPerRot_default, axisJSON));
+        _unitsPerRot = AxisPosFactorDataType(RaftJson::getDouble("unitsPerRot", AxisParams::posUnitsPerRot_default, axisJSON));
+        _maxRPM = AxisRPMDataType(RaftJson::getDouble("maxRPM", AxisParams::maxRPM_default, axisJSON));
+        _minVal = AxisPosDataType(RaftJson::getDouble("minVal", 0, _minValValid, axisJSON));
+        _maxVal = AxisPosDataType(RaftJson::getDouble("maxVal", 0, _maxValValid, axisJSON));
+        _homeOffsetVal = AxisPosDataType(RaftJson::getDouble("homeOffsetVal", 0, axisJSON));
+        _homeOffSteps = AxisStepsDataType(RaftJson::getDouble("homeOffSteps", 0, axisJSON));
+        _isDominantAxis = RaftJson::getBool("isDominantAxis", 0, axisJSON);
+        _isPrimaryAxis = RaftJson::getBool("isPrimaryAxis", 1, axisJSON);
+        _isServoAxis = RaftJson::getBool("isServoAxis", 0, axisJSON);
     }
 
     void debugLog(int axisIdx)

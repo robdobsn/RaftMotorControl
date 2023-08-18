@@ -9,7 +9,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 
 #define RAMP_GEN_DETAILED_STATS
 

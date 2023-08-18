@@ -17,7 +17,7 @@
 #include "MotionBlock.h"
 #include "StepDriverBase.h"
 #include "EndStops.h"
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 
 static const char* MODULE_PREFIX = "RampGeneratorTest";
 

@@ -192,7 +192,7 @@ public:
 
     //     // Get params
     //     String axisIdStr = "axis" + String(axisIdx);
-    //     axisJSON = RdJson::getString(axisIdStr.c_str(), "{}", robotConfigJSON);
+    //     axisJSON = RaftJson::getString(axisIdStr.c_str(), "{}", robotConfigJSON);
     //     if (axisJSON.length() == 0 || axisJSON.equals("{}"))
     //         return false;
 

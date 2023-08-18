@@ -9,7 +9,7 @@
 #pragma once
 
 #include <stdint.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include "esp_attr.h"
 #include <Logger.h>
 #include <JSONParams.h>

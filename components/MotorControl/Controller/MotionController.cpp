@@ -14,7 +14,7 @@
 #include <StepDriverBase.h>
 #include <StepDriverTMC2209.h>
 #include "EndStops.h"
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 
 #define DEBUG_STEPPER_SETUP_CONFIG
 #define DEBUG_RAMP_SETUP_CONFIG

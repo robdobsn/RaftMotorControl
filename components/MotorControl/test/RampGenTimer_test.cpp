@@ -8,7 +8,7 @@
 
 #include <Logger.h>
 #include <RampGenTimer.h>
-#include <ArduinoOrAlt.h>
+#include <RaftArduino.h>
 #include <limits.h>
 #include "unity.h"
 
