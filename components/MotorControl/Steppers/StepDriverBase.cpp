@@ -27,16 +27,6 @@ static const char* MODULE_PREFIX = "StepDrvBase";
 
 StepDriverBase::StepDriverBase()
 {
-    _serialBusAddress = 0;
-    _readBytesRequired = 0;
-    _readStartTimeMs = 0;
-    _readRegisterIdx = 0;
-    _singleWireReadWrite = false;
-    _tmcSyncByte = 0;
-    _useBusForDirectionReversal = false;
-    _hwIsSetup = false;
-    _pSerialBus = nullptr;
-    _usingISR = true; 
 }
 
 StepDriverBase::~StepDriverBase()
@@ -155,14 +145,6 @@ bool StepDriverBase::driverBusy()
     if (busValid() && !_pSerialBus->isReady())
         return true;
     return false;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Set microsteps
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void StepDriverBase::setMicrosteps(uint32_t microsteps)
-{
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

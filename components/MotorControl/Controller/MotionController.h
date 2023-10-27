@@ -122,16 +122,16 @@ private:
     MotorEnabler _motorEnabler;
 
     // Ramp timer enabled
-    bool _rampTimerEn;
+    bool _rampTimerEn = false;
 
     // Homing needed
-    bool _homingNeededBeforeAnyMove;
+    bool _homingNeededBeforeAnyMove = true;
 
     // Block distance
-    double _blockDistance;
+    double _blockDistance = 0.0f;
 
     // Pause status
-    bool _isPaused;
+    bool _isPaused = false;
 
     // Helpers
     void deinit();
@@ -155,7 +155,7 @@ private:
     static constexpr uint32_t MAX_TIME_BEFORE_STOP_COMPLETE_MS = 500;
 
     // Debug
-    uint32_t _debugLastLoopMs;
+    uint32_t _debugLastLoopMs = 0;
 
 #ifdef DEBUG_MOTION_CONTROL_TIMER
     volatile uint32_t _testRampGenCount;

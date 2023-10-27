@@ -61,20 +61,23 @@ public:
 
 private:
     // If this is true nothing will move
-    volatile bool _isPaused;
+    volatile bool _isPaused = true;
+
+    // Stop is pending
+    volatile bool _stopPending = false;
 
     // Steps moved in total and increment based on direction
-    volatile int32_t _axisTotalSteps[AXIS_VALUES_MAX_AXES];
-    volatile int32_t _totalStepsInc[AXIS_VALUES_MAX_AXES];
+    volatile int32_t _axisTotalSteps[AXIS_VALUES_MAX_AXES] = {0};
+    volatile int32_t _totalStepsInc[AXIS_VALUES_MAX_AXES] = {0};
 
     // Pipeline of blocks to be processed
     MotionPipelineIF& _motionPipeline;
 
     // Ramp generation timer
     RampGenTimer& _rampGenTimer;
-    bool _useRampGenTimer;
-    uint32_t _stepGenPeriodNs;
-    uint32_t _minStepRatePerTTicks;
+    bool _useRampGenTimer = false;
+    uint32_t _stepGenPeriodNs = 0;
+    uint32_t _minStepRatePerTTicks = 0;
 
     // Steppers
     std::vector<StepDriverBase*> _stepperDrivers;
@@ -83,22 +86,22 @@ private:
     std::vector<EndStops*> _axisEndStops;
 
     // Ramp generation enabled
-    bool _rampGenEnabled;
+    bool _rampGenEnabled = false;
     // Last completed numbered command
     // volatile int _lastDoneNumberedCmdIdx;
     // Steps
-    volatile uint32_t _stepsTotalAbs[AXIS_VALUES_MAX_AXES];
-    volatile uint32_t _curStepCount[AXIS_VALUES_MAX_AXES];
+    volatile uint32_t _stepsTotalAbs[AXIS_VALUES_MAX_AXES] = {0};
+    volatile uint32_t _curStepCount[AXIS_VALUES_MAX_AXES] = {0};
     // Current step rate (in steps per K ticks)
-    volatile uint32_t _curStepRatePerTTicks;
+    volatile uint32_t _curStepRatePerTTicks = 0;
     // Accumulators for stepping and acceleration increments
-    volatile uint32_t _curAccumulatorStep;
-    volatile uint32_t _curAccumulatorNS;
-    volatile uint32_t _curAccumulatorRelative[AXIS_VALUES_MAX_AXES];
+    volatile uint32_t _curAccumulatorStep = 0;
+    volatile uint32_t _curAccumulatorNS = 0;
+    volatile uint32_t _curAccumulatorRelative[AXIS_VALUES_MAX_AXES] = {0};
 
     // End stop handling
-    volatile bool _endStopReached;
-    volatile int _endStopCheckNum;
+    volatile bool _endStopReached = false;
+    volatile int _endStopCheckNum = 0;
     struct EndStopChecks
     {
         uint8_t axisIdx;
@@ -122,8 +125,8 @@ private:
     static void rampGenTimerCallback(void* pObject);
 
     // ISR count
-    volatile uint32_t _isrCount;
+    volatile uint32_t _isrCount = 0;
 
     // Debug
-    uint32_t _debugLastQueuePeekMs;
+    uint32_t _debugLastQueuePeekMs = 0;
 };

@@ -20,13 +20,6 @@ public:
 
     MotorEnabler()
     {
-        // Stepper motor enablement
-        _stepEnablePin = -1;
-        _stepEnLev = true;
-        _stepDisableSecs = 60.0;
-        _motorEnLastMillis = 0;
-        _motorEnLastUnixTime = 0;
-        _motorsAreEnabled = false;
     }
     ~MotorEnabler()
     {
@@ -104,16 +97,18 @@ public:
 
     void setMotorOnTimeAfterMoveSecs(float motorOnTimeAfterMoveSecs)
     {
+        if (motorOnTimeAfterMoveSecs <= 0)
+            motorOnTimeAfterMoveSecs = 1;
         _stepDisableSecs = motorOnTimeAfterMoveSecs;
     }
 
 private:
     // Step enable
-    int _stepEnablePin;
+    int _stepEnablePin = -1;
     bool _stepEnLev = true;
     // Motor enable
-    float _stepDisableSecs;
-    bool _motorsAreEnabled;
-    unsigned long _motorEnLastMillis;
-    time_t _motorEnLastUnixTime;
+    float _stepDisableSecs = 10;
+    bool _motorsAreEnabled = false;
+    unsigned long _motorEnLastMillis = 0;
+    time_t _motorEnLastUnixTime = 0;
 };

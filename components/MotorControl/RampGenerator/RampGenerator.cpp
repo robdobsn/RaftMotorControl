@@ -36,19 +36,8 @@ RampGenerator::RampGenerator(MotionPipelineIF& motionPipeline, RampGenTimer& ram
             _motionPipeline(motionPipeline), 
             _rampGenTimer(rampGenTimer)
 {
-    _useRampGenTimer = false;
     _stepGenPeriodNs = rampGenTimer.getPeriodUs() * 1000;
     _minStepRatePerTTicks = MotionBlock::calcMinStepRatePerTTicks(_stepGenPeriodNs);
-    _rampGenEnabled = false;
-    _isPaused = true;
-    _endStopReached = false;
-    // _lastDoneNumberedCmdIdx = RobotConsts::NUMBERED_COMMAND_NONE;
-    _curStepRatePerTTicks = 0;
-    _curAccumulatorStep = 0;
-    _curAccumulatorNS = 0;
-    _endStopCheckNum = 0;
-    _isrCount = 0;
-    _debugLastQueuePeekMs = 0;
     resetTotalStepPosition();
 
     // Debug
@@ -114,12 +103,12 @@ void RampGenerator::service()
 void RampGenerator::enable(bool en)
 {
     _rampGenEnabled = en;
+    _stopPending = false;
 }
 
 void RampGenerator::stop()
 {
-    _isPaused = true;
-    _endStopReached = false;
+    _stopPending = true;
 }
 
 void RampGenerator::pause(bool pauseIt)
@@ -450,6 +439,14 @@ void IRAM_ATTR RampGenerator::generateMotionPulses()
             LOG_I(MODULE_PREFIX, "generateMotionPulses stepEnd true exiting");
         }
 #endif
+        return;
+    }
+
+    // Check stop pending
+    if (_stopPending)
+    {
+        _motionPipeline.clear();
+        _stopPending = false;
         return;
     }
 

@@ -101,44 +101,43 @@ public:
 
     // Requested max velocity for move - either axis units-per-sec or 
     // stepsPerSec depending if move is stepwise
-    AxisVelocityDataType _requestedVelocity;
+    AxisVelocityDataType _requestedVelocity = 0;
     // Distance (pythagorean) to move considering primary axes only
-    AxisDistDataType _moveDistPrimaryAxesMM;
+    AxisDistDataType _moveDistPrimaryAxesMM = 0;
     // Unit vector on axis with max movement
-    AxisUnitVectorDataType _unitVecAxisWithMaxDist;
+    AxisUnitVectorDataType _unitVecAxisWithMaxDist = 0;
     // Computed max entry speed for a block based on max junction deviation calculation
-    AxisVelocityDataType _maxEntrySpeedMMps;
+    AxisVelocityDataType _maxEntrySpeedMMps = 0;
     // Computed entry speed for this block
-    AxisVelocityDataType _entrySpeedMMps;
+    AxisVelocityDataType _entrySpeedMMps = 0;
     // Computed exit speed for this block
-    AxisVelocityDataType _exitSpeedMMps;
+    AxisVelocityDataType _exitSpeedMMps = 0;
     // End-stops to test
     AxisEndstopChecks _endStopsToCheck;
 
     // Steps to target and before deceleration
-    int32_t _stepsTotalMaybeNeg[AXIS_VALUES_MAX_AXES];
-    int _axisIdxWithMaxSteps;
-    uint32_t _stepsBeforeDecel;
+    int32_t _stepsTotalMaybeNeg[AXIS_VALUES_MAX_AXES] = {0};
+    int _axisIdxWithMaxSteps = 0;
+    uint32_t _stepsBeforeDecel = 0;
 
     // Stepping acceleration/deceleration profile
-    uint32_t _initialStepRatePerTTicks;
-    uint32_t _maxStepRatePerTTicks;
-    uint32_t _finalStepRatePerTTicks;
-    uint32_t _accStepsPerTTicksPerMS;    
+    uint32_t _initialStepRatePerTTicks = 0;
+    uint32_t _maxStepRatePerTTicks = 0;
+    uint32_t _finalStepRatePerTTicks = 0;
+    uint32_t _accStepsPerTTicksPerMS = 0;
 
     // Motion tracking index - to help keep track of motion execution from other processes
     // like homing
-    uint32_t _motionTrackingIndex;
+    uint32_t _motionTrackingIndex = 0;
 
 private:
     // Step distance in MM
-    double _debugStepDistMM;
+    double _debugStepDistMM = 0;
 
     // Ticks per second
-    double _ticksPerSec;
+    double _ticksPerSec = 0;
 
     // Helpers
     template<typename T>
     void forceInBounds(T &val, T lowBound, T highBound);
-
 };

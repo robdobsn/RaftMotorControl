@@ -23,7 +23,7 @@ public:
     // Service - called frequently
     virtual void service() override final;
 
-    // Set microsteps
+    // Microsteps
     virtual void setMicrosteps(uint32_t microsteps) override final;
 
     // Set direction

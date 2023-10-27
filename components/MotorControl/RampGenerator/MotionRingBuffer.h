@@ -13,9 +13,9 @@
 class MotionRingBufferPosn
 {
   public:
-    volatile unsigned int _putPos;
-    volatile unsigned int _getPos;
-    unsigned int _bufLen;
+    volatile unsigned int _putPos = 0;
+    volatile unsigned int _getPos = 0;
+    unsigned int _bufLen = 0;
 
     MotionRingBufferPosn(int maxLen)
     {

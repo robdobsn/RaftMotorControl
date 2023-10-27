@@ -46,7 +46,8 @@ public:
         _isHoming = false;
         _feedrateUnitsPerMin = false;
         _enableMotors = true;
-        _preClearMotionQueue = false;        
+        _preClearMotionQueue = false;
+        _stopMotion = false;     
 
         // Reset values to sensible levels
         _targetSpeed = 0;
@@ -134,6 +135,10 @@ public:
     bool isClearQueue() const
     {
         return _preClearMotionQueue;
+    }
+    bool isStopMotion() const
+    {
+        return _stopMotion;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -368,24 +373,25 @@ public:
 private:
 
     // Version of this structure
-    uint8_t _motionArgsStructVersion;
+    uint8_t _motionArgsStructVersion = 0;
 
     // Flags
-    bool _isRelative;
-    bool _linearNoRamp;
-    bool _unitsAreSteps;
-    bool _dontSplitMove;
-    bool _extrudeValid;
-    bool _targetSpeedValid;
-    bool _moveClockwise;
-    bool _moveRapid;
-    bool _allowOutOfBounds;
-    bool _moreMovesComing;
-    bool _isHoming;
-    bool _motionTrackingIndexValid;
-    bool _feedrateUnitsPerMin;
-    bool _enableMotors;
-    bool _preClearMotionQueue;
+    bool _isRelative = false;
+    bool _linearNoRamp = false;
+    bool _unitsAreSteps = false;
+    bool _dontSplitMove = false;
+    bool _extrudeValid = false;
+    bool _targetSpeedValid = false;
+    bool _moveClockwise = false;
+    bool _moveRapid = false;
+    bool _allowOutOfBounds = false;
+    bool _moreMovesComing = false;
+    bool _isHoming = false;
+    bool _motionTrackingIndexValid = false;
+    bool _feedrateUnitsPerMin = false;
+    bool _enableMotors = false;
+    bool _preClearMotionQueue = false;
+    bool _stopMotion = false;
 
     // Boolean flags
     class FieldDefType {
@@ -403,19 +409,19 @@ private:
     std::vector<FieldDefType> getFieldDefs();
 
     // Target speed (like an absolute feedrate)
-    double _targetSpeed;
+    double _targetSpeed = 0;
 
     // Extrude distance
-    double _extrudeDistance;
+    double _extrudeDistance = 0;
 
     // Feedrate is a percentage (unless _feedrateUnitsPerMin is set)
-    double _feedrate;
+    double _feedrate = 100;
 
     // Current as percentage of max current
-    double _ampsPercentOfMax;
+    double _ampsPercentOfMax = 0;
 
     // Motion tracking index - used to track execution of motion requests
-    uint32_t _motionTrackingIdx;
+    uint32_t _motionTrackingIdx = 0;
 
     // End stops
     AxisEndstopChecks _endstops;
@@ -423,8 +429,8 @@ private:
     // Coords
     // When _unitsAreSteps flag is true these represent the position in steps
     // When _unitsAreSteps flag is false units are axes units (defined in axes config)
-    bool _axisValid[MULTISTEPPER_MAX_AXES];
-    double _axisPos[MULTISTEPPER_MAX_AXES];
+    bool _axisValid[MULTISTEPPER_MAX_AXES] = {false};
+    double _axisPos[MULTISTEPPER_MAX_AXES] = {0.0};
 
     // // Helpers
     // String axisPosToJsonArray()

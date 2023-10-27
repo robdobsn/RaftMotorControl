@@ -36,18 +36,15 @@ MotionBlockManager::MotionBlockManager(MotionPipeline& motionPipeline,
 
 MotionBlockManager::~MotionBlockManager()
 {
+    // Remove geometry
+    if (_pAxisGeometry)
+        delete _pAxisGeometry;
 }
 
 void MotionBlockManager::clear()
 {
     _numBlocks = 0;
     _nextBlockIdx = 0;
-    _pAxisGeometry = NULL;
-    _allowAllOutOfBounds = false;
-    _homingNeededBeforeAnyMove = true;
-    // Remove geometry
-    if (_pAxisGeometry)
-        delete _pAxisGeometry;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

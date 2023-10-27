@@ -37,20 +37,20 @@ public:
 
 private:
     // Minimum planner speed mm/s
-    float _minimumPlannerSpeedMMps;
+    float _minimumPlannerSpeedMMps = 0.0f;
     // Junction deviation
-    float _junctionDeviation;
+    float _junctionDeviation = 0.0f;
     // Step generation timer period ns
-    uint32_t _stepGenPeriodNs;
+    uint32_t _stepGenPeriodNs = 0;
 
     // Structure to store details on last processed block
     struct MotionBlockSequentialData
     {
         AxesParamVals<AxisUnitVectorDataType> _unitVectors;
-        float _maxParamSpeedMMps;
+        float _maxParamSpeedMMps = 0.0f;
     };
     // Data on previously processed block
-    bool _prevMotionBlockValid;
+    bool _prevMotionBlockValid = false;
     MotionBlockSequentialData _prevMotionBlock;
 
     // Recalculate

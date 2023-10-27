@@ -29,10 +29,17 @@ public:
     // Service - called frequently
     virtual void service();
 
-    // Set microsteps
-    virtual void setMicrosteps(uint32_t microsteps);
+    // Microsteps
+    virtual void setMicrosteps(uint32_t microsteps)
+    {
+        _microsteps = microsteps;
+    }
+    virtual uint32_t getMicrosteps()
+    {
+        return _microsteps;
+    }
 
-    // Set direction
+    // Direction
     virtual void setDirection(bool dirn, bool forceSet = false) = 0;
 
     // Start and end a single step
@@ -141,36 +148,39 @@ protected:
     }
 
     // Bus used for communication with driver
-    BusBase* _pSerialBus;
-    uint8_t _serialBusAddress;
+    BusBase* _pSerialBus = nullptr;
+    uint8_t _serialBusAddress = 0;
     String _name;
-    bool _useBusForDirectionReversal;
+    bool _useBusForDirectionReversal = false;
 
     // Stepping parameters
     StepDriverParams _stepperParams;
 
     // Hardware has been initialised
-    bool _hwIsSetup;
+    bool _hwIsSetup = false;
 
     // Single wire used for read and write (e.g. on TMC2209 UART)
-    bool _singleWireReadWrite;
+    bool _singleWireReadWrite = false;
 
     // Driver registers
     std::vector<DriverRegisterMap> _driverRegisters;
 
     // In the case of single-wire read/write some data must be ignored
-    uint32_t _readBytesToIgnore;
+    uint32_t _readBytesToIgnore = 0;
 
     // Read operation info
-    uint32_t _readBytesRequired;
-    uint32_t _readStartTimeMs;
-    uint32_t _readRegisterIdx;
+    uint32_t _readBytesRequired = 0;
+    uint32_t _readStartTimeMs = 0;
+    uint32_t _readRegisterIdx = 0;
 
     // Sync byte for specific chip
-    uint8_t _tmcSyncByte;
+    uint8_t _tmcSyncByte = 0;
+
+    // Microsteps
+    uint32_t _microsteps = 0;
 
     // Using ISR - so avoid logging, etc
-    bool _usingISR;
+    bool _usingISR = false;
     
     // Consts
     static const uint32_t READ_TIMEOUT_MS = 4;

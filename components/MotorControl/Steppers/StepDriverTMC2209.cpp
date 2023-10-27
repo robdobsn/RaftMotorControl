@@ -219,6 +219,7 @@ void StepDriverTMC2209::setMicrosteps(uint32_t microsteps)
     uint32_t mres = getMRESFieldValue(microsteps);
     setRegBits(DRIVER_REGISTER_CODE_CHOPCONF, TMC_2209_CHOPCONF_MRES_MASK, 
                 mres << TMC_2209_CHOPCONF_MRES_BIT);
+    _microsteps = microsteps;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

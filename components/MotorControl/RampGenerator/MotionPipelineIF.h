@@ -19,4 +19,7 @@ public:
 
     // Remove last element from queue
     virtual bool remove() = 0;
+
+    // Clear the pipeline
+    virtual void clear() = 0;
 };

@@ -35,20 +35,20 @@ public:
 
 private:
     // Stats
-    uint64_t _isrStartUs;
-    uint64_t _isrAccUs;
-    uint32_t _isrCount;
-    float _isrAvgUs;
-    bool _isrAvgValid;
-    uint32_t _isrMaxUs;
+    uint64_t _isrStartUs = 0;
+    uint64_t _isrAccUs = 0;
+    uint32_t _isrCount = 0;
+    float _isrAvgUs = 0;
+    bool _isrAvgValid = false;
+    uint32_t _isrMaxUs = 0;
 #ifdef RAMP_GEN_DETAILED_STATS
-    uint32_t _curAccumulatorStep;
-    uint32_t _curStepRatePerTTicks;
-    uint32_t _curAccumulatorNS;
-    int _axisIdxWithMaxSteps;
-    uint32_t _accStepsPerTTicksPerMS;
-    uint32_t _curStepCountMajorAxis;
-    uint32_t _stepsBeforeDecel;
-    uint32_t _maxStepRatePerTTicks;
+    uint32_t _curAccumulatorStep = 0;
+    uint32_t _curStepRatePerTTicks = 0;
+    uint32_t _curAccumulatorNS = 0;
+    int _axisIdxWithMaxSteps = -1;
+    uint32_t _accStepsPerTTicksPerMS = 0;
+    uint32_t _curStepCountMajorAxis = 0;
+    uint32_t _stepsBeforeDecel = 0;
+    uint32_t _maxStepRatePerTTicks = 0;
 #endif
 };

@@ -49,32 +49,6 @@ MotionController::MotionController() :
             _rampGenerator(_motionPipeline, _rampGenTimer),
             _blockManager(_motionPipeline, _motorEnabler, _axesParams)
 {
-    // Debug
-    _debugLastLoopMs = 0;
-
-    _blockDistance = 0;
-    _rampTimerEn = false;
-    _homingNeededBeforeAnyMove = true;
-
-    // // Init
-    // _isPaused = false;
-    // _moveRelative = false;
-    // // Clear axis current location
-    // _lastCommandedAxisPos.clear();
-    // _rampGenerator.resetTotalStepPosition();
-    // _trinamicsController.resetTotalStepPosition();
-    // // Coordinate conversion management
-    // _ptToActuatorFn = NULL;
-    // _actuatorToPtFn = NULL;
-    // _correctStepOverflowFn = NULL;
-    // // Handling of splitting-up of motion into smaller blocks
-    // _blocksToAddTotal = 0;    
-    // // Init callbacks
-    // _ptToActuatorFn = nullptr;
-    // _actuatorToPtFn = nullptr;
-    // _correctStepOverflowFn = nullptr;
-    // _convertCoordsFn = nullptr;
-    // _setRobotAttributes = nullptr;
 }
 
 MotionController::~MotionController()
@@ -238,6 +212,12 @@ bool MotionController::isBusy() const
 
 bool MotionController::moveTo(const MotionArgs &args)
 {
+    // Handle stop
+    if (args.isStopMotion())
+    {
+        _rampGenerator.stop();
+    }
+    
     // Handle clear queue
     if (args.isClearQueue())
     {

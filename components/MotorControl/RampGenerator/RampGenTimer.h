@@ -71,7 +71,7 @@ private:
 
 #else
     // Timer handle
-    gptimer_handle_t _timerHandle;
+    gptimer_handle_t _timerHandle = nullptr;
 
 #endif
 
@@ -81,8 +81,8 @@ private:
     // Hook info for timer callback
     struct TimerCBHook
     {
-        RampGenTimerCB timerCB;
-        void* pObject;
+        RampGenTimerCB timerCB = nullptr;
+        void* pObject = nullptr;
     };
     // Vector of callback hooks
     static const uint32_t MAX_TIMER_CB_HOOKS = 20;
