@@ -411,7 +411,7 @@ void MotionController::setupAxes(const ConfigBase& config, const char* pConfigPr
 {
     // Setup stepper driver array
     _stepperDrivers.resize(AXIS_VALUES_MAX_AXES);
-    for (StepDriverBase*& pDriver : _stepperDrivers)
+    for (auto& pDriver : _stepperDrivers)
         pDriver = nullptr;
 
     // Setup axes params
@@ -453,42 +453,37 @@ void MotionController::setupAxisHardware(uint32_t axisIdx, const ConfigBase& con
 // Setup stepper driver
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, const ConfigBase& mainConfig)
+void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonPrefix, const ConfigBase& config)
 {
-    // TODO refactor to use JSON paths
-
-    // Extract element config
-    ConfigBase config = mainConfig.getString(jsonElem, "{}");
-
     // Stepper handler
-    String hwLocation = config.getString("hw", DEFAULT_HARDWARE_LOCATION);
-    String driverType = config.getString("driver", DEFAULT_DRIVER_CHIP);
+    String hwLocation = config.getString("hw", DEFAULT_HARDWARE_LOCATION, jsonPrefix);
+    String driverType = config.getString("driver", DEFAULT_DRIVER_CHIP, jsonPrefix);
 
     // Stepper parameters
     StepDriverParams stepperParams;
 
     // Get step controller settings
-    stepperParams.microsteps = config.getLong("microsteps", StepDriverParams::MICROSTEPS_DEFAULT);
-    stepperParams.writeOnly = config.getBool("writeOnly", 0);
+    stepperParams.microsteps = config.getLong("microsteps", StepDriverParams::MICROSTEPS_DEFAULT, jsonPrefix);
+    stepperParams.writeOnly = config.getBool("writeOnly", 0, jsonPrefix);
 
     // Get hardware stepper params
-    String stepPinName = config.getString("stepPin", "-1");
+    String stepPinName = config.getString("stepPin", "-1", jsonPrefix);
     stepperParams.stepPin = ConfigPinMap::getPinFromName(stepPinName.c_str());
-    String dirnPinName = config.getString("dirnPin", "-1");
+    String dirnPinName = config.getString("dirnPin", "-1", jsonPrefix);
     stepperParams.dirnPin = ConfigPinMap::getPinFromName(dirnPinName.c_str());
-    stepperParams.invDirn = config.getBool("invDirn", 0);
-    stepperParams.extSenseOhms = config.getDouble("extSenseOhms", StepDriverParams::EXT_SENSE_OHMS_DEFAULT);
-    stepperParams.extVRef = config.getBool("extVRef", false);
-    stepperParams.extMStep = config.getBool("extMStep", false);
-    stepperParams.intpol = config.getBool("intpol", false);
-    stepperParams.minPulseWidthUs = config.getLong("minPulseWidthUs", 1);
-    stepperParams.rmsAmps = config.getDouble("rmsAmps", StepDriverParams::RMS_AMPS_DEFAULT);
-    stepperParams.holdDelay = config.getLong("holdDelay", StepDriverParams::IHOLD_DELAY_DEFAULT);
-    stepperParams.pwmFreqKHz = config.getDouble("pwmFreqKHz", StepDriverParams::PWM_FREQ_KHZ_DEFAULT);
-    stepperParams.address = config.getLong("addr", 0);
+    stepperParams.invDirn = config.getBool("invDirn", 0, jsonPrefix);
+    stepperParams.extSenseOhms = config.getDouble("extSenseOhms", StepDriverParams::EXT_SENSE_OHMS_DEFAULT, jsonPrefix);
+    stepperParams.extVRef = config.getBool("extVRef", false, jsonPrefix);
+    stepperParams.extMStep = config.getBool("extMStep", false, jsonPrefix);
+    stepperParams.intpol = config.getBool("intpol", false, jsonPrefix);
+    stepperParams.minPulseWidthUs = config.getLong("minPulseWidthUs", 1, jsonPrefix);
+    stepperParams.rmsAmps = config.getDouble("rmsAmps", StepDriverParams::RMS_AMPS_DEFAULT, jsonPrefix);
+    stepperParams.holdDelay = config.getLong("holdDelay", StepDriverParams::IHOLD_DELAY_DEFAULT, jsonPrefix);
+    stepperParams.pwmFreqKHz = config.getDouble("pwmFreqKHz", StepDriverParams::PWM_FREQ_KHZ_DEFAULT, jsonPrefix);
+    stepperParams.address = config.getLong("addr", 0, jsonPrefix);
 
     // Hold mode
-    String holdModeStr = config.getString("holdModeOrFactor", "1.0");
+    String holdModeStr = config.getString("holdModeOrFactor", "1.0", jsonPrefix);
     if (holdModeStr.equalsIgnoreCase("freewheel"))
     {
         stepperParams.holdMode = StepDriverParams::HOLD_MODE_FREEWHEEL;
@@ -619,15 +614,13 @@ void MotionController::setupRampGenerator(const char* jsonElem, const ConfigBase
 // Setup motor enabler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupMotorEnabler(const char* jsonElem, const ConfigBase& mainConfig, const char* pConfigPrefix)
+void MotionController::setupMotorEnabler(const char* jsonElem, const ConfigBase& config, const char* pConfigPrefix)
 {
-    // TODO refactor to use JSON paths
-
-    // Configure the motor enabler
-    ConfigBase enablerConfig = mainConfig.getString(jsonElem, "{}", pConfigPrefix);
+    // Path string
+    String pathStr = String(pConfigPrefix) + "/" + String(jsonElem);
 
     // Setup
-    _motorEnabler.setup(enablerConfig);
+    _motorEnabler.setup(config, pathStr.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -705,152 +698,3 @@ String MotionController::getDebugStr() const
     str += getLastMonitoredPos().getDebugStr();
     return str;
 }
-
-#ifdef asdasdasd
-
-// Each robot has a set of functions that transform points from real-world coordinates
-// to actuator coordinates
-// There is also a function to correct step overflow which is important in robots
-// which have continuous rotation as step counts would otherwise overflow 32bit integer values
-void MotionController::setTransforms(ptToActuatorFnType ptToActuatorFn, actuatorToPtFnType actuatorToPtFn,
-                                 correctStepOverflowFnType correctStepOverflowFn,
-                                 convertCoordsFnType convertCoordsFn, setRobotAttributesFnType setRobotAttributes)
-{
-    // Store callbacks
-    _ptToActuatorFn = ptToActuatorFn;
-    _actuatorToPtFn = actuatorToPtFn;
-    _correctStepOverflowFn = correctStepOverflowFn;
-    _convertCoordsFn = convertCoordsFn;
-    _setRobotAttributes = setRobotAttributes;
-}
-
-
-// Check if a command can be accepted into the motion pipeline
-bool MotionController::canAccept()
-{
-    // Check if homing in progress
-    if (_motionHoming.isHomingInProgress())
-        return false;
-    // Check that the motion pipeline can accept new data
-    return (_blocksToAddTotal == 0) && _motionPipeline.canAccept();
-}
-
-// Stop
-void MotionController::stop()
-{
-    _blocksToAddTotal = 0;
-    _stopRequested = true;
-    _stopRequestTimeMs = millis();
-    _rampGenerator.stop();
-    _trinamicsController.stop();
-    _motionPipeline.clear();
-    pause(false);
-    setCurPosActualPosition();
- }
-
-// Check if idle
-bool MotionController::isIdle()
-{
-    return !_motionPipeline.canGet();
-}
-
-void MotionController::setCurPosActualPosition()
-{
-    // Get final position of actuator after a short delay to attempt to
-    // ensure any final step is completed
-    delayMicroseconds(100);
-    AxisInt32s actuatorPos;
-    if (_trinamicsController.isRampGenerator())
-        _trinamicsController.getTotalStepPosition(actuatorPos);
-    else
-        _rampGenerator.getTotalStepPosition(actuatorPos);
-    AxesPosMM curPosMM;
-    if (_actuatorToPtFn)
-        _actuatorToPtFn(actuatorPos, curPosMM, _lastCommandedAxisPos, _axesParams);
-    _lastCommandedAxisPos.unitsFromHome = curPosMM;
-    _lastCommandedAxisPos.stepsFromHome = actuatorPos;
-#ifdef DEBUG_MOTION_CONTROLLER
-    LOG_I(MODULE_PREFIX, "stop absAxes X%0.2f Y%0.2f Z%0.2f steps %d,%d,%d",
-                _lastCommandedAxisPos.unitsFromHome.getVal(0),
-                _lastCommandedAxisPos.unitsFromHome.getVal(1),
-                _lastCommandedAxisPos.unitsFromHome.getVal(2),
-                _lastCommandedAxisPos.stepsFromHome.getVal(0),
-                _lastCommandedAxisPos.stepsFromHome.getVal(1),
-                _lastCommandedAxisPos.stepsFromHome.getVal(2));
-#endif
-}
-
-// Set parameters such as relative vs absolute motion
-void MotionController::setMotionParams(RobotCommandArgs &args)
-{
-    // Check for relative movement specified and set accordingly
-    if (args.getMoveType() != RobotMoveTypeArg_None)
-        _moveRelative = (args.getMoveType() == RobotMoveTypeArg_Relative);
-}
-
-// Get current status of robot
-void MotionController::getCurStatus(RobotCommandArgs &args)
-{
-    // Get current position
-    AxisInt32s curActuatorPos;
-    if (_trinamicsController.isRampGenerator())
-        _trinamicsController.getTotalStepPosition(curActuatorPos);
-    else
-        _rampGenerator.getTotalStepPosition(curActuatorPos);
-    args.setPointSteps(curActuatorPos);
-    // Use reverse kinematics to get location
-    AxesPosMM curMMPos;
-    if (_actuatorToPtFn)
-        _actuatorToPtFn(curActuatorPos, curMMPos, _lastCommandedAxisPos, _axesParams);
-    args.setPointMM(curMMPos);
-    // Get end-stop values
-    AxisEndstopChecks endstops;
-    _rampGenerator.getEndStopStatus(endstops);
-    args.setEndStops(endstops);
-    // Absolute/Relative movement
-    args.setMoveType(_moveRelative ? RobotMoveTypeArg_Relative : RobotMoveTypeArg_Absolute);
-    // flags
-    args.setPause(_isPaused);
-    args.setIsHoming(_motionHoming.isHomingInProgress());
-    args.setHasHomed(_motionHoming.isHomedOk());
-    // Queue length
-    args.setNumQueued(_motionPipeline.count());
-}
-
-// Get attributes of robot
-void MotionController::getRobotAttributes(String& robotAttrs)
-{
-    robotAttrs = _robotAttributes;
-}
-
-// Command the robot to home one or more axes
-void MotionController::goHome(RobotCommandArgs &args)
-{
-    _motionHoming.homingStart(args);
-}
-
-// Debug helper methods
-void MotionController::debugShowBlocks()
-{
-    _motionPipeline.debugShowBlocks(_axesParams);
-}
-
-void MotionController::debugShowTopBlock()
-{
-    _motionPipeline.debugShowTopBlock(_axesParams);
-}
-
-int MotionController::testGetPipelineCount()
-{
-    return _motionPipeline.count();
-}
-
-bool MotionController::testGetPipelineBlock(int elIdx, MotionBlock &block)
-{
-    if ((int)_motionPipeline.count() <= elIdx)
-        return false;
-    block = *_motionPipeline.peekNthFromPut(_motionPipeline.count() - 1 - elIdx);
-    return true;
-}
-
-#endif

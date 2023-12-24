@@ -26,8 +26,8 @@ public:
     virtual ~RampGenerator();
 
     // Setup ramp generator
-    void setup(bool useRampGenTimer, std::vector<StepDriverBase*> stepperDrivers,
-            std::vector<EndStops*> axisEndStops);
+    void setup(bool useRampGenTimer, const std::vector<StepDriverBase*>& stepperDrivers,
+            const std::vector<EndStops*>& axisEndStops);
 
     // Must be called frequently - if useRampGenTimer is false (in setup) then
     // this function generates stepping pulses

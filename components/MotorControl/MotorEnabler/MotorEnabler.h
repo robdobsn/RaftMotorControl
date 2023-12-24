@@ -32,15 +32,15 @@ public:
             pinMode(_stepEnablePin, INPUT);
     }
 
-    bool setup(const ConfigBase& config)
+    bool setup(const ConfigBase& config, const char* pConfigPrefix)
     {
         static const char* MODULE_PREFIX = "MotorEnabler";
 
         // Get motor enable info
-        String stepEnablePinName = config.getString("stepEnablePin", "-1");
-        _stepEnLev = config.getLong("stepEnLev", 1);
+        String stepEnablePinName = config.getString("stepEnablePin", "-1", pConfigPrefix);
+        _stepEnLev = config.getLong("stepEnLev", 1, pConfigPrefix);
         _stepEnablePin = ConfigPinMap::getPinFromName(stepEnablePinName.c_str());
-        _stepDisableSecs = config.getDouble("stepDisableSecs", stepDisableSecs_default);
+        _stepDisableSecs = config.getDouble("stepDisableSecs", stepDisableSecs_default, pConfigPrefix);
         LOG_I(MODULE_PREFIX, "MotorEnabler: (pin %d, actLvl %d, disableAfter %fs)", _stepEnablePin, _stepEnLev, _stepDisableSecs);
 
         // Enable pin - initially disable

@@ -57,15 +57,13 @@ bool RampGenTimer::setup(uint32_t timerPeriodUs)
 #ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
 
     // Config gptimer
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     gptimer_config_t gptimerConfig = {
         .clk_src = GPTIMER_CLK_SRC_DEFAULT,
         .direction = GPTIMER_COUNT_UP,
-        .resolution_hz = 1000000,
+        .resolution_hz = 10000000,
+        .intr_priority = 0,
         .flags = 0,
     };
-#pragma GCC diagnostic pop
 
     // Create gptimer
     if (gptimer_new_timer(&gptimerConfig, &_timerHandle) != ESP_OK)
@@ -379,13 +377,13 @@ void IRAM_ATTR RampGenTimer::_nonStaticLegacyISR()
 
 #ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
 
-bool IRAM_ATTR RampGenTimer::_staticGPTimerCB(gptimer_t* timer, const gptimer_alarm_event_data_t* eventData, void* arg)
+bool IRAM_ATTR RampGenTimer::_staticGPTimerCB(gptimer_handle_t timer, const gptimer_alarm_event_data_t* eventData, void* arg)
 {
     // Check the arg is valid
     if (!arg)
         return false;
-    RampGenTimer* pTimer = (RampGenTimer*)arg;
-    pTimer->_nonStaticGPTimerCB();
+    RampGenTimer* pRampGenTimer = (RampGenTimer*)arg;
+    pRampGenTimer->_nonStaticGPTimerCB();
     return false;
 }
 

@@ -18,18 +18,10 @@ class EndStops;
 
 // #define DEBUG_MOTION_CONTROL_TIMER
 
-// #include "AxesPosition.h"
-// #include "MotionArgs.h"
 #include "Controller/MotionPlanner.h"
 #include "Controller/MotionBlockManager.h"
-// #include "MotorEnabler.h"
 #include "RampGenerator/RampGenerator.h"
-// #include "RampGenerator/RampGenIO.h"
 #include "RampGenerator/RampGenTimer.h"
-// #include "HWElemBase.h"
-// #include "MotionHoming.h"
-// #include "Trinamics/TrinamicsController.h"
-// #include "MotorEnabler.h"
 
 class AxisGeomBase;
 
@@ -37,7 +29,6 @@ class MotionController
 {
 public:
     // Constructor / Destructor
-    // MotionController(RampGenIOIF* pRampGenIOTest = NULL);
     MotionController();
     ~MotionController();
 
@@ -170,160 +161,3 @@ private:
 #endif
 
 };
-
-
-#ifdef bbbbb
-
-private:
-    RampGenIO _rampGenIO;
-    
-    // Axes parameters
-    AxesParams _axesParams;
-
-#endif
-
-#ifdef asdasdasd
-
-
-
-
-private:
-    // Robot attributes
-    String _robotAttributes;
-    // Callbacks for coordinate conversion etc
-    ptToActuatorFnType _ptToActuatorFn;
-    actuatorToPtFnType _actuatorToPtFn;
-    correctStepOverflowFnType _correctStepOverflowFn;
-    convertCoordsFnType _convertCoordsFn;
-    setRobotAttributesFnType _setRobotAttributes;
-    // Relative motion
-    bool _moveRelative;
-    // Motion pipeline
-    MotionPipeline _motionPipeline;
-    // Trinamic Controller
-    // TrinamicsController _trinamicsController;
-    // Actuators (motors etc)
-    RampGenerator _rampGenerator;
-    RampGenIO _rampGenIO;
-    RampGenTimer _rampGenTimer;
-    // Homing
-    MotionHoming _motionHoming;
-    // Motor enabler
-    MotorEnabler _motorEnabler;
-
-    // Split-up movement blocks to be added to pipeline
-    // Number of blocks to add
-    int _blocksToAddTotal;
-    // Current block to be added
-    int _blocksToAddCurBlock;
-    // Start position for block generation
-    AxesPosMM _blocksToAddStartPos;
-    // End position for block generation
-    AxesPosMM _blocksToAddEndPos;
-    // Deltas for each axis for block generation
-    AxesPosMM _blocksToAddDelta;
-    // Command args for block generation
-    RobotCommandArgs _blocksToAddCommandArgs;
-
-    // Handling of stop
-    bool _stopRequested;
-    bool _stopRequestTimeMs;
-
-    // Debug
-    unsigned long _debugLastPosDispMs;
-
-public:
-    MotionController();
-    ~MotionController();
-
-    void setTransforms(ptToActuatorFnType ptToActuatorFn, actuatorToPtFnType actuatorToPtFn,
-                       correctStepOverflowFnType correctStepOverflowFn,
-                       convertCoordsFnType convertCoordsFn, setRobotAttributesFnType setRobotAttributes);
-
-    void configure(const char *robotConfigJSON);
-
-    // Can accept
-    bool canAccept();
-
-
-    // Stop
-    void stop();
-    // Check if idle
-    bool isIdle();
-
-    double getStepsPerUnit(int axisIdx)
-    {
-        return _axesParams.getStepsPerUnit(axisIdx);
-    }
-
-    double getStepsPerRot(int axisIdx)
-    {
-        return _axesParams.getStepsPerRot(axisIdx);
-    }
-
-    double getunitsPerRot(int axisIdx)
-    {
-        return _axesParams.getunitsPerRot(axisIdx);
-    }
-
-    long gethomeOffSteps(int axisIdx)
-    {
-        return _axesParams.gethomeOffSteps(axisIdx);
-    }
-
-    AxesParams &getAxesParams()
-    {
-        return _axesParams;
-    }
-
-    void setMotionParams(RobotCommandArgs &args);
-    void getCurStatus(RobotCommandArgs &args);
-    void getRobotAttributes(String& robotAttrs);
-    void goHome(RobotCommandArgs &args);
-    int getLastCompletedNumberedCmdIdx()
-    {
-        return _rampGenerator.getLastCompletedNumberedCmdIdx() >
-                _trinamicsController.getLastCompletedNumberedCmdIdx() ?
-                _rampGenerator.getLastCompletedNumberedCmdIdx() :
-                _trinamicsController.getLastCompletedNumberedCmdIdx();
-    }
-    void service();
-
-    unsigned long getLastActiveUnixTime()
-    {
-        return _motorEnabler.getLastActiveUnixTime();
-    }
-
-    // Test code
-    void debugShowBlocks();
-    void debugShowTopBlock();
-    void debugShowTiming();
-    String getDebugStr();
-    int testGetPipelineCount();
-    bool testGetPipelineBlock(int elIdx, MotionBlock &elem);
-    // void setIntrumentationMode(const char *testModeStr)
-    // {
-    //     _rampGenerator.debugSetIntrumentationMode(testModeStr);
-    // }
-
-#ifdef UNIT_TEST
-    MotionHoming* testGetMotionHoming()
-    {
-        return &_motionHoming;
-    }
-#endif
-
-private:
-    bool isInBounds(double v, double b1, double b2)
-    {
-        return (v > fmin(b1, b2) && v < fmax(b1, b2));
-    }
-    void setCurPosActualPosition();
-    bool addToPlanner(RobotCommandArgs &args);
-    void blocksToAddProcess();
-
-    // TODO 2021
-    _rampGenTimer.setup(1000);
-
-#endif
-

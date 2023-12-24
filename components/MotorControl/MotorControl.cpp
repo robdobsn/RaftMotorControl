@@ -177,58 +177,6 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 #endif
     _motionController.moveTo(motionArgs);
     } 
-
-
-    // LOG_I(MODULE_PREFIX, "sendCmdJSON %s", cmdJSON);
-    
-    // // Extract command from JSON
-    // ConfigBase jsonInfo(cmdJSON);
-    // String cmd = jsonInfo.getString("cmd", "");
-
-    // // Check for raw command
-    // if (cmd.equals("test"))
-    // {
-    //     pinMode(12, OUTPUT);
-    //     digitalWrite(12, 0);
-    //     pinMode(15, OUTPUT);
-    //     pinMode(27, OUTPUT);
-    //     digitalWrite(27, 0);
-    //     delay(1);
-    //     for (int i = 0; i < 10000; i++)
-    //     {
-    //         // if (_pStepperDriver)
-    //         //     _pStepperDriver->stepStart();
-    //         // delayMicroseconds(100);
-    //         // if (_pStepperDriver)
-    //         //     _pStepperDriver->stepEnd();
-    //         // delayMicroseconds(100);
-    //         digitalWrite(15,0);
-    //         delay(1);
-    //         digitalWrite(15,1);
-    //         delay(1);
-    //     }
-    // }    
-    // Check command
-    // Extract command from JSON
-//     ConfigBase jsonInfo(cmdJSON);
-//     String cmd = jsonInfo.getString("cmd", "");
-//     if (cmd.equalsIgnoreCase("gcode"))
-//     {
-//         // Extract gcode from JSON if present
-//         String gCode = jsonInfo.getString("g", "");
-//         gCode.trim();
-
-// #ifdef DEBUG_GCODE_CMD
-//     LOG_I(MODULE_PREFIX, "sendCmdJSON gcode %s", gCode.c_str());
-// #endif
-
-//         // Check for raw command
-//         if (gCode.length() != 0)
-//         {
-//             // Parse gcode
-//             _evaluatorGCode.interpretGcode(gCode);
-//         }
-//     }
     return RAFT_OK;
 }
 

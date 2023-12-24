@@ -54,8 +54,8 @@ RampGenerator::~RampGenerator()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RampGenerator::setup(bool useRampGenTimer, std::vector<StepDriverBase*> stepperDrivers,
-            std::vector<EndStops*> axisEndStops)
+void RampGenerator::setup(bool useRampGenTimer, const std::vector<StepDriverBase*>& stepperDrivers,
+            const std::vector<EndStops*>& axisEndStops)
 {
     // // Check if step gen timer is to be used
     // _useRampGenTimer = config.getBool("timerIntr", true);
@@ -74,8 +74,8 @@ void RampGenerator::setup(bool useRampGenTimer, std::vector<StepDriverBase*> ste
         _rampGenTimer.hookTimer(rampGenTimerCallback, this);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "setup useTimerInterrupt %s stepGenPeriod %dus", 
-                _useRampGenTimer ? "Y" : "N", _rampGenTimer.getPeriodUs());
+    LOG_I(MODULE_PREFIX, "setup useTimerInterrupt %s stepGenPeriod %dus numStepperDrivers %d numEndStops %d", 
+                _useRampGenTimer ? "Y" : "N", _rampGenTimer.getPeriodUs(), _stepperDrivers.size(), _axisEndStops.size());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -195,11 +195,11 @@ bool IRAM_ATTR RampGenerator::handleStepEnd()
 {
     bool anyPinReset = false;
     uint32_t axisIdx = 0;
-    for (auto& stepperDriver : _stepperDrivers)
+    for (auto& pStepperDriver : _stepperDrivers)
     {
-        if (stepperDriver)
+        if (pStepperDriver)
         {
-            if (stepperDriver->stepEnd())
+            if (pStepperDriver->stepEnd())
             {
                 anyPinReset = true;
                 _axisTotalSteps[axisIdx] = _axisTotalSteps[axisIdx] + _totalStepsInc[axisIdx];
