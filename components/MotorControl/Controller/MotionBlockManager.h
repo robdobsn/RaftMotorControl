@@ -11,17 +11,17 @@
 #include <AxesParams.h>
 #include <AxesPosition.h>
 #include <MotionArgs.h>
-#include <MotionPipeline.h>
 #include <MotorEnabler.h>
 #include <MotionPlanner.h>
 
 class AxisGeomBase;
+class MotionPipelineIF;
 
 class MotionBlockManager
 {
 public:
     // Constructor / Destructor
-    MotionBlockManager(MotionPipeline& motionPipeline, MotorEnabler& motorEnabler, AxesParams& axesParams);
+    MotionBlockManager(MotorEnabler& motorEnabler, AxesParams& axesParams);
     virtual ~MotionBlockManager();
 
     // Clear
@@ -34,7 +34,7 @@ public:
     // pumpBlockSplitter - should be called regularly 
     // A single moveTo command can be split into blocks - this function checks if such
     // splitting is in progress and adds the split-up motion blocks accordingly
-    void pumpBlockSplitter();
+    void pumpBlockSplitter(MotionPipelineIF& motionPipeline);
 
     // Check is busy
     bool isBusy() const
@@ -43,7 +43,7 @@ public:
     }
 
     // Add linear motion block
-    bool addLinearBlock(const MotionArgs& args);
+    bool addLinearBlock(const MotionArgs& args, MotionPipelineIF& motionPipeline);
 
     // Add rampled block (which may be split up)
     bool addRampedBlock(const MotionArgs& args, 
@@ -99,9 +99,6 @@ private:
     // Next block to return
     uint32_t _nextBlockIdx = 0;
 
-    // Motion pipeline to add blocks to
-    MotionPipeline& _motionPipeline;
-
     // Planner used to plan the pipeline of motion
     MotionPlanner _motionPlanner;
 
@@ -124,5 +121,5 @@ private:
     bool _homingNeededBeforeAnyMove = false;
 
     // Helpers
-    bool addToPlanner(const MotionArgs &args);
+    bool addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline);
 };

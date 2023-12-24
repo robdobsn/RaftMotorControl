@@ -24,11 +24,9 @@ static const char* MODULE_PREFIX = "MotionBlockManager";
 // Constructor / Destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-MotionBlockManager::MotionBlockManager(MotionPipeline& motionPipeline, 
-                MotorEnabler& motorEnabler, 
+MotionBlockManager::MotionBlockManager(MotorEnabler& motorEnabler, 
                 AxesParams& axesParams)
-                :   _motionPipeline(motionPipeline), 
-                    _motorEnabler(motorEnabler), 
+                :   _motorEnabler(motorEnabler), 
                     _axesParams(axesParams)
 {
     clear();
@@ -77,12 +75,12 @@ void MotionBlockManager::setup(const String& geometry, bool allowAllOutOfBounds,
 // Linear motion is used for homing, etc
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool MotionBlockManager::addLinearBlock(const MotionArgs& args)
+bool MotionBlockManager::addLinearBlock(const MotionArgs& args, MotionPipelineIF& motionPipeline)
 {
     AxesParamVals<AxisStepsDataType> stepsFromHome = _motionPlanner.moveToLinear(args, 
                     _lastCommandedAxesPositions.stepsFromHome, 
                     _axesParams, 
-                    _motionPipeline);
+                    motionPipeline);
 
     // Since this was a linear move units from home is now invalid
     _lastCommandedAxesPositions.setUnitsFromHomeValidity(false);
@@ -123,10 +121,10 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args,
 // splitting is in progress and adds the split-up motion blocks accordingly
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionBlockManager::pumpBlockSplitter()
+void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
 {
     // Check if we can add anything to the pipeline
-    while (_motionPipeline.canAccept())
+    while (motionPipeline.canAccept())
     {
         // Check if any blocks remain to be expanded out
         if (_numBlocks <= 0)
@@ -160,7 +158,7 @@ void MotionBlockManager::pumpBlockSplitter()
 #endif
 
         // Add to planner
-        addToPlanner(_blockMotionArgs);
+        addToPlanner(_blockMotionArgs, motionPipeline);
 
         // Enable motors
         _motorEnabler.enableMotors(true, false);
@@ -171,7 +169,7 @@ void MotionBlockManager::pumpBlockSplitter()
 // Add a movement to the pipeline using the planner which computes suitable motion
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool MotionBlockManager::addToPlanner(const MotionArgs &args)
+bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline)
 {
     // Check we are not stopping
     // TODO 2021
@@ -194,7 +192,7 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args)
 
     // Plan the move
     bool moveOk = _motionPlanner.moveToRamped(args, actuatorCoords, 
-                        _lastCommandedAxesPositions, _axesParams, _motionPipeline);
+                        _lastCommandedAxesPositions, _axesParams, motionPipeline);
 #ifdef DEBUG_COORD_UPDATES
     LOG_I(MODULE_PREFIX, "addToPlanner moveOk %d pt %s actuator %s Allow OOB Global %d Point %d", 
             moveOk,

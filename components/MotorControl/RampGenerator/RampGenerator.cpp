@@ -9,7 +9,7 @@
 #include "RampGenerator.h"
 #include <ConfigBase.h>
 #include <esp_intr_alloc.h>
-#include <MotionPipelineIF.h>
+#include <MotionPipeline.h>
 #include <RampGenTimer.h>
 #include <RaftArduino.h>
 #include <StepDriverBase.h>
@@ -32,16 +32,10 @@ static const char* MODULE_PREFIX = "RampGen";
 // Constructor / Destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-RampGenerator::RampGenerator(MotionPipelineIF& motionPipeline, RampGenTimer& rampGenTimer) :
-            _motionPipeline(motionPipeline), 
-            _rampGenTimer(rampGenTimer)
+RampGenerator::RampGenerator()
 {
-    _stepGenPeriodNs = rampGenTimer.getPeriodUs() * 1000;
-    _minStepRatePerTTicks = MotionBlock::calcMinStepRatePerTTicks(_stepGenPeriodNs);
+    // Init
     resetTotalStepPosition();
-
-    // Debug
-    LOG_I(MODULE_PREFIX, "constructed numStepperDrivers %d stepGenPeriodNs=%d", _stepperDrivers.size(), _stepGenPeriodNs);
 }
 
 RampGenerator::~RampGenerator()
@@ -54,12 +48,41 @@ RampGenerator::~RampGenerator()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RampGenerator::setup(bool useRampGenTimer, const std::vector<StepDriverBase*>& stepperDrivers,
+void RampGenerator::setup(const ConfigBase& config, const char* pConfigPrefix,
+            const String configPath,
+            const std::vector<StepDriverBase*>& stepperDrivers,
             const std::vector<EndStops*>& axisEndStops)
 {
-    // // Check if step gen timer is to be used
-    // _useRampGenTimer = config.getBool("timerIntr", true);
-    // uint32_t stepGenPeriodUs = config.getLong("stepGenPeriodUs", RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT);
+    // Check if using ramp timer
+    _useRampGenTimer = config.getBool((configPath+"/rampTimerEn").c_str(), false, pConfigPrefix);
+
+    // Ramp generator config
+    long rampTimerUs = config.getLong((configPath+"/rampTimerUs").c_str(), RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT, pConfigPrefix);
+
+    // Ramp generator timer
+    bool timerSetupOk = false;
+    if (_useRampGenTimer)
+    {
+        // Setup timer (the exact period may be different from the requested period)
+        timerSetupOk = _rampGenTimer.setup(rampTimerUs);
+        _stepGenPeriodNs = _rampGenTimer.getPeriodUs() * 1000;
+        if (!timerSetupOk)
+        {
+            _useRampGenTimer = false;
+            LOG_E(MODULE_PREFIX, "setup timer setup failed");
+        }
+    }
+
+    // Check if using a timer interrupt
+    if (!_useRampGenTimer)
+    {
+        // Use a fixed period
+        _stepGenPeriodNs = rampTimerUs * 1000;
+    }
+
+    // Set timing period for step generation
+    _minStepRatePerTTicks = MotionBlock::calcMinStepRatePerTTicks(_stepGenPeriodNs);
+
     // Store steppers and end stops
     _stepperDrivers = stepperDrivers;
     _axisEndStops = axisEndStops;
@@ -69,13 +92,22 @@ void RampGenerator::setup(bool useRampGenTimer, const std::vector<StepDriverBase
     _minStepRatePerTTicks = MotionBlock::calcMinStepRatePerTTicks(_stepGenPeriodNs);
 
     // Hook the timer if required
-    _useRampGenTimer = useRampGenTimer;
     if (_useRampGenTimer)
         _rampGenTimer.hookTimer(rampGenTimerCallback, this);
 
+#ifdef DEBUG_MOTION_CONTROL_TIMER
     // Debug
-    LOG_I(MODULE_PREFIX, "setup useTimerInterrupt %s stepGenPeriod %dus numStepperDrivers %d numEndStops %d", 
-                _useRampGenTimer ? "Y" : "N", _rampGenTimer.getPeriodUs(), _stepperDrivers.size(), _axisEndStops.size());
+    _rampGenTimer.hookTimer(rampGenTimerCallback, this);
+#endif
+
+    // Setup motion pipeline
+    uint32_t pipelineLen = config.getLong("pipelineLen", PIPELINE_LEN_DEFAULT, pConfigPrefix);
+    _motionPipeline.setup(pipelineLen);
+
+    // Debug
+    LOG_I(MODULE_PREFIX, "setup useTimerInterrupt %s stepGenPeriod %dus numStepperDrivers %d numEndStops %d configPrefix %s pipelineLen %d", 
+                _useRampGenTimer ? "Y" : "N", 
+                _rampGenTimer.getPeriodUs(), _stepperDrivers.size(), _axisEndStops.size(), pConfigPrefix, pipelineLen);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -94,16 +126,29 @@ void RampGenerator::service()
         for (uint32_t i = 0; i < 100; i++)
             generateMotionPulses();
     }
+
+#ifdef DEBUG_MOTION_CONTROL_TIMER
+    // Debug
+    if (Raft::isTimeout(millis(), _debugRampGenTimerLastLoopMs, 1000))
+    {
+        LOG_I(MODULE_PREFIX, "test count %d", _testRampGenCount);
+        _debugRampGenTimerLastLoopMs = millis();
+    }
+#endif
+
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Enable / stop / pause
+// Start / stop / pause
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RampGenerator::enable(bool en)
+void RampGenerator::start()
 {
-    _rampGenEnabled = en;
+    _rampGenEnabled = true;
     _stopPending = false;
+    pause(false);
+    if (_useRampGenTimer)
+        _rampGenTimer.enable(true);
 }
 
 void RampGenerator::stop()

@@ -18,10 +18,9 @@ class EndStops;
 
 // #define DEBUG_MOTION_CONTROL_TIMER
 
-#include "Controller/MotionPlanner.h"
-#include "Controller/MotionBlockManager.h"
-#include "RampGenerator/RampGenerator.h"
-#include "RampGenerator/RampGenTimer.h"
+#include "MotionPlanner.h"
+#include "MotionBlockManager.h"
+#include "RampGenerator.h"
 
 class AxisGeomBase;
 
@@ -73,7 +72,7 @@ public:
     String getDataJSON(HWElemStatusLevel_t level);
 
     // Get queue slots (buffers) available for streaming
-    uint32_t streamGetQueueSlots();
+    uint32_t streamGetQueueSlots() const;
 
     // Motor on time after move
     void setMotorOnTimeAfterMoveSecs(float motorOnTimeAfterMoveSecs)
@@ -88,9 +87,6 @@ public:
     String getDebugStr() const;
 
 private:
-    // Ramp generation
-    RampGenTimer _rampGenTimer;
-
     // Axis stepper motors
     std::vector<StepDriverBase*> _stepperDrivers;
 
@@ -103,15 +99,12 @@ private:
     // Ramp generator
     RampGenerator _rampGenerator;
 
-    // Motion pipeline to add blocks to
-    MotionPipeline _motionPipeline;
-
     // Motion block manager
     MotionBlockManager _blockManager;
 
     // Motor enabler - handles timeout of motor movement
     MotorEnabler _motorEnabler;
-
+    
     // Ramp timer enabled
     bool _rampTimerEn = false;
 
@@ -130,7 +123,6 @@ private:
     void setupAxisHardware(uint32_t axisIdx, const ConfigBase& config);
     void setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, const ConfigBase& mainConfig);
     void setupEndStops(uint32_t axisIdx, const String& axisName, const char* jsonElem, const ConfigBase& mainConfig);
-    void setupRampGenerator(const char* jsonElem, const ConfigBase& config, const char* pConfigPrefix);
     void setupMotorEnabler(const char* jsonElem, const ConfigBase& config, const char* pConfigPrefix);
     void setupMotionControl(const char* jsonElem, const ConfigBase& config, const char* pConfigPrefix);
     bool moveToLinear(const MotionArgs& args);
@@ -142,22 +134,5 @@ private:
     static constexpr double _blockDistance_default = 0.0f;
     static constexpr double junctionDeviation_default = 0.05f;
     static constexpr double distToTravel_ignoreBelow = 0.01f;
-    static constexpr uint32_t pipelineLen_default = 100;
     static constexpr uint32_t MAX_TIME_BEFORE_STOP_COMPLETE_MS = 500;
-
-    // Debug
-    uint32_t _debugLastLoopMs = 0;
-
-#ifdef DEBUG_MOTION_CONTROL_TIMER
-    volatile uint32_t _testRampGenCount;
-    IRAM_ATTR void rampGenTimerCallback(void* pObj)
-    {
-        if (pObj)
-        {
-            MotionController* pMotionController = (MotionController*)pObj;
-            pMotionController->_testRampGenCount++;
-        }        
-    }
-#endif
-
 };

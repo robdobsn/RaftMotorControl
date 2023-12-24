@@ -48,6 +48,7 @@ bool RampGenTimer::setup(uint32_t timerPeriodUs)
         return true;
 
     _timerPeriodUs = timerPeriodUs;
+    _timerIsEnabled = false;
     
 #ifdef RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
     // Mutex controlling hook vector access
@@ -102,6 +103,7 @@ bool RampGenTimer::setup(uint32_t timerPeriodUs)
 
     // Debug
     LOG_I(MODULE_PREFIX, "Configured timer ok");
+    return true;
 
 #else
     // Setup timer
@@ -130,12 +132,9 @@ bool RampGenTimer::setup(uint32_t timerPeriodUs)
     else
     {
         LOG_E(MODULE_PREFIX, "Failed to start ISR timer for direct stepping");            
+        return false;
     }
-
 #endif
-
-    _timerIsEnabled = false;
-    return false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

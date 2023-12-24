@@ -52,7 +52,7 @@ void MotionPlanner::setup(double junctionDeviation, uint32_t stepGenPeriodUs)
 AxesParamVals<AxisStepsDataType> MotionPlanner::moveToLinear(const MotionArgs &args,
                     AxesParamVals<AxisStepsDataType> curAxesStepsFromHome,
                     const AxesParams &axesParams, 
-                    MotionPipeline &motionPipeline)
+                    MotionPipelineIF& motionPipeline)
 {
     // Create a block for this movement which will end up on the pipeline
     MotionBlock block;
@@ -144,11 +144,11 @@ AxesParamVals<AxisStepsDataType> MotionPlanner::moveToLinear(const MotionArgs &a
 // Updates curAxisPositions before returning
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool MotionPlanner::moveToRamped(const MotionArgs &args,
-            const AxesParamVals<AxisStepsDataType> &destActuatorCoords,
-            AxesPosition &curAxisPositions,
-            const AxesParams &axesParams, 
-            MotionPipeline &motionPipeline)
+bool MotionPlanner::moveToRamped(const MotionArgs& args,
+            const AxesParamVals<AxisStepsDataType>& destActuatorCoords,
+            AxesPosition& curAxisPositions,
+            const AxesParams& axesParams, 
+            MotionPipelineIF& motionPipeline)
 {
     // Find first primary axis
     int firstPrimaryAxis = -1;
@@ -358,7 +358,7 @@ bool MotionPlanner::moveToRamped(const MotionArgs &args,
 // Finally prepare the block for stepper motor actuation
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionPlanner::recalculatePipeline(MotionPipeline &motionPipeline, const AxesParams &axesParams)
+void MotionPlanner::recalculatePipeline(MotionPipelineIF& motionPipeline, const AxesParams &axesParams)
 {
 #ifdef DEBUG_MOTIONPLANNER_BEFORE
     LOG_I(MODULE_PREFIX, "^^^^^^^^^^^^^^^^^^^^^^^BEFORE RECALC^^^^^^^^^^^^^^^^^^^^^^^^");
@@ -499,7 +499,7 @@ void MotionPlanner::recalculatePipeline(MotionPipeline &motionPipeline, const Ax
 // Debug
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionPlanner::debugShowPipeline(MotionPipeline &motionPipeline, unsigned int minQLen)
+void MotionPlanner::debugShowPipeline(MotionPipelineIF& motionPipeline, unsigned int minQLen)
 {
     if (minQLen != -1 && motionPipeline.count() != minQLen)
         return;

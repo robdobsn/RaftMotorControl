@@ -8,12 +8,13 @@
 
 #pragma once
 
-#include "MotionBlock.h"
 #include <Logger.h>
-#include <AxisInt32s.h>
-#include <RampGenStats.h>
+#include "MotionBlock.h"
+#include "AxisInt32s.h"
+#include "RampGenStats.h"
+#include "RampGenTimer.h"
+#include "MotionPipeline.h"
 
-class MotionPipelineIF;
 class RampGenTimer;
 class StepDriverBase;
 class EndStops;
@@ -22,21 +23,21 @@ class RampGenerator
 {
 public:
     // Constructor / destructor
-    RampGenerator(MotionPipelineIF& motionPipeline, RampGenTimer& rampGenTimer);
+    RampGenerator();
     virtual ~RampGenerator();
 
     // Setup ramp generator
-    void setup(bool useRampGenTimer, const std::vector<StepDriverBase*>& stepperDrivers,
+    void setup(const ConfigBase& config, const char* pConfigPrefix,
+            const String configPath,
+            const std::vector<StepDriverBase*>& stepperDrivers,
             const std::vector<EndStops*>& axisEndStops);
 
     // Must be called frequently - if useRampGenTimer is false (in setup) then
     // this function generates stepping pulses
     void service();
 
-    // Enable
-    void enable(bool en);
-
-    // Control
+    // Start / stop / pause
+    void start();
     void stop();
     void pause(bool pauseIt);
 
@@ -50,6 +51,22 @@ public:
     void getEndStopStatus(AxisEndstopChecks& axisEndStopVals) const;
     bool isEndStopReached() const;
 
+    // Get ramp gen timer period us
+    uint64_t getPeriodUs() const
+    {
+        return _rampGenTimer.getPeriodUs();
+    }
+
+    // Get motion pipeline
+    MotionPipelineIF& getMotionPipeline()
+    {
+        return _motionPipeline;
+    }
+    const MotionPipelineIF& getMotionPipelineConst() const
+    {
+        return _motionPipeline;
+    }
+
     // Progress
     // int getLastCompletedNumberedCmdIdx();
 
@@ -58,8 +75,15 @@ public:
         return _stats;
     }
     void debugShowStats();
+    String getDebugStr() const
+    {
+        return _rampGenTimer.getDebugStr();
+    }
 
 private:
+    // Consts
+    static constexpr uint32_t PIPELINE_LEN_DEFAULT = 100;
+
     // If this is true nothing will move
     volatile bool _isPaused = true;
 
@@ -71,10 +95,10 @@ private:
     volatile int32_t _totalStepsInc[AXIS_VALUES_MAX_AXES] = {0};
 
     // Pipeline of blocks to be processed
-    MotionPipelineIF& _motionPipeline;
+    MotionPipeline _motionPipeline;
 
     // Ramp generation timer
-    RampGenTimer& _rampGenTimer;
+    RampGenTimer _rampGenTimer;
     bool _useRampGenTimer = false;
     uint32_t _stepGenPeriodNs = 0;
     uint32_t _minStepRatePerTTicks = 0;
@@ -129,4 +153,18 @@ private:
 
     // Debug
     uint32_t _debugLastQueuePeekMs = 0;
+
+    // Debug ramp gen timer
+    uint32_t _debugRampGenTimerLastLoopMs = 0;
+#ifdef DEBUG_MOTION_CONTROL_TIMER
+    volatile uint32_t _testRampGenCount;
+    IRAM_ATTR void rampGenTimerCallback(void* pObj)
+    {
+        if (pObj)
+        {
+            MotionController* pMotionController = (MotionController*)pObj;
+            pMotionController->_testRampGenCount++;
+        }        
+    }
+#endif    
 };

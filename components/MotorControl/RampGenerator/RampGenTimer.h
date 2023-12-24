@@ -39,7 +39,7 @@ public:
     bool setup(uint32_t timerPeriodUs);
     void shutdown();
     void enable(bool en);
-    uint32_t getPeriodUs()
+    uint32_t getPeriodUs() const
     {
         return _timerPeriodUs;
     }

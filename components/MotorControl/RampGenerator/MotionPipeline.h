@@ -22,12 +22,12 @@ public:
     }
 
     // Clear the pipeline
-    void clear()
+    virtual void clear() override final
     {
         _pipelinePosn.clear();
     }
 
-    unsigned int count() const
+    virtual unsigned int count() const override final
     {
         return _pipelinePosn.count();
     }
@@ -37,19 +37,19 @@ public:
         return _pipelinePosn.size();
     }
 
-    unsigned int remaining() const
+    virtual unsigned int remaining() const override final
     {
         return _pipelinePosn.remaining();
     }
 
     // Check if ready to accept data
-    bool canAccept() const
+    virtual bool canAccept() const override final
     {
         return _pipelinePosn.canPut();
     }
 
     // Add to pipeline
-    bool add(const MotionBlock &block)
+    virtual bool add(const MotionBlock &block) override final
     {
         // Check if full
         if (!_pipelinePosn.canPut())
@@ -62,7 +62,7 @@ public:
     }
 
     // Can get from queue (i.e. not empty)
-    inline bool IRAM_ATTR canGet()
+    virtual bool IRAM_ATTR canGet() override final
     {
         return _pipelinePosn.canGet();
     }
@@ -81,7 +81,7 @@ public:
     }
 
     // Remove last element from queue
-    inline bool IRAM_ATTR remove()
+    virtual bool IRAM_ATTR remove() override final
     {
         // Check if queue is empty
         if (!_pipelinePosn.canGet())
@@ -99,7 +99,7 @@ public:
     // 0 is the last element put in the queue
     // 1 is the one put in before that
     // returns NULL when nothing to peek
-    MotionBlock *peekNthFromPut(unsigned int N)
+    virtual MotionBlock *peekNthFromPut(unsigned int N) override final
     {
         // Get index
         int nthPos = _pipelinePosn.getNthFromPut(N);

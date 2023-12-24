@@ -22,4 +22,25 @@ public:
 
     // Clear the pipeline
     virtual void clear() = 0;
+
+    // Add
+    virtual bool add(const MotionBlock &block) = 0;
+
+    // Can get
+    virtual bool IRAM_ATTR canGet() = 0;
+
+    // Peek Nth element from the put position
+    virtual MotionBlock *peekNthFromPut(unsigned int N) = 0;
+
+    // Peek Nth element from the get position
+    virtual MotionBlock *peekNthFromGet(unsigned int N) = 0;
+
+    // Count
+    virtual unsigned int count() const = 0;
+
+    // CanAccept
+    virtual bool canAccept() const = 0;
+
+    // Remaining
+    virtual unsigned int remaining() const = 0;
 };

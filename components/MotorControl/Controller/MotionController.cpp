@@ -28,26 +28,11 @@
 static const char* MODULE_PREFIX = "MotionController";
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup serial bus and bus reversal
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotionController::setupSerialBus(BusBase* pBus, bool useBusForDirectionReversal)
-{
-    // Setup bus
-    for (StepDriverBase* pStepDriver : _stepperDrivers)
-    {
-        if (pStepDriver)
-            pStepDriver->setupSerialBus(pBus, useBusForDirectionReversal);
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor / Destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 MotionController::MotionController() : 
-            _rampGenerator(_motionPipeline, _rampGenTimer),
-            _blockManager(_motionPipeline, _motorEnabler, _axesParams)
+            _blockManager(_motorEnabler, _axesParams)
 {
 }
 
@@ -67,15 +52,8 @@ MotionController::~MotionController()
 
 void MotionController::setup(const ConfigBase& config, const char* pConfigPrefix)
 {
-    // Stop any motion
-    _rampGenerator.stop();
-    _motorEnabler.deinit();
-
-    // Remove any config
-    deinit();
-
-    // Check if using ramp timer
-    _rampTimerEn = config.getBool("ramp/rampTimerEn", 0, pConfigPrefix);
+    // Teardown first
+    teardown();
 
     // Setup axes (and associated hardware)
     setupAxes(config, pConfigPrefix);
@@ -84,23 +62,14 @@ void MotionController::setup(const ConfigBase& config, const char* pConfigPrefix
 #endif
 
     // Setup ramp generator and pipeline
-    setupRampGenerator("ramp", config, pConfigPrefix);
-    _rampGenerator.pause(false);
-    _rampGenerator.enable(true);
+    _rampGenerator.setup(config, pConfigPrefix, "ramp", _stepperDrivers, _axisEndStops);
+    _rampGenerator.start();
 
     // Setup motor enabler
     setupMotorEnabler("motorEn", config, pConfigPrefix);
 
     // Setup motion control
     setupMotionControl("motion", config, pConfigPrefix);
-
-#ifdef DEBUG_MOTION_CONTROL_TIMER
-    // Debug
-    _rampGenTimer.hookTimer(rampGenTimerCallback, this);
-#endif
-
-    // Start timer if required
-    _rampGenTimer.enable(_rampTimerEn);
 
     // If no homing required then set the current position as home
     if (!_homingNeededBeforeAnyMove)
@@ -113,9 +82,6 @@ void MotionController::setup(const ConfigBase& config, const char* pConfigPrefix
 
 void MotionController::teardown()
 {
-    // Stop timer
-    _rampGenTimer.enable(false);
-
     // Stop any motion
     _rampGenerator.stop();
     _motorEnabler.deinit();
@@ -145,15 +111,6 @@ void MotionController::service()
             pStepDriver->service();
     }
 
-    // 
-    if (Raft::isTimeout(millis(), _debugLastLoopMs, 1000))
-    {
-#ifdef DEBUG_MOTION_CONTROL_TIMER
-        LOG_I(MODULE_PREFIX, "test count %d", _testRampGenCount);
-#endif
-        _debugLastLoopMs = millis();
-    }
-
     // // Check if stop requested
     // if (_stopRequested)
     // {
@@ -180,13 +137,13 @@ void MotionController::service()
     // _trinamicsController.process();
 
     // Process any split-up blocks to be added to the pipeline
-    _blockManager.pumpBlockSplitter();
+    _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline());
 
     // // Service homing
     // _motionHoming.service(_axesParams);
 
     // Ensure motors enabled when homing or moving
-    if ((_motionPipeline.count() > 0) 
+    if ((_rampGenerator.getMotionPipeline().count() > 0) 
         // TODO 2021
         //  || _motionHoming.isHomingInProgress()
          )
@@ -202,7 +159,7 @@ void MotionController::service()
 
 bool MotionController::isBusy() const
 {
-    return _motionPipeline.count() > 0;
+    return _rampGenerator.getMotionPipelineConst().count() > 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -233,7 +190,7 @@ bool MotionController::moveTo(const MotionArgs &args)
 
     // Handle linear motion (no ramp) - motion is defined in terms of steps (not mm)
     if (args.isLinear())
-        return _blockManager.addLinearBlock(args);
+        return _blockManager.addLinearBlock(args, _rampGenerator.getMotionPipeline());
     return moveToRamped(args);
 }
 
@@ -327,7 +284,7 @@ bool MotionController::moveToRamped(const MotionArgs& args)
     _blockManager.addRampedBlock(args, targetAxisPos, numBlocks);
 
     // Pump the block splitter to prime the pipeline with blocks
-    _blockManager.pumpBlockSplitter();
+    _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline());
 
     // Ok
     return true;
@@ -375,9 +332,9 @@ String MotionController::getDataJSON(HWElemStatusLevel_t level)
 // Get queue slots (buffers) available for streaming
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-uint32_t MotionController::streamGetQueueSlots()
+uint32_t MotionController::streamGetQueueSlots() const
 {
-    return _motionPipeline.remaining();
+    return _rampGenerator.getMotionPipelineConst().remaining();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -581,36 +538,6 @@ void MotionController::setupEndStops(uint32_t axisIdx, const String& axisName, c
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup ramp generator
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotionController::setupRampGenerator(const char* jsonElem, const ConfigBase& mainConfig, const char* pConfigPrefix)
-{
-    // TODO refactor to use JSON paths
-
-    // Configure the driver
-    ConfigBase rampGenConfig = mainConfig.getString(jsonElem, "{}", pConfigPrefix);
-
-    // Ramp generator config
-    long rampTimerUs = rampGenConfig.getLong("rampTimerUs", RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT);
-
-    // Ramp generator timer
-    bool timerSetupOk = _rampGenTimer.setup(rampTimerUs);
-
-    // Ramp generator
-    _rampGenerator.setup(_rampTimerEn, _stepperDrivers, _axisEndStops);
-
-    // Pipeline
-    uint32_t pipelineLen = rampGenConfig.getLong("pipelineLen", pipelineLen_default);
-    _motionPipeline.setup(pipelineLen);
-
-#ifdef DEBUG_RAMP_SETUP_CONFIG
-    LOG_I(MODULE_PREFIX, "setupRampGenerator timerEn %d timerUs %ld timertimerSetupOk %d pipelineLen %d",
-        _rampTimerEn, rampTimerUs, timerSetupOk, pipelineLen);
-#endif
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup motor enabler
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -649,7 +576,21 @@ void MotionController::setupMotionControl(const char* jsonElem, const ConfigBase
 
     // Block manager
     _blockManager.setup(geometry, allowAllOutOfBounds, junctionDeviation, 
-            _homingNeededBeforeAnyMove, _rampGenTimer.getPeriodUs());
+            _homingNeededBeforeAnyMove, _rampGenerator.getPeriodUs());
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Setup serial bus and bus reversal
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void MotionController::setupSerialBus(BusBase* pBus, bool useBusForDirectionReversal)
+{
+    // Setup bus
+    for (StepDriverBase* pStepDriver : _stepperDrivers)
+    {
+        if (pStepDriver)
+            pStepDriver->setupSerialBus(pBus, useBusForDirectionReversal);
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -694,7 +635,7 @@ AxesPosValues MotionController::getLastMonitoredPos() const
 String MotionController::getDebugStr() const
 {
     String str;
-    str += _rampGenTimer.getDebugStr() + ", ";
+    str += _rampGenerator.getDebugStr() + ", ";
     str += getLastMonitoredPos().getDebugStr();
     return str;
 }
