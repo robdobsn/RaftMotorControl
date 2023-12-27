@@ -20,6 +20,7 @@ static const char* MODULE_PREFIX = "StepDrvBase";
 // #define DEBUG_REGISTER_READ_PROCESS
 // #define DEBUG_REGISTER_READ_VALUE
 // #define DEBUG_REGISTER_WRITE
+// #define DEBUG_READ_TIMEOUT
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor/Destructor
@@ -127,7 +128,7 @@ void StepDriverBase::service()
     // Check timeout
     if (isReadInProgress() && Raft::isTimeout(millis(), _readStartTimeMs, READ_TIMEOUT_MS))
     {
-#ifdef DEBUG_READ
+#ifdef DEBUG_READ_TIMEOUT
         LOG_I(MODULE_PREFIX, "service name %s read timed out", _name.c_str());
 #endif
         clearReadInProgress();

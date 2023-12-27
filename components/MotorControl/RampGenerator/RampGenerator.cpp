@@ -21,6 +21,7 @@
 // #define DEBUG_MOTION_PULSE_GEN
 // #define DEBUG_MOTION_PEEK_QUEUE
 // #define DEBUG_SETUP_NEW_BLOCK
+// #define DEBUG_RAMP_GEN_SERVICE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Consts
@@ -88,26 +89,21 @@ void RampGenerator::setup(const ConfigBase& config, const char* pConfigPrefix,
     _axisEndStops = axisEndStops;
 
     // Calculate ramp gen periods
-    _stepGenPeriodNs = _rampGenTimer.getPeriodUs() * 1000;
     _minStepRatePerTTicks = MotionBlock::calcMinStepRatePerTTicks(_stepGenPeriodNs);
 
     // Hook the timer if required
     if (_useRampGenTimer)
         _rampGenTimer.hookTimer(rampGenTimerCallback, this);
 
-#ifdef DEBUG_MOTION_CONTROL_TIMER
-    // Debug
-    _rampGenTimer.hookTimer(rampGenTimerCallback, this);
-#endif
-
     // Setup motion pipeline
     uint32_t pipelineLen = config.getLong("pipelineLen", PIPELINE_LEN_DEFAULT, pConfigPrefix);
     _motionPipeline.setup(pipelineLen);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "setup useTimerInterrupt %s stepGenPeriod %dus numStepperDrivers %d numEndStops %d configPrefix %s pipelineLen %d", 
+    LOG_I(MODULE_PREFIX, "setup useTimerInterrupt %s stepGenPeriod %dus numStepperDrivers %d numEndStops %d pipelineLen %d configPrefix %s configPath %s", 
                 _useRampGenTimer ? "Y" : "N", 
-                _rampGenTimer.getPeriodUs(), _stepperDrivers.size(), _axisEndStops.size(), pConfigPrefix, pipelineLen);
+                _stepGenPeriodNs / 1000, _stepperDrivers.size(), _axisEndStops.size(), pipelineLen,
+                pConfigPrefix, configPath.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -123,16 +119,24 @@ void RampGenerator::service()
     // aid testing
     if (!_useRampGenTimer)
     {
-        for (uint32_t i = 0; i < 100; i++)
-            generateMotionPulses();
+        // Check time to generate pulses
+        if (Raft::isTimeout(millis(), _nonTimerServiceLastMs, NON_TIMER_SERVICE_CALL_MIN_MS))
+        {
+            _nonTimerServiceLastMs = millis();
+            // Calculate times to call to give equivalent to timer rate
+            uint32_t numCalls = (NON_TIMER_SERVICE_CALL_MIN_MS * 1000) / (_stepGenPeriodNs / 1000);
+            for (uint32_t i = 0; i < numCalls; i++)
+                generateMotionPulses();
+        }
     }
 
-#ifdef DEBUG_MOTION_CONTROL_TIMER
+#ifdef DEBUG_RAMP_GEN_SERVICE
     // Debug
-    if (Raft::isTimeout(millis(), _debugRampGenTimerLastLoopMs, 1000))
+    _debugRampGenServiceCount++;
+    if (Raft::isTimeout(millis(), _debugRampGenServiceLastMs, 1000))
     {
-        LOG_I(MODULE_PREFIX, "test count %d", _testRampGenCount);
-        _debugRampGenTimerLastLoopMs = millis();
+        LOG_I(MODULE_PREFIX, "service count %d useRampGenTimer %d", _debugRampGenServiceCount, _useRampGenTimer);
+        _debugRampGenServiceLastMs = millis();
     }
 #endif
 
@@ -490,6 +494,12 @@ void IRAM_ATTR RampGenerator::generateMotionPulses()
     // Check stop pending
     if (_stopPending)
     {
+#ifdef DEBUG_MOTION_PULSE_GEN
+        if(!_useRampGenTimer)
+        {
+            LOG_I(MODULE_PREFIX, "generateMotionPulses stopPending clearing pipeline");
+        }
+#endif
         _motionPipeline.clear();
         _stopPending = false;
         return;

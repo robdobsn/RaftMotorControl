@@ -54,7 +54,7 @@ public:
     // Get ramp gen timer period us
     uint64_t getPeriodUs() const
     {
-        return _rampGenTimer.getPeriodUs();
+        return _stepGenPeriodNs / 1000;
     }
 
     // Get motion pipeline
@@ -65,6 +65,12 @@ public:
     const MotionPipelineIF& getMotionPipelineConst() const
     {
         return _motionPipeline;
+    }
+
+    // Check if using timer ISR
+    bool isUsingTimerISR() const
+    {
+        return _useRampGenTimer;
     }
 
     // Progress
@@ -83,6 +89,7 @@ public:
 private:
     // Consts
     static constexpr uint32_t PIPELINE_LEN_DEFAULT = 100;
+    static constexpr uint32_t NON_TIMER_SERVICE_CALL_MIN_MS = 5;
 
     // If this is true nothing will move
     volatile bool _isPaused = true;
@@ -102,6 +109,9 @@ private:
     bool _useRampGenTimer = false;
     uint32_t _stepGenPeriodNs = 0;
     uint32_t _minStepRatePerTTicks = 0;
+
+    // Non-timer service rate
+    uint32_t _nonTimerServiceLastMs = 0;
 
     // Steppers
     std::vector<StepDriverBase*> _stepperDrivers;
@@ -155,16 +165,6 @@ private:
     uint32_t _debugLastQueuePeekMs = 0;
 
     // Debug ramp gen timer
-    uint32_t _debugRampGenTimerLastLoopMs = 0;
-#ifdef DEBUG_MOTION_CONTROL_TIMER
-    volatile uint32_t _testRampGenCount;
-    IRAM_ATTR void rampGenTimerCallback(void* pObj)
-    {
-        if (pObj)
-        {
-            MotionController* pMotionController = (MotionController*)pObj;
-            pMotionController->_testRampGenCount++;
-        }        
-    }
-#endif    
+    uint32_t _debugRampGenServiceLastMs = 0;
+    uint32_t _debugRampGenServiceCount = 0;
 };

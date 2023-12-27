@@ -169,13 +169,13 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
     String cmd = jsonInfo.getString("cmd", "");
     if (cmd.equalsIgnoreCase("motion"))
     {
-    MotionArgs motionArgs;
-    motionArgs.fromJSON(cmdJSON);
+        MotionArgs motionArgs;
+        motionArgs.fromJSON(cmdJSON);
 #ifdef DEBUG_STEPPER_CMD_JSON
-    String cmdStr = motionArgs.toJSON();
-    LOG_I(MODULE_PREFIX, "sendCmdJSON %s", cmdStr.c_str());
+        String cmdStr = motionArgs.toJSON();
+        LOG_I(MODULE_PREFIX, "sendCmdJSON %s", cmdStr.c_str());
 #endif
-    _motionController.moveTo(motionArgs);
+        _motionController.moveTo(motionArgs);
     } 
     return RAFT_OK;
 }

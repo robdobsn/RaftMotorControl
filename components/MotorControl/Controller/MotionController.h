@@ -105,9 +105,6 @@ private:
     // Motor enabler - handles timeout of motor movement
     MotorEnabler _motorEnabler;
     
-    // Ramp timer enabled
-    bool _rampTimerEn = false;
-
     // Homing needed
     bool _homingNeededBeforeAnyMove = true;
 

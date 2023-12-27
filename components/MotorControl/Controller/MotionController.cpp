@@ -468,7 +468,7 @@ void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName,
         }
         if (pStepDriver)
         {
-            pStepDriver->setup(axisName, stepperParams, _rampTimerEn);
+            pStepDriver->setup(axisName, stepperParams, _rampGenerator.isUsingTimerISR());
         }
         // Debug
 #ifdef DEBUG_STEPPER_SETUP_CONFIG

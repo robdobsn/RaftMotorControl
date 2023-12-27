@@ -16,7 +16,7 @@ static const char* MODULE_PREFIX = "StepDrv2209";
 
 #define DEBUG_IHOLD_IRUN_CALCS
 #define DEBUG_PWM_FREQ_CALCS
-#define DEBUG_REGISTER_WRITE
+// #define DEBUG_REGISTER_WRITE_PROCESS
 #define DEBUG_IHOLD_IRUN
 // #define DEBUG_REGISTER_READ_PROCESS
 // #define DEBUG_STEPPING_ONLY_IF_NOT_ISR
@@ -203,6 +203,10 @@ void StepDriverTMC2209::service()
         writeTrinamicsRegister(_driverRegisters[_driverRegisterIdx].regName.c_str(), 
                     _driverRegisters[_driverRegisterIdx].regAddr, newRegValue);
         _driverRegisters[_driverRegisterIdx].writePending = false;
+#ifdef DEBUG_REGISTER_WRITE_PROCESS
+        LOG_I(MODULE_PREFIX, "service write regCode %d regAddr 0x%02x regVal 0x%08x", 
+                    _driverRegisterIdx, _driverRegisters[_driverRegisterIdx].regAddr, newRegValue);
+#endif
     }
 
     // Increment register index
