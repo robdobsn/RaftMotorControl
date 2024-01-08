@@ -6,16 +6,16 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <Logger.h>
-#include <MotorControl.h>
-#include <BusSerial.h>
-#include <RaftArduino.h>
 #include <limits.h>
+#include "Logger.h"
+#include "MotorControl.h"
+#include "BusSerial.h"
+#include "RaftArduino.h"
 #include "unity.h"
 
 static const char* MODULE_PREFIX = "MotorControlTest";
 
-ConfigBase testConfig = R"(
+RaftJson testConfig = R"(
     "bus":
     {
         "name": "SERA",

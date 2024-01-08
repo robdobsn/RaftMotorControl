@@ -24,8 +24,7 @@ static const char* MODULE_PREFIX = "MotionBlockManager";
 // Constructor / Destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-MotionBlockManager::MotionBlockManager(MotorEnabler& motorEnabler, 
-                AxesParams& axesParams)
+MotionBlockManager::MotionBlockManager(MotorEnabler& motorEnabler, AxesParams& axesParams)
                 :   _motorEnabler(motorEnabler), 
                     _axesParams(axesParams)
 {

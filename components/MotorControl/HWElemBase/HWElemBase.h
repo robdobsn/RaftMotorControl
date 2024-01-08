@@ -10,13 +10,12 @@
 #pragma once
 
 #include <functional>
-#include <BusBase.h>
-#include <BusRequestInfo.h>
-#include <HWElemMsg.h>
-#include <HWElemConsts.h>
-#include <ConfigBase.h>
 #include <list>
-#include <RaftRetCode.h>
+#include "BusBase.h"
+#include "BusRequestInfo.h"
+#include "HWElemMsg.h"
+#include "HWElemConsts.h"
+#include "RaftRetCode.h"
 
 class HWElemReq;
 
@@ -62,7 +61,7 @@ public:
     virtual ~HWElemBase();
 
     // Setup
-    virtual void setup(ConfigBase& config, ConfigBase* pDefaults, const char* pConfigPrefix);
+    virtual void setup(RaftJsonIF& config);
 
     // Post-Setup - called after any buses have been connected
     virtual void postSetup()
@@ -357,34 +356,6 @@ protected:
     {
         // Empty string is valid and ignored
         return "";
-    }
-
-    // Get string with defaults
-    String getStringWithDefault(const char* key, const char* fallbackDefault,
-                                ConfigBase& config, ConfigBase* pDefs, const char* pConfigPrefix)
-    {
-        return config.getString(key, pDefs ? pDefs->getString(key, fallbackDefault) : fallbackDefault, pConfigPrefix);
-    }
-
-    // Get double with defaults
-    double getDoubleWithDefault(const char* key, double fallbackDefault,
-                                ConfigBase& config, ConfigBase* pDefs, const char* pConfigPrefix)
-    {
-        return config.getDouble(key, pDefs ? pDefs->getDouble(key, fallbackDefault) : fallbackDefault, pConfigPrefix);
-    }
-
-    // Get long with defaults
-    long getLongWithDefault(const char* key, long fallbackDefault,
-                            ConfigBase& config, ConfigBase* pDefs, const char* pConfigPrefix)
-    {
-        return config.getLong(key, pDefs ? pDefs->getLong(key, fallbackDefault) : fallbackDefault, pConfigPrefix);
-    }
-
-    // Get bool with defaults
-    bool getBoolWithDefault(const char* key, bool fallbackDefault,
-                            ConfigBase& config, ConfigBase* pDefs, const char* pConfigPrefix)
-    {
-        return config.getBool(key, pDefs ? pDefs->getBool(key, fallbackDefault) : fallbackDefault, pConfigPrefix);
     }
 
     // Set type

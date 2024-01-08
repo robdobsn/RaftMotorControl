@@ -7,15 +7,14 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "RampGenerator.h"
-#include <ConfigBase.h>
-#include <esp_intr_alloc.h>
-#include <MotionPipeline.h>
-#include <RampGenTimer.h>
-#include <RaftArduino.h>
-#include <StepDriverBase.h>
-#include <EndStops.h>
-#include <AxisInt32s.h>
-#include <AxisEndstopChecks.h>
+#include "esp_intr_alloc.h"
+#include "MotionPipeline.h"
+#include "RampGenTimer.h"
+#include "RaftArduino.h"
+#include "StepDriverBase.h"
+#include "EndStops.h"
+#include "AxisInt32s.h"
+#include "AxisEndstopChecks.h"
 
 #define RAMP_GEN_DETAILED_STATS
 // #define DEBUG_MOTION_PULSE_GEN
@@ -49,16 +48,15 @@ RampGenerator::~RampGenerator()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void RampGenerator::setup(const ConfigBase& config, const char* pConfigPrefix,
-            const String configPath,
+void RampGenerator::setup(const RaftJsonIF& config,
             const std::vector<StepDriverBase*>& stepperDrivers,
             const std::vector<EndStops*>& axisEndStops)
 {
     // Check if using ramp timer
-    _useRampGenTimer = config.getBool((configPath+"/rampTimerEn").c_str(), false, pConfigPrefix);
+    _useRampGenTimer = config.getBool("rampTimerEn", false);
 
     // Ramp generator config
-    long rampTimerUs = config.getLong((configPath+"/rampTimerUs").c_str(), RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT, pConfigPrefix);
+    long rampTimerUs = config.getLong("rampTimerUs", RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT);
 
     // Ramp generator timer
     bool timerSetupOk = false;
@@ -96,14 +94,13 @@ void RampGenerator::setup(const ConfigBase& config, const char* pConfigPrefix,
         _rampGenTimer.hookTimer(rampGenTimerCallback, this);
 
     // Setup motion pipeline
-    uint32_t pipelineLen = config.getLong("pipelineLen", PIPELINE_LEN_DEFAULT, pConfigPrefix);
+    uint32_t pipelineLen = config.getLong("pipelineLen", PIPELINE_LEN_DEFAULT);
     _motionPipeline.setup(pipelineLen);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "setup useTimerInterrupt %s stepGenPeriod %dus numStepperDrivers %d numEndStops %d pipelineLen %d configPrefix %s configPath %s", 
+    LOG_I(MODULE_PREFIX, "setup useTimerInterrupt %s stepGenPeriod %dus numStepperDrivers %d numEndStops %d pipelineLen %d", 
                 _useRampGenTimer ? "Y" : "N", 
-                _stepGenPeriodNs / 1000, _stepperDrivers.size(), _axisEndStops.size(), pipelineLen,
-                pConfigPrefix, configPath.c_str());
+                _stepGenPeriodNs / 1000, _stepperDrivers.size(), _axisEndStops.size(), pipelineLen);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

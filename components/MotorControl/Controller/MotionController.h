@@ -9,20 +9,17 @@
 #pragma once
 
 #include "AxesParams.h"
-#include <BusBase.h>
-#include <HWElemConsts.h>
-
-class StepDriverBase;
-class ConfigBase;
-class EndStops;
-
-// #define DEBUG_MOTION_CONTROL_TIMER
-
+#include "BusBase.h"
+#include "HWElemConsts.h"
 #include "MotionPlanner.h"
 #include "MotionBlockManager.h"
 #include "RampGenerator.h"
 
+class StepDriverBase;
+class EndStops;
 class AxisGeomBase;
+
+// #define DEBUG_MOTION_CONTROL_TIMER
 
 class MotionController
 {
@@ -32,7 +29,7 @@ public:
     ~MotionController();
 
     // Setup / teardown
-    void setup(const ConfigBase& config, const char* pConfigPrefix);
+    void setup(const RaftJsonIF& config);
     void teardown();
 
     // Set serial bus and whether to use bus for direction reversal 
@@ -116,12 +113,12 @@ private:
 
     // Helpers
     void deinit();
-    void setupAxes(const ConfigBase& config, const char* pConfigPrefix);
-    void setupAxisHardware(uint32_t axisIdx, const ConfigBase& config);
-    void setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, const ConfigBase& mainConfig);
-    void setupEndStops(uint32_t axisIdx, const String& axisName, const char* jsonElem, const ConfigBase& mainConfig);
-    void setupMotorEnabler(const char* jsonElem, const ConfigBase& config, const char* pConfigPrefix);
-    void setupMotionControl(const char* jsonElem, const ConfigBase& config, const char* pConfigPrefix);
+    void setupAxes(const RaftJsonIF& config);
+    void setupAxisHardware(uint32_t axisIdx, const RaftJsonIF& config);
+    void setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig);
+    void setupEndStops(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig);
+    void setupRampGenerator(const RaftJsonIF& config);
+    void setupMotionControl(const RaftJsonIF& config);
     bool moveToLinear(const MotionArgs& args);
     bool moveToRamped(const MotionArgs& args);
 

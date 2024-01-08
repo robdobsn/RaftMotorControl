@@ -8,11 +8,9 @@
 
 #pragma once
 
-#include <RaftRetCode.h>
-#include <HWElemBase.h>
+#include "RaftRetCode.h"
+#include "HWElemBase.h"
 #include "MotionController.h"
-
-class ConfigBase;
 
 class MotorControl : public HWElemBase
 {
@@ -22,7 +20,7 @@ public:
     virtual ~MotorControl();
 
     // Setup
-    virtual void setup(ConfigBase& config, ConfigBase* pDefaults, const char* pConfigPrefix) override final;
+    virtual void setup(RaftJsonIF& config) override final;
 
     // Post-Setup - called after any buses have been connected
     virtual void postSetup() override final;

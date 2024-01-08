@@ -1,20 +1,20 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
 // Hardware Elem Base
-// Base for hardwware elements - like a smart-servo - that can accept and receive messages
+// Base for hardwware elements that can accept and receive messages
 //
-// Rob Dobson 2020
+// Rob Dobson 2020-2024
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "HWElemBase.h"
-#include <BusRequestInfo.h>
-#include <BusRequestResult.h>
-#include <RICRESTMsg.h>
-#include <CommsCoreIF.h>
-#include <CommsChannelMsg.h>
-#include <ConfigBase.h>
-#include <RaftUtils.h>
+#include "BusRequestInfo.h"
+#include "BusRequestResult.h"
+#include "RICRESTMsg.h"
+#include "CommsCoreIF.h"
+#include "CommsChannelMsg.h"
+#include "RaftJson.h"
+#include "RaftUtils.h"
 #include "RaftArduino.h"
 
 static const char *MODULE_PREFIX = "HWElemBase";
@@ -38,26 +38,31 @@ HWElemBase::~HWElemBase()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void HWElemBase::setup(ConfigBase& config, ConfigBase* pDefaults, const char* pConfigPrefix)
+void HWElemBase::setup(RaftJsonIF& config)
 {
     // Get settings
-    _name = config.getString("name", _name.c_str(), pConfigPrefix);
-    _type = config.getString("type", _type.c_str(), pConfigPrefix);
-    _busName = getStringWithDefault("bus", "", config, pDefaults, pConfigPrefix);
+    _name = config.getString("name", _name.c_str());
+    _type = config.getString("type", _type.c_str());
+
+    // TODO - what is this ? - used to accept a pDefault parameter which was more JSON
+    _busName = config.getString("bus", "");
     if (!_addressIsSet)
     {
-        uint32_t address = strtoul(config.getString("addr", "0xffffffff", pConfigPrefix).c_str(), nullptr, 0);
+        uint32_t address = strtoul(config.getString("addr", "0xffffffff").c_str(), nullptr, 0);
         if (address != 0xffffffff)
         {
             _address = address;
             _addressIsSet = true;
         }
     }
-    _IDNo = config.getLong("IDNo", -1, pConfigPrefix);
+    _IDNo = config.getLong("IDNo", -1);
 
     // Polling details
-    _pollFor = getStringWithDefault("poll", "", config, pDefaults, pConfigPrefix);
-    setPollRateAndTimeout(getDoubleWithDefault("pollHz", 10, config, pDefaults, pConfigPrefix));
+
+    // TODO - what is this ? - used to accept a pDefault parameter which was more JSON
+    _pollFor = config.getString("poll", "");
+    // TODO - what is this ? - used to accept a pDefault parameter which was more JSON
+    setPollRateAndTimeout(config.getDouble("pollHz", 10));
 
     // Queued bus requests
     _queuedBusReqsActive = false;
@@ -152,7 +157,7 @@ bool HWElemBase::queuedBusReqStart(BusRequestCallbackType callback, void* callba
 RaftRetCode HWElemBase::sendCmdJSON(const char* cmdJSON)
 {
     // Extract command from JSON
-    ConfigBase jsonInfo(cmdJSON);
+    RaftJson jsonInfo(cmdJSON);
     String cmd = jsonInfo.getString("cmd", "");
 
 #ifdef DEBUG_CMD_JSON

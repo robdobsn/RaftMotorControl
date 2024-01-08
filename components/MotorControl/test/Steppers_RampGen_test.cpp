@@ -6,18 +6,16 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include <RaftUtils.h>
-#include <Logger.h>
-#include <unity.h>
-
-#include <ConfigBase.h>
+#include "Logger.h"
+#include "RaftUtils.h"
+#include "unity.h"
 #include "RampGenerator.h"
 #include "RampGenTimer.h"
 #include "MotionPipeline.h"
 #include "MotionBlock.h"
 #include "StepDriverBase.h"
 #include "EndStops.h"
-#include <RaftArduino.h>
+#include "RaftArduino.h"
 
 static const char* MODULE_PREFIX = "RampGeneratorTest";
 
@@ -49,7 +47,7 @@ public:
         _ticksToCompletion = 0;
         _minTicksPerStep = 1000000;
     }
-    virtual void setup(const ConfigBase& config) override final
+    virtual void setup(const RaftJsonIF& config) override final
     {
         // LOG_I(MODULE_PREFIX, "setup with %s", config.getConfigString());
         _testClockCount = 0;

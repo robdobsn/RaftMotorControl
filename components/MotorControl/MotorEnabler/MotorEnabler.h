@@ -32,16 +32,17 @@ public:
             pinMode(_stepEnablePin, INPUT);
     }
 
-    bool setup(const ConfigBase& config, const char* pConfigPrefix)
+    bool setup(const RaftJsonIF& config)
     {
         static const char* MODULE_PREFIX = "MotorEnabler";
 
         // Get motor enable info
-        String stepEnablePinName = config.getString("stepEnablePin", "-1", pConfigPrefix);
-        _stepEnLev = config.getLong("stepEnLev", 1, pConfigPrefix);
+        String stepEnablePinName = config.getString("stepEnablePin", "-1");
+        _stepEnLev = config.getLong("stepEnLev", 1);
         _stepEnablePin = ConfigPinMap::getPinFromName(stepEnablePinName.c_str());
-        _stepDisableSecs = config.getDouble("stepDisableSecs", stepDisableSecs_default, pConfigPrefix);
-        LOG_I(MODULE_PREFIX, "MotorEnabler: (pin %d, actLvl %d, disableAfter %fs)", _stepEnablePin, _stepEnLev, _stepDisableSecs);
+        _stepDisableSecs = config.getDouble("stepDisableSecs", stepDisableSecs_default);
+        LOG_I(MODULE_PREFIX, "setup pin %d, actLvl %d, disableAfter %fs", 
+                    _stepEnablePin, _stepEnLev, _stepDisableSecs);
 
         // Enable pin - initially disable
         if (_stepEnablePin >= 0)

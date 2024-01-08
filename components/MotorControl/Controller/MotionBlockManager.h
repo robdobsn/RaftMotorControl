@@ -8,11 +8,11 @@
 
 #pragma once
 
-#include <AxesParams.h>
-#include <AxesPosition.h>
-#include <MotionArgs.h>
-#include <MotorEnabler.h>
-#include <MotionPlanner.h>
+#include "AxesParams.h"
+#include "AxesPosition.h"
+#include "MotionArgs.h"
+#include "MotorEnabler.h"
+#include "MotionPlanner.h"
 
 class AxisGeomBase;
 class MotionPipelineIF;

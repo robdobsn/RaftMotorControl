@@ -7,7 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "MotorControl.h"
-#include <Logger.h>
+#include "Logger.h"
 
 static const char *MODULE_PREFIX = "MotorControl";
 
@@ -31,17 +31,17 @@ MotorControl::~MotorControl()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotorControl::setup(ConfigBase &config, ConfigBase* pDefaults, const char* pConfigPrefix)
+void MotorControl::setup(RaftJsonIF& config)
 {
     // Base setup
-    HWElemBase::setup(config, pDefaults, pConfigPrefix);
+    HWElemBase::setup(config);
 
     // Setup motion controller
-    _motionController.setup(config, pConfigPrefix);
+    _motionController.setup(config);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "setup prefix %s name %s type %s bus %s pollRateHz %f",
-            pConfigPrefix, _name.c_str(), _type.c_str(), _busName.c_str(), _pollRateHz);
+    LOG_I(MODULE_PREFIX, "setup name %s type %s bus %s pollRateHz %f",
+            _name.c_str(), _type.c_str(), _busName.c_str(), _pollRateHz);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -165,7 +165,7 @@ RaftRetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint8_t* pDat
 RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 {
     // Extract command from JSON
-    JSONParams jsonInfo(cmdJSON);
+    RaftJson jsonInfo(cmdJSON);
     String cmd = jsonInfo.getString("cmd", "");
     if (cmd.equalsIgnoreCase("motion"))
     {
@@ -176,7 +176,7 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
         LOG_I(MODULE_PREFIX, "sendCmdJSON %s", cmdStr.c_str());
 #endif
         _motionController.moveTo(motionArgs);
-    } 
+    }
     return RAFT_OK;
 }
 
