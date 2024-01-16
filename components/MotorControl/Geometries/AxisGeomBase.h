@@ -27,24 +27,24 @@ public:
                 AxesParamVals<AxisStepsDataType> &outActuator, 
                 const AxesPosition &curPos, 
                 const AxesParams &axesParams, 
-                bool allowOutOfBounds) = 0;
+                bool allowOutOfBounds) const = 0;
 
     // Coord transform from actuator to real-world coords
     virtual bool actuatorToPt(const AxesParamVals<AxisStepsDataType> &targetActuator, 
                 AxesPosValues &outPt, 
                 const AxesPosition &curPos, 
-                const AxesParams &axesParams) = 0;
+                const AxesParams &axesParams) const = 0;
 
     // Correct step overflow (necessary in continuous rotation bots)
     virtual void correctStepOverflow(AxesPosition &curPos, 
-                const AxesParams &axesParams)
+                const AxesParams &axesParams) const
     {
     }
 
     // Convert coordinates (used for coordinate systems like Theta-Rho which are position dependent)
     // This doesn't convert coords - just checks for things like wrap around in circular coordinate systems
     // Note that values are modified in-place
-    virtual void preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams)
+    virtual void preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams) const
     {
     }
 

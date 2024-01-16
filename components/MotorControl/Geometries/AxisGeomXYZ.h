@@ -17,11 +17,11 @@ class AxisGeomXYZ : public AxisGeomBase
                     AxesParamVals<AxisStepsDataType> &outActuator, 
                     const AxesPosition &curPos, 
                     const AxesParams &axesParams, 
-                    bool allowOutOfBounds) override final;
+                    bool allowOutOfBounds) const override final;
     virtual bool actuatorToPt(const AxesParamVals<AxisStepsDataType> &targetActuator, 
                     AxesPosValues &outPt, 
                     const AxesPosition &curPos, 
-                    const AxesParams &axesParams) override final;
+                    const AxesParams &axesParams) const override final;
 
 // typedef bool (*ptToActuatorFnType)(AxisFloats &targetPt, AxisFloats &outActuator, AxesPosition &curPos, AxesParams &axesParams, bool allowOutOfBounds);
 // typedef void (*actuatorToPtFnType)(AxisInt32s &targetActuator, AxisFloats &outPt, AxesPosition &curPos, AxesParams &axesParams);

@@ -240,18 +240,16 @@ void RampGenerator::getEndStopStatus(AxisEndstopChecks& axisEndStopVals) const
 bool IRAM_ATTR RampGenerator::handleStepEnd()
 {
     bool anyPinReset = false;
-    uint32_t axisIdx = 0;
-    for (auto& pStepperDriver : _stepperDrivers)
+    for (uint32_t axisIdx = 0; axisIdx < _stepperDrivers.size(); axisIdx++)
     {
-        if (pStepperDriver)
+        if (_stepperDrivers[axisIdx])
         {
-            if (pStepperDriver->stepEnd())
+            if (_stepperDrivers[axisIdx]->stepEnd())
             {
                 anyPinReset = true;
                 _axisTotalSteps[axisIdx] = _axisTotalSteps[axisIdx] + _totalStepsInc[axisIdx];
             }
         }
-        axisIdx++;
     }
     return anyPinReset;
 }
@@ -265,69 +263,64 @@ void IRAM_ATTR RampGenerator::setupNewBlock(MotionBlock *pBlock)
 {
     // Setup step counts, direction and endstops for each axis
     _endStopCheckNum = 0;
-    uint32_t axisIdx = 0;
-    for (auto& stepperDriver : _stepperDrivers)
+    for (uint32_t axisIdx = 0; axisIdx < _stepperDrivers.size(); axisIdx++)
     {
-        if (stepperDriver)
-        {
-            // Total steps
-            int32_t stepsTotal = pBlock->_stepsTotalMaybeNeg[axisIdx];
-            _stepsTotalAbs[axisIdx] = UTILS_ABS(stepsTotal);
-            _curStepCount[axisIdx] = 0;
-            _curAccumulatorRelative[axisIdx] = 0;
-            // Set direction for the axis
-            stepperDriver->setDirection(stepsTotal >= 0);
-            _totalStepsInc[axisIdx] = (stepsTotal >= 0) ? 1 : -1;
+        if (!_stepperDrivers[axisIdx])
+            continue;
+        // Total steps
+        int32_t stepsTotal = pBlock->_stepsTotalMaybeNeg[axisIdx];
+        _stepsTotalAbs[axisIdx] = UTILS_ABS(stepsTotal);
+        _curStepCount[axisIdx] = 0;
+        _curAccumulatorRelative[axisIdx] = 0;
+        // Set direction for the axis
+        _stepperDrivers[axisIdx]->setDirection(stepsTotal >= 0);
+        _totalStepsInc[axisIdx] = (stepsTotal >= 0) ? 1 : -1;
 
 #ifdef DEBUG_SETUP_NEW_BLOCK
-            if (!_useRampGenTimer)
-            {
-                LOG_I(MODULE_PREFIX, "setupNewBlock setDirection %d stepsTotal %d numSteppers %d stepType %s", 
-                            stepsTotal >= 0, stepsTotal, _stepperDrivers.size(), stepperDriver->getDriverType().c_str());
-            }
+        if (!_useRampGenTimer)
+        {
+            LOG_I(MODULE_PREFIX, "setupNewBlock setDirection %d stepsTotal %d numSteppers %d stepType %s", 
+                        stepsTotal >= 0, stepsTotal, _stepperDrivers.size(), stepperDriver->getDriverType().c_str());
+        }
 #endif
 
-            // Instrumentation
-            _stats.stepDirn(axisIdx, stepsTotal >= 0);
+        // Instrumentation
+        _stats.stepDirn(axisIdx, stepsTotal >= 0);
 
-            // Check if any endstops to setup
-            if (pBlock->_endStopsToCheck.any())
-            { 
-                // Check if the axis is moving in a direction which might result in hitting an active end-stop
-                for (int minMaxIdx = 0; minMaxIdx < AXIS_VALUES_MAX_ENDSTOPS_PER_AXIS; minMaxIdx++)
+        // Check if any endstops to setup
+        if (pBlock->_endStopsToCheck.any())
+        { 
+            // Check if the axis is moving in a direction which might result in hitting an active end-stop
+            for (int minMaxIdx = 0; minMaxIdx < AXIS_VALUES_MAX_ENDSTOPS_PER_AXIS; minMaxIdx++)
+            {
+                // See if anything to check for
+                AxisEndstopChecks::AxisMinMaxEnum minMaxType = pBlock->_endStopsToCheck.get(axisIdx, minMaxIdx);
+                if (minMaxType == AxisEndstopChecks::END_STOP_NONE)
+                    continue;
+
+                // Check for towards - this is different from MAX or MIN because the axis will still move even if
+                // an endstop is hit if the movement is away from that endstop
+                if (minMaxType == AxisEndstopChecks::END_STOP_TOWARDS)
                 {
-                    // See if anything to check for
-                    AxisEndstopChecks::AxisMinMaxEnum minMaxType = pBlock->_endStopsToCheck.get(axisIdx, minMaxIdx);
-                    if (minMaxType == AxisEndstopChecks::END_STOP_NONE)
+                    // Stop at max if we're heading towards max OR
+                    // stop at min if we're heading towards min
+                    if (!(((minMaxIdx == AxisEndstopChecks::MAX_VAL_IDX) && (stepsTotal > 0)) ||
+                            ((minMaxIdx == AxisEndstopChecks::MIN_VAL_IDX) && (stepsTotal < 0))))
                         continue;
-
-                    // Check for towards - this is different from MAX or MIN because the axis will still move even if
-                    // an endstop is hit if the movement is away from that endstop
-                    if (minMaxType == AxisEndstopChecks::END_STOP_TOWARDS)
+                }
+                
+                // Config for end stop
+                if ((axisIdx <= _axisEndStops.size()) && (_axisEndStops[axisIdx]))
+                {
+                    bool isValid = _axisEndStops[axisIdx]->isValid(minMaxIdx == AxisEndstopChecks::MAX_VAL_IDX);
+                    if (isValid)
                     {
-                        // Stop at max if we're heading towards max OR
-                        // stop at min if we're heading towards min
-                        if (!(((minMaxIdx == AxisEndstopChecks::MAX_VAL_IDX) && (stepsTotal > 0)) ||
-                                ((minMaxIdx == AxisEndstopChecks::MIN_VAL_IDX) && (stepsTotal < 0))))
-                            continue;
-                    }
-                    
-                    // Config for end stop
-                    if ((axisIdx <= _axisEndStops.size()) && (_axisEndStops[axisIdx]))
-                    {
-                        bool isValid = _axisEndStops[axisIdx]->isValid(minMaxIdx == AxisEndstopChecks::MAX_VAL_IDX);
-                        if (isValid)
-                        {
-                            _endStopChecks[_endStopCheckNum].axisIdx = axisIdx;
-                            _endStopChecks[_endStopCheckNum].checkHit = minMaxType != AxisEndstopChecks::END_STOP_NOT_HIT;
-                            _endStopCheckNum = _endStopCheckNum + 1;
-                        }
+                        _endStopChecks[_endStopCheckNum].axisIdx = axisIdx;
+                        _endStopChecks[_endStopCheckNum].checkHit = minMaxType != AxisEndstopChecks::END_STOP_NOT_HIT;
+                        _endStopCheckNum = _endStopCheckNum + 1;
                     }
                 }
             }
-
-            // Next axis
-            axisIdx++;
         }
     }
 
@@ -410,9 +403,9 @@ bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
     }
 
     // Check if other axes need stepping
-    uint32_t axisIdx = 0;
-    for (auto& pStepperDriver : _stepperDrivers)
+    for (uint32_t axisIdx = 0; axisIdx < _stepperDrivers.size(); axisIdx++)
     {
+        // Skip the axis with the most steps and axes already at their target
         if ((axisIdx == axisIdxMaxSteps) || (_curStepCount[axisIdx] == _stepsTotalAbs[axisIdx]))
             continue;
 
@@ -424,8 +417,8 @@ bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
             _curAccumulatorRelative[axisIdx] = _curAccumulatorRelative[axisIdx] - _stepsTotalAbs[axisIdxMaxSteps];
 
             // Step the axis
-            if (pStepperDriver)
-                pStepperDriver->stepStart();
+            if (_stepperDrivers[axisIdx])
+                _stepperDrivers[axisIdx]->stepStart();
 
 #ifdef DEBUG_MOTION_PULSE_GEN
             if (!_useRampGenTimer)
@@ -497,7 +490,13 @@ void IRAM_ATTR RampGenerator::generateMotionPulses()
             LOG_I(MODULE_PREFIX, "generateMotionPulses stopPending clearing pipeline");
         }
 #endif
-        _motionPipeline.clear();
+        // Check if a block is executing
+        MotionBlock *pBlock = _motionPipeline.peekGet();
+        if (pBlock && pBlock->_isExecuting)
+        {
+            // Cancel motion (by removing the block)
+            endMotion(pBlock);
+        }
         _stopPending = false;
         return;
     }
