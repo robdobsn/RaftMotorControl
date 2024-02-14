@@ -9,8 +9,8 @@
 #pragma once
 
 #include "RaftJson.h"
-#include <Logger.h>
-#include <RaftUtils.h>
+#include "Logger.h"
+#include "RaftUtils.h"
 #include "AxisValues.h"
 
 class AxisParams
@@ -96,19 +96,23 @@ public:
 
     void setFromJSON(const char *axisJSON)
     {
+        RaftJson config(axisJSON);
+        int arrayLen = 0;
         // Stepper motor
-        _maxVelocityUnitsPerSec = AxisVelocityDataType(RaftJson::getDouble("maxSpeed", AxisParams::maxVelocity_default, axisJSON));
-        _maxAccelUnitsPerSec2 = AxisAccDataType(RaftJson::getDouble("maxAcc", AxisParams::acceleration_default, axisJSON));
-        _stepsPerRot = AxisStepsFactorDataType(RaftJson::getDouble("stepsPerRot", AxisParams::stepsPerRot_default, axisJSON));
-        _unitsPerRot = AxisPosFactorDataType(RaftJson::getDouble("unitsPerRot", AxisParams::posUnitsPerRot_default, axisJSON));
-        _maxRPM = AxisRPMDataType(RaftJson::getDouble("maxRPM", AxisParams::maxRPM_default, axisJSON));
-        _minVal = AxisPosDataType(RaftJson::getDouble("minVal", 0, _minValValid, axisJSON));
-        _maxVal = AxisPosDataType(RaftJson::getDouble("maxVal", 0, _maxValValid, axisJSON));
-        _homeOffsetVal = AxisPosDataType(RaftJson::getDouble("homeOffsetVal", 0, axisJSON));
-        _homeOffSteps = AxisStepsDataType(RaftJson::getDouble("homeOffSteps", 0, axisJSON));
-        _isDominantAxis = RaftJson::getBool("isDominantAxis", 0, axisJSON);
-        _isPrimaryAxis = RaftJson::getBool("isPrimaryAxis", 1, axisJSON);
-        _isServoAxis = RaftJson::getBool("isServoAxis", 0, axisJSON);
+        _maxVelocityUnitsPerSec = AxisVelocityDataType(config.getDouble("maxSpeed", AxisParams::maxVelocity_default));
+        _maxAccelUnitsPerSec2 = AxisAccDataType(config.getDouble("maxAcc", AxisParams::acceleration_default));
+        _stepsPerRot = AxisStepsFactorDataType(config.getDouble("stepsPerRot", AxisParams::stepsPerRot_default));
+        _unitsPerRot = AxisPosFactorDataType(config.getDouble("unitsPerRot", AxisParams::posUnitsPerRot_default));
+        _maxRPM = AxisRPMDataType(config.getDouble("maxRPM", AxisParams::maxRPM_default));
+        _minVal = AxisPosDataType(config.getDouble("minVal", 0));
+        _minValValid = config.getType("minVal", arrayLen) == RaftJson::RAFT_JSON_NUMBER;
+        _maxVal = AxisPosDataType(config.getDouble("maxVal", 0));
+        _maxValValid = config.getType("maxVal", arrayLen) == RaftJson::RAFT_JSON_NUMBER;
+        _homeOffsetVal = AxisPosDataType(config.getDouble("homeOffsetVal", 0));
+        _homeOffSteps = AxisStepsDataType(config.getDouble("homeOffSteps", 0));
+        _isDominantAxis = config.getBool("isDominantAxis", 0);
+        _isPrimaryAxis = config.getBool("isPrimaryAxis", 1);
+        _isServoAxis = config.getBool("isServoAxis", 0);
     }
 
     void debugLog(int axisIdx)

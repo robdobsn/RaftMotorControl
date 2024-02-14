@@ -9,10 +9,10 @@
 #pragma once
 
 #include <stdint.h>
-#include <RaftArduino.h>
+#include "RaftArduino.h"
+#include "Logger.h"
+#include "RaftJson.h"
 #include "esp_attr.h"
-#include <Logger.h>
-#include <JSONParams.h>
 
 static const uint32_t AXIS_VALUES_MAX_ENDSTOPS_PER_AXIS = 2;
 
@@ -78,7 +78,7 @@ public:
         return _uint;
     }
     String getStr(AxisMinMaxEnum minMax) const;
-    void fromJSON(const JSONParams& jsonData, const char* elemName);
+    void fromJSON(const RaftJsonIF& jsonData, const char* elemName);
     String toJSON(const char* elemName) const;
 
 private:

@@ -8,7 +8,7 @@
 
 #pragma once
 
-#include <Logger.h>
+#include "Logger.h"
 #include "MotionBlock.h"
 #include "AxisInt32s.h"
 #include "RampGenStats.h"
@@ -27,8 +27,7 @@ public:
     virtual ~RampGenerator();
 
     // Setup ramp generator
-    void setup(const ConfigBase& config, const char* pConfigPrefix,
-            const String configPath,
+    void setup(const RaftJsonIF& config, 
             const std::vector<StepDriverBase*>& stepperDrivers,
             const std::vector<EndStops*>& axisEndStops);
 

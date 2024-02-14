@@ -26,7 +26,6 @@ idf_component_register(
     "components/MotorControl/EndStops"
     "components/MotorControl/Geometries"
     "components/MotorControl/HWElemBase"
-    "components/MotorControl/HWTiming"
     "components/MotorControl/MotorEnabler"
     "components/MotorControl/RampGenerator"
     "components/MotorControl/Steppers"

@@ -12,7 +12,6 @@
 #include "AxisValues.h"
 #include "AxesPosValues.h"
 #include "AxesParamVals.h"
-#include "ConfigBase.h"
 #include <vector>
 
 class AxesParams
@@ -137,7 +136,7 @@ public:
         return wasValid;
     }
 
-    bool setupAxes(const ConfigBase& config, const char* pConfigPrefix)
+    bool setupAxes(const RaftJsonIF& config)
     {
         // Clear existing
         _axisParams.clear();
@@ -146,7 +145,7 @@ public:
         
         // Extract sub-system elements
         std::vector<String> axesVec;
-        if (config.getArrayElems("axes", axesVec, pConfigPrefix))
+        if (config.getArrayElems("axes", axesVec))
         {
             // Check index ok
             uint32_t numAxesToAdd = axesVec.size();
@@ -156,7 +155,7 @@ public:
             // Resize appropriately
             _axisParams.resize(numAxesToAdd);
             uint32_t axisIdx = 0;
-            for (ConfigBase axisConfig : axesVec)
+            for (RaftJson axisConfig : axesVec)
             {
                 // Get params
                 String paramsJson = axisConfig.getString("params", "{}");
@@ -185,32 +184,6 @@ public:
         for (uint32_t axisIdx = 0; axisIdx < _axisParams.size(); axisIdx++)
             _axisParams[axisIdx].debugLog(axisIdx);
     }
-    // bool configureAxis(const char *robotConfigJSON, uint32_t axisIdx, String &axisJSON)
-    // {
-    //     if (axisIdx >= AXIS_VALUES_MAX_AXES)
-    //         return false;
-
-    //     // Get params
-    //     String axisIdStr = "axis" + String(axisIdx);
-    //     axisJSON = RaftJson::getString(axisIdStr.c_str(), "{}", robotConfigJSON);
-    //     if (axisJSON.length() == 0 || axisJSON.equals("{}"))
-    //         return false;
-
-    //     // Set the axis parameters
-    //     _axisParams[axisIdx].setFromJSON(axisJSON.c_str());
-    //     _axisParams[axisIdx].debugLog(axisIdx);
-
-    //     // Find the master axis (dominant one, or first primary - or just first)
-    //     setMasterAxis(axisIdx);
-
-    //     // Cache axis max step rate
-    //     for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
-    //     {
-    //         _maxStepRatesPerSec.setVal(axisIdx, getMaxStepRatePerSec(axisIdx, true));
-    //     }
-    //     return true;
-    // }
-
     // Set the master axis either to the dominant axis (if there is one)
     // or just the first one found
     void setMasterAxis(int fallbackAxisIdx)

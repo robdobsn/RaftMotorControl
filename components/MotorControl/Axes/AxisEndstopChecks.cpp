@@ -7,7 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "AxisEndstopChecks.h"
-#include <AxisValues.h>
+#include "AxisValues.h"
 
 static const char* AxisEndstopMinMaxEnumStrs[] = {"0", "1", "T", "X"};
 
@@ -86,13 +86,13 @@ String AxisEndstopChecks::getStr(AxisMinMaxEnum minMax) const
 {
     return AxisEndstopMinMaxEnumStrs[minMax];
 }
-void AxisEndstopChecks::fromJSON(const JSONParams& jsonData, const char* elemName)
+void AxisEndstopChecks::fromJSON(const RaftJsonIF& jsonData, const char* elemName)
 {
     // Extract array
     std::vector<String> endpointList;
     jsonData.getArrayElems(elemName, endpointList);
     uint32_t axisIdx = 0;
-    for (const JSONParams endpoint : endpointList)
+    for (const RaftJson endpoint : endpointList)
     {
         if (axisIdx >= MAX_AXIS_INDEX)
             break;

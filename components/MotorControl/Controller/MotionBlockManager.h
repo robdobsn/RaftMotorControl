@@ -8,11 +8,12 @@
 
 #pragma once
 
-#include <AxesParams.h>
-#include <AxesPosition.h>
-#include <MotionArgs.h>
-#include <MotorEnabler.h>
-#include <MotionPlanner.h>
+#include "AxesParams.h"
+#include "AxesPosition.h"
+#include "MotionArgs.h"
+#include "MotorEnabler.h"
+#include "MotionPlanner.h"
+#include "GeometryManager.h"
 
 class AxisGeomBase;
 class MotionPipelineIF;
@@ -105,8 +106,8 @@ private:
     // Motor enabler
     MotorEnabler& _motorEnabler;
 
-    // Axis geometry
-    AxisGeomBase* _pAxisGeometry = nullptr;
+    // Geometry manager
+    GeometryManager _geometryManager;
 
     // Axes parameters
     AxesParams& _axesParams;

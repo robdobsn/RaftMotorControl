@@ -1,21 +1,26 @@
 ROOTDIR = $(realpath $(CURDIR)/..)
 WORKING_DIR = $(realpath $(CURDIR))
-DOCKER ?= docker run --rm -v $(ROOTDIR):$(ROOTDIR) -w $(WORKING_DIR) espressif/idf:v5.0.2
-CMD ?= idf.py -B ./build build
-COM_PORT ?= COM3
+DOCKER_ESP_IDF ?= docker run --rm -v $(ROOTDIR):$(ROOTDIR) -w $(WORKING_DIR) espressif/idf:v5.1.2
+TARGET ?= esp32s3
+CMD ?= idf.py -B ./build build -DIDF_TARGET=$(TARGET)
+PORT ?= COM9
 
-all: buildall
+all: builddocker
 
-buildall: Makefile $(wildcard main/*)
-	$(DOCKER) $(CMD)
+builddocker: Makefile $(wildcard main/*)
+	$(DOCKER_ESP_IDF) $(CMD)
 
-flashwsl: Makefile $(wildcard main/*)
-	$(DOCKER) $(CMD)
-	python.exe $(WORKING_DIR)/build/_deps/raftcore-src/scripts/flashUsingPartitionCSV.py partitions.csv build unittests.bin $(COM_PORT) ESP32S3
-	python.exe $(WORKING_DIR)/build/_deps/raftcore-src/scripts/SerialMonitor.py $(COM_PORT)
+flashwsl: Makefile $(wildcard main/*) builddocker
+	python.exe $(WORKING_DIR)/build/_deps/raftcore-src/scripts/flashUsingPartitionCSV.py partitions.csv build unittests.bin $(PORT) $(TARGET)
+	python.exe $(WORKING_DIR)/build/_deps/raftcore-src/scripts/SerialMonitor.py $(PORT)
 
-clean:
-	$(DOCKER) mv ./build/compile_commands.json . || true
-	$(DOCKER) rm -rf ./build sdkconfig || true
-	$(DOCKER) mkdir ./build || true
-	$(DOCKER) mv ./compile_commands.json ./build/ || true
+cleandocker:
+	$(DOCKER_ESP_IDF) mv ./build/compile_commands.json . || true
+	$(DOCKER_ESP_IDF) rm -rf ./build sdkconfig || true
+	$(DOCKER_ESP_IDF) mkdir ./build || true
+	$(DOCKER_ESP_IDF) mv ./compile_commands.json ./build/ || true
+
+flashwslnd:
+	$(CMD)
+	python.exe $(WORKING_DIR)/build/_deps/raftcore-src/scripts/flashUsingPartitionCSV.py partitions.csv build unittests.bin $(PORT) $(TARGET)
+	python.exe $(WORKING_DIR)/build/_deps/raftcore-src/scripts/SerialMonitor.py $(PORT)

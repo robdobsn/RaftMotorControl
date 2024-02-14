@@ -8,12 +8,11 @@
 
 #pragma once
 
-#include <AxisValues.h>
-#include <MotorControlMsgFormats.h>
-#include <JSONParams.h>
 #include <vector>
-#include <AxisEndstopChecks.h>
-#include <AxesPosValues.h>
+#include "AxisValues.h"
+#include "MotorControlMsgFormats.h"
+#include "AxisEndstopChecks.h"
+#include "AxesPosValues.h"
 
 // This must be packed as it is used for binary communication
 #pragma pack(push, 1)

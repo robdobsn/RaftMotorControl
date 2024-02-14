@@ -8,7 +8,11 @@
 
 #include "MotionArgs.h"
 
+// #define DEBUG_MOTION_ARGS
+
+#if defined(DEBUG_MOTION_ARGS)
 static const char* MODULE_PREFIX = "MotionArgs";
+#endif
 
 std::vector<MotionArgs::FieldDefType> MotionArgs::getFieldDefs()
 {
@@ -40,7 +44,7 @@ std::vector<MotionArgs::FieldDefType> MotionArgs::getFieldDefs()
 void MotionArgs::fromJSON(const char* jsonStr)
 {
     // Get json
-    JSONParams cmdJson(jsonStr);
+    RaftJson cmdJson(jsonStr);
     clear();
 
     // Get field definitions
@@ -66,48 +70,20 @@ void MotionArgs::fromJSON(const char* jsonStr)
         }
     }
 
-    // // Extract flags
-    // std::vector<String> flagsList;
-    // cmdJson.getArrayElems("flags", flagsList);
-    // for (const ConfigBase flag : flagsList)
-    // {
-    //     String flagName = flag.getString("n", "");
-    //     bool flagValue = flag.getBool("v", 0);
-    //     if (flagName.length() == 0)
-    //         continue;
-    //     _isRelative               = flagName.equalsIgnoreCase("isRelative")               ? flagValue : _isRelative              ;
-    //     _linearNoRamp             = flagName.equalsIgnoreCase("linearNoRamp")             ? flagValue : _linearNoRamp            ;
-    //     _unitsAreSteps            = flagName.equalsIgnoreCase("unitsAreSteps")            ? flagValue : _unitsAreSteps           ;
-    //     _dontSplitMove            = flagName.equalsIgnoreCase("dontSplitMove")            ? flagValue : _dontSplitMove           ;
-    //     _extrudeValid             = flagName.equalsIgnoreCase("extrudeValid")             ? flagValue : _extrudeValid            ;
-    //     _targetSpeedValid         = flagName.equalsIgnoreCase("targetSpeedValid")         ? flagValue : _targetSpeedValid        ;
-    //     _moveClockwise            = flagName.equalsIgnoreCase("moveClockwise")            ? flagValue : _moveClockwise           ;
-    //     _moveRapid                = flagName.equalsIgnoreCase("moveRapid")                ? flagValue : _moveRapid               ;
-    //     _allowOutOfBounds         = flagName.equalsIgnoreCase("allowOutOfBounds")         ? flagValue : _allowOutOfBounds        ;
-    //     _moreMovesComing          = flagName.equalsIgnoreCase("moreMovesComing")          ? flagValue : _moreMovesComing         ;
-    //     _isHoming                 = flagName.equalsIgnoreCase("isHoming")                 ? flagValue : _isHoming                ;
-    //     _motionTrackingIndexValid = flagName.equalsIgnoreCase("motionTrackingIndexValid") ? flagValue : _motionTrackingIndexValid;
-    //     _feedrateUnitsPerMin      = flagName.equalsIgnoreCase("feedrateUnitsPerMin")      ? flagValue : _feedrateUnitsPerMin     ;
-    // }
-
-    // Extract speed, etc
-    // _targetSpeed = cmdJson.getDouble("targetSpeed", _targetSpeed);
-    // _extrudeDistance = cmdJson.getDouble("extrudeDistance", _extrudeDistance);
-    // _feedrate = cmdJson.getDouble("feedrate", _feedrate);
-    // _motionTrackingIdx = cmdJson.getDouble("motionTrackingIdx", _motionTrackingIdx);
-
     // Extract endstops
     _endstops.fromJSON(cmdJson, "endstops");
 
     // Extract position
     std::vector<String> posList;
     cmdJson.getArrayElems("pos", posList);
-    for (const ConfigBase pos : posList)
+    for (const RaftJson pos : posList)
     {
         int32_t axisIdx = pos.getLong("a", -1);
         double axisPos = pos.getDouble("p", 0);
         
-        LOG_I(MODULE_PREFIX, "cmdJson %s pos %s axisIdx: %d, axisPos: %f", cmdJson.getConfigString().c_str(), pos.getConfigString().c_str(), axisIdx, axisPos);
+#ifdef DEBUG_MOTION_ARGS
+        LOG_I(MODULE_PREFIX, "cmdJson %s pos %s axisIdx: %d, axisPos: %f", cmdJson.getJsonDoc(), pos.getJsonDoc(), axisIdx, axisPos);
+#endif
 
         if ((axisIdx < 0) || (axisIdx >= MULTISTEPPER_MAX_AXES))
             continue;

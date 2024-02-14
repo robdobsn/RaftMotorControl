@@ -25,7 +25,7 @@ bool AxisGeomXYZ::ptToActuator(AxesPosValues targetPt,
                 AxesParamVals<AxisStepsDataType> &outActuator, 
                 const AxesPosition &curPos, 
                 const AxesParams &axesParams, 
-                bool allowOutOfBounds)
+                bool allowOutOfBounds) const
 {
     // Check machine bounds and fix the value if required
     bool ptWasValid = axesParams.ptInBounds(targetPt, !allowOutOfBounds);
@@ -59,7 +59,7 @@ bool AxisGeomXYZ::ptToActuator(AxesPosValues targetPt,
 bool AxisGeomXYZ::actuatorToPt(const AxesParamVals<AxisStepsDataType> &targetActuator, 
             AxesPosValues &outPt, 
             const AxesPosition &curPos, 
-            const AxesParams &axesParams)
+            const AxesParams &axesParams) const
 {
     // Perform conversion
     for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)

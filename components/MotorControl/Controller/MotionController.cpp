@@ -6,15 +6,16 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "MotionController.h"
-#include <ConfigPinMap.h>
 #include <math.h>
-#include <RaftUtils.h>
+#include "MotionController.h"
+#include "ConfigPinMap.h"
+#include "RaftUtils.h"
 #include "AxisValues.h"
-#include <StepDriverBase.h>
-#include <StepDriverTMC2209.h>
+#include "StepDriverBase.h"
+#include "StepDriverTMC2209.h"
 #include "EndStops.h"
-#include <RaftArduino.h>
+#include "RaftArduino.h"
+#include "RaftJsonPrefixed.h"
 
 #define DEBUG_STEPPER_SETUP_CONFIG
 #define DEBUG_RAMP_SETUP_CONFIG
@@ -50,26 +51,29 @@ MotionController::~MotionController()
 // Setup the motor and pipeline parameters using a JSON input string
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setup(const ConfigBase& config, const char* pConfigPrefix)
+void MotionController::setup(const RaftJsonIF& config)
 {
     // Teardown first
     teardown();
 
     // Setup axes (and associated hardware)
-    setupAxes(config, pConfigPrefix);
+    setupAxes(config);
 #ifdef INFO_LOG_AXES_PARAMS
     _axesParams.debugLog();
 #endif
 
     // Setup ramp generator and pipeline
-    _rampGenerator.setup(config, pConfigPrefix, "ramp", _stepperDrivers, _axisEndStops);
+    RaftJsonPrefixed rampConfig(config, "ramp");
+    _rampGenerator.setup(config, _stepperDrivers, _axisEndStops);
     _rampGenerator.start();
 
     // Setup motor enabler
-    setupMotorEnabler("motorEn", config, pConfigPrefix);
+    RaftJsonPrefixed motorEnConfig(config, "motorEn");
+    _motorEnabler.setup(motorEnConfig);
 
     // Setup motion control
-    setupMotionControl("motion", config, pConfigPrefix);
+    RaftJsonPrefixed motionConfig(config, "motion");
+    setupMotionControl(motionConfig);
 
     // If no homing required then set the current position as home
     if (!_homingNeededBeforeAnyMove)
@@ -364,7 +368,7 @@ void MotionController::deinit()
 // Setup axes
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupAxes(const ConfigBase& config, const char* pConfigPrefix)
+void MotionController::setupAxes(const RaftJsonIF& config)
 {
     // Setup stepper driver array
     _stepperDrivers.resize(AXIS_VALUES_MAX_AXES);
@@ -372,17 +376,17 @@ void MotionController::setupAxes(const ConfigBase& config, const char* pConfigPr
         pDriver = nullptr;
 
     // Setup axes params
-    _axesParams.setupAxes(config, pConfigPrefix);
+    _axesParams.setupAxes(config);
 
     // Extract hardware related to axes
     std::vector<String> axesVec;
-    if (config.getArrayElems("axes", axesVec, pConfigPrefix))
+    if (config.getArrayElems("axes", axesVec))
     {
         uint32_t axisIdx = 0;
-        for (String& axisConfigStr : axesVec)
+        for (RaftJson axisConfig : axesVec)
         {
             // Setup driver
-            setupAxisHardware(axisIdx, axisConfigStr);
+            setupAxisHardware(axisIdx, axisConfig);
 
             // Next
             axisIdx++;
@@ -394,7 +398,7 @@ void MotionController::setupAxes(const ConfigBase& config, const char* pConfigPr
 // Setup axis hardware
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupAxisHardware(uint32_t axisIdx, const ConfigBase& config)
+void MotionController::setupAxisHardware(uint32_t axisIdx, const RaftJsonIF& config)
 {
     // Axis name
     String axisName = config.getString("name", "");
@@ -410,37 +414,40 @@ void MotionController::setupAxisHardware(uint32_t axisIdx, const ConfigBase& con
 // Setup stepper driver
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonPrefix, const ConfigBase& config)
+void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig)
 {
+    // Get config with prefix
+    RaftJsonPrefixed config(mainConfig, jsonElem);
+
     // Stepper handler
-    String hwLocation = config.getString("hw", DEFAULT_HARDWARE_LOCATION, jsonPrefix);
-    String driverType = config.getString("driver", DEFAULT_DRIVER_CHIP, jsonPrefix);
+    String hwLocation = config.getString("hw", DEFAULT_HARDWARE_LOCATION);
+    String driverType = config.getString("driver", DEFAULT_DRIVER_CHIP);
 
     // Stepper parameters
     StepDriverParams stepperParams;
 
     // Get step controller settings
-    stepperParams.microsteps = config.getLong("microsteps", StepDriverParams::MICROSTEPS_DEFAULT, jsonPrefix);
-    stepperParams.writeOnly = config.getBool("writeOnly", 0, jsonPrefix);
+    stepperParams.microsteps = config.getLong("microsteps", StepDriverParams::MICROSTEPS_DEFAULT);
+    stepperParams.writeOnly = config.getBool("writeOnly", 0);
 
     // Get hardware stepper params
-    String stepPinName = config.getString("stepPin", "-1", jsonPrefix);
+    String stepPinName = config.getString("stepPin", "-1");
     stepperParams.stepPin = ConfigPinMap::getPinFromName(stepPinName.c_str());
-    String dirnPinName = config.getString("dirnPin", "-1", jsonPrefix);
+    String dirnPinName = config.getString("dirnPin", "-1");
     stepperParams.dirnPin = ConfigPinMap::getPinFromName(dirnPinName.c_str());
-    stepperParams.invDirn = config.getBool("invDirn", 0, jsonPrefix);
-    stepperParams.extSenseOhms = config.getDouble("extSenseOhms", StepDriverParams::EXT_SENSE_OHMS_DEFAULT, jsonPrefix);
-    stepperParams.extVRef = config.getBool("extVRef", false, jsonPrefix);
-    stepperParams.extMStep = config.getBool("extMStep", false, jsonPrefix);
-    stepperParams.intpol = config.getBool("intpol", false, jsonPrefix);
-    stepperParams.minPulseWidthUs = config.getLong("minPulseWidthUs", 1, jsonPrefix);
-    stepperParams.rmsAmps = config.getDouble("rmsAmps", StepDriverParams::RMS_AMPS_DEFAULT, jsonPrefix);
-    stepperParams.holdDelay = config.getLong("holdDelay", StepDriverParams::IHOLD_DELAY_DEFAULT, jsonPrefix);
-    stepperParams.pwmFreqKHz = config.getDouble("pwmFreqKHz", StepDriverParams::PWM_FREQ_KHZ_DEFAULT, jsonPrefix);
-    stepperParams.address = config.getLong("addr", 0, jsonPrefix);
+    stepperParams.invDirn = config.getBool("invDirn", 0);
+    stepperParams.extSenseOhms = config.getDouble("extSenseOhms", StepDriverParams::EXT_SENSE_OHMS_DEFAULT);
+    stepperParams.extVRef = config.getBool("extVRef", false);
+    stepperParams.extMStep = config.getBool("extMStep", false);
+    stepperParams.intpol = config.getBool("intpol", false);
+    stepperParams.minPulseWidthUs = config.getLong("minPulseWidthUs", 1);
+    stepperParams.rmsAmps = config.getDouble("rmsAmps", StepDriverParams::RMS_AMPS_DEFAULT);
+    stepperParams.holdDelay = config.getLong("holdDelay", StepDriverParams::IHOLD_DELAY_DEFAULT);
+    stepperParams.pwmFreqKHz = config.getDouble("pwmFreqKHz", StepDriverParams::PWM_FREQ_KHZ_DEFAULT);
+    stepperParams.address = config.getLong("addr", 0);
 
     // Hold mode
-    String holdModeStr = config.getString("holdModeOrFactor", "1.0", jsonPrefix);
+    String holdModeStr = config.getString("holdModeOrFactor", "1.0");
     if (holdModeStr.equalsIgnoreCase("freewheel"))
     {
         stepperParams.holdMode = StepDriverParams::HOLD_MODE_FREEWHEEL;
@@ -503,7 +510,7 @@ void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName,
 // Setup end stops
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupEndStops(uint32_t axisIdx, const String& axisName, const char* jsonElem, const ConfigBase& mainConfig)
+void MotionController::setupEndStops(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig)
 {
     // Endstops
     EndStops* pEndStops = new EndStops();
@@ -512,19 +519,18 @@ void MotionController::setupEndStops(uint32_t axisIdx, const String& axisName, c
     std::vector<String> endstopVec;
     if (mainConfig.getArrayElems(jsonElem, endstopVec))
     {
-        for (String& endstopConfigStr : endstopVec)
+        for (RaftJson endstopConfig : endstopVec)
         {
             // Debug
             // LOG_I(MODULE_PREFIX, "setupEndStops %s", endstopConfigStr.c_str());
 
             // Setup endstop
-            ConfigBase config = endstopConfigStr;
-            bool isMax = config.getBool("isMax", false);
-            String name = config.getString("name", "");
-            String endstopPinName = config.getString("sensePin", "-1");
+            bool isMax = endstopConfig.getBool("isMax", false);
+            String name = endstopConfig.getString("name", "");
+            String endstopPinName = endstopConfig.getString("sensePin", "-1");
             int pin = ConfigPinMap::getPinFromName(endstopPinName.c_str());
-            bool activeLevel = config.getBool("actLvl", false);
-            String inputTypeStr = config.getString("inputType", "INPUT_PULLUP");
+            bool activeLevel = endstopConfig.getBool("actLvl", false);
+            String inputTypeStr = endstopConfig.getString("inputType", "INPUT_PULLUP");
             int inputType = ConfigPinMap::getInputType(inputTypeStr.c_str());
             if (pEndStops)
                 pEndStops->add(isMax, name.c_str(), pin, activeLevel, inputType);
@@ -538,35 +544,17 @@ void MotionController::setupEndStops(uint32_t axisIdx, const String& axisName, c
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup motor enabler
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotionController::setupMotorEnabler(const char* jsonElem, const ConfigBase& config, const char* pConfigPrefix)
-{
-    // Path string
-    String pathStr = String(pConfigPrefix) + "/" + String(jsonElem);
-
-    // Setup
-    _motorEnabler.setup(config, pathStr.c_str());
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup motion control
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupMotionControl(const char* jsonElem, const ConfigBase& mainConfig, const char* pConfigPrefix)
+void MotionController::setupMotionControl(const RaftJsonIF& config)
 {
-    // TODO refactor to use JSON paths
-
-    // Configuration
-    ConfigBase motionConfig = mainConfig.getString(jsonElem, "{}", pConfigPrefix);
-
     // Params
-    String geometry = motionConfig.getString("geom", "XYZ");
-    _blockDistance = motionConfig.getDouble("blockDist", _blockDistance_default);
-    bool allowAllOutOfBounds = motionConfig.getLong("allowOutOfBounds", false) != 0;
-    double junctionDeviation = motionConfig.getDouble("junctionDeviation", junctionDeviation_default);
-    _homingNeededBeforeAnyMove = motionConfig.getLong("homeBeforeMove", true) != 0;
+    String geometry = config.getString("geom", "XYZ");
+    _blockDistance = config.getDouble("blockDist", _blockDistance_default);
+    bool allowAllOutOfBounds = config.getLong("allowOutOfBounds", false) != 0;
+    double junctionDeviation = config.getDouble("junctionDeviation", junctionDeviation_default);
+    _homingNeededBeforeAnyMove = config.getLong("homeBeforeMove", true) != 0;
 
     // Debug
     LOG_I(MODULE_PREFIX, "setupMotion geom %s blockDist %0.2f (0=no-max) allowOoB %s homeBefMove %s jnDev %0.2f",

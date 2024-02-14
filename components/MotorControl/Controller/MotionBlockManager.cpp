@@ -7,8 +7,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "MotionBlockManager.h"
-#include "Geometries/AxisGeomBase.h"
-#include "Geometries/AxisGeomXYZ.h"
 
 #define DEBUG_RAMPED_BLOCK
 #define DEBUG_COORD_UPDATES
@@ -24,8 +22,7 @@ static const char* MODULE_PREFIX = "MotionBlockManager";
 // Constructor / Destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-MotionBlockManager::MotionBlockManager(MotorEnabler& motorEnabler, 
-                AxesParams& axesParams)
+MotionBlockManager::MotionBlockManager(MotorEnabler& motorEnabler, AxesParams& axesParams)
                 :   _motorEnabler(motorEnabler), 
                     _axesParams(axesParams)
 {
@@ -34,9 +31,6 @@ MotionBlockManager::MotionBlockManager(MotorEnabler& motorEnabler,
 
 MotionBlockManager::~MotionBlockManager()
 {
-    // Remove geometry
-    if (_pAxisGeometry)
-        delete _pAxisGeometry;
 }
 
 void MotionBlockManager::clear()
@@ -60,14 +54,8 @@ void MotionBlockManager::setup(const String& geometry, bool allowAllOutOfBounds,
     // Motion Pipeline and Planner
     _motionPlanner.setup(junctionDeviation, stepGenPeriodUs);
 
-    // Configure geometry
-    if (_pAxisGeometry)
-    {
-        delete _pAxisGeometry;
-        _pAxisGeometry = NULL;
-    }
-    if (geometry.equalsIgnoreCase("XYZ"))
-        _pAxisGeometry = new AxisGeomXYZ();    
+    // Set geometry
+    _geometryManager.setGeometry(geometry.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -171,20 +159,17 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
 
 bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline)
 {
-    // Check we are not stopping
-    // TODO 2021
-    // if (_stopRequested)
-    //     return false;
-            
-    // Convert the move to actuator coordinates
-    AxesParamVals<AxisStepsDataType> actuatorCoords;
-    if (!_pAxisGeometry)
+    // Get geometry
+    const AxisGeomBase* pAxisGeometry = _geometryManager.getGeometry();
+    if (!pAxisGeometry)
     {
         LOG_W(MODULE_PREFIX, "addToPlanner no geometry set");
         return false;
     }
 
-    _pAxisGeometry->ptToActuator(args.getAxesPositions(), 
+    // Convert the move to actuator coordinates
+    AxesParamVals<AxisStepsDataType> actuatorCoords;
+    pAxisGeometry->ptToActuator(args.getAxesPositions(), 
             actuatorCoords, 
             _curPosition, 
             _axesParams,
@@ -234,13 +219,15 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
 void MotionBlockManager::coordsActuatorToRealWorld(const AxesParamVals<AxisStepsDataType> &targetActuator, 
             AxesPosValues &outPt) const
 {
-    if (!_pAxisGeometry)
+    // Get geometry
+    const AxisGeomBase* pAxisGeometry = _geometryManager.getGeometry();
+    if (!pAxisGeometry)
     {
         LOG_W(MODULE_PREFIX, "coordsActuatorToRealWorld no geometry set");
         return;
     }
 
-    _pAxisGeometry->actuatorToPt(targetActuator, outPt, _curPosition, _axesParams);
+    pAxisGeometry->actuatorToPt(targetActuator, outPt, _curPosition, _axesParams);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -251,8 +238,14 @@ void MotionBlockManager::coordsActuatorToRealWorld(const AxesParamVals<AxisSteps
 
 void MotionBlockManager::preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams) const
 {
-    if (_pAxisGeometry)
-        _pAxisGeometry->preProcessCoords(axisPositions, axesParams);
+    // Get geometry
+    const AxisGeomBase* pAxisGeometry = _geometryManager.getGeometry();
+    if (!pAxisGeometry)
+    {
+        LOG_W(MODULE_PREFIX, "preProcessCoords no geometry set");
+        return;
+    }    
+    pAxisGeometry->preProcessCoords(axisPositions, axesParams);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

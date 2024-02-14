@@ -9,9 +9,9 @@
 #pragma once
 
 #include <stdint.h>
-#include <RaftArduino.h>
+#include "Logger.h"
+#include "RaftArduino.h"
 #include "esp_attr.h"
-#include <Logger.h>
 class AxisValidBools
 {
 public:
@@ -81,17 +81,4 @@ public:
         else
             _uint &= (0xffff ^ (1 << boolIdx));
     }
-    // void fromJSON(const char* jsonStr)
-    // {
-    //     JSONParams jsonData(jsonStr);
-    //     _bits.bX = jsonData.getBool("x", 0);
-    //     _bits.bY = jsonData.getBool("y", 0);
-    //     _bits.bZ = jsonData.getBool("z", 0);
-    // }
-    // String toJSON()
-    // {
-    //     char jsonStr[100];
-    //     snprintf(jsonStr, sizeof(jsonStr), R"("x":%d,"y":%d,"z":%d)", _bits.bX, _bits.bY, _bits.bZ);
-    //     return jsonStr;
-    // }
 };
