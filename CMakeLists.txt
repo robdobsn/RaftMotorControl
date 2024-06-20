@@ -1,6 +1,8 @@
 cmake_minimum_required(VERSION 3.16)
 
 idf_component_register(
+  NAME
+    RaftMotorControl
   SRCS
     "components/MotorControl/Axes/AxisEndstopChecks.cpp"
     "components/MotorControl/Axes/AxisUtils.cpp"
@@ -30,5 +32,6 @@ idf_component_register(
     "components/MotorControl/RampGenerator"
     "components/MotorControl/Steppers"
   REQUIRES
-    raftcore-src
+    RaftCore
+    driver
 )

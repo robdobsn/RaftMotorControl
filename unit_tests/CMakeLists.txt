@@ -6,7 +6,7 @@ include(FetchContent)
 FetchContent_Declare(
   raftcore
   GIT_REPOSITORY https://github.com/robdobsn/RaftCore.git
-  GIT_TAG        ReWorkConfigBase
+  GIT_TAG        main
 )
 
 # Populate first so we have a folder that we can add in EXTRA_COMPONENT_DIRS
@@ -24,5 +24,5 @@ FetchContent_MakeAvailable(raftcore)
 set(TEST_COMPONENTS "MotorControl" CACHE STRING "Components to test")
 
 include($ENV{IDF_PATH}/tools/cmake/project.cmake)
-project(unittests DEPENDS raftcore)
+project(unittests DEPENDS RaftCore)
 
