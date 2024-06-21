@@ -12,7 +12,7 @@
 #include "RaftUtils.h"
 #include "StepDriverParams.h"
 
-class BusBase;
+class RaftBus;
 
 class StepDriverBase
 {
@@ -24,7 +24,7 @@ public:
     virtual bool setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR);
 
     // Called after bus has been connected
-    virtual void setupSerialBus(BusBase* pBus, bool useBusForDirectionReversal);
+    virtual void setupSerialBus(RaftBus* pBus, bool useBusForDirectionReversal);
 
     // Service - called frequently
     virtual void service();
@@ -148,7 +148,7 @@ protected:
     }
 
     // Bus used for communication with driver
-    BusBase* _pSerialBus = nullptr;
+    RaftBus* _pSerialBus = nullptr;
     uint8_t _serialBusAddress = 0;
     String _name;
     bool _useBusForDirectionReversal = false;

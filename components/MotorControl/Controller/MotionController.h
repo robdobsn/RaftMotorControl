@@ -9,7 +9,7 @@
 #pragma once
 
 #include "AxesParams.h"
-#include "BusBase.h"
+#include "RaftBus.h"
 #include "HWElemConsts.h"
 #include "MotionPlanner.h"
 #include "MotionBlockManager.h"
@@ -33,7 +33,7 @@ public:
     void teardown();
 
     // Set serial bus and whether to use bus for direction reversal 
-    void setupSerialBus(BusBase* pBus, bool useBusForDirectionReversal);
+    void setupSerialBus(RaftBus* pBus, bool useBusForDirectionReversal);
 
     // Service - called frequently
     void service();

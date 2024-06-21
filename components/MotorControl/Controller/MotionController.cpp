@@ -571,7 +571,7 @@ void MotionController::setupMotionControl(const RaftJsonIF& config)
 // Setup serial bus and bus reversal
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupSerialBus(BusBase* pBus, bool useBusForDirectionReversal)
+void MotionController::setupSerialBus(RaftBus* pBus, bool useBusForDirectionReversal)
 {
     // Setup bus
     for (StepDriverBase* pStepDriver : _stepperDrivers)

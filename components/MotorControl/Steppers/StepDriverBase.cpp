@@ -8,7 +8,7 @@
 
 #include "StepDriverBase.h"
 #include "RaftArduino.h"
-#include "BusBase.h"
+#include "RaftBus.h"
 #include "BusRequestInfo.h"
 
 static const char* MODULE_PREFIX = "StepDrvBase";
@@ -51,7 +51,7 @@ bool StepDriverBase::setup(const String& stepperName, const StepDriverParams& st
 // Setup bus to use for serial comms with driver
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void StepDriverBase::setupSerialBus(BusBase* pBus, bool useBusForDirectionReversal)
+void StepDriverBase::setupSerialBus(RaftBus* pBus, bool useBusForDirectionReversal)
 {
     _pSerialBus = pBus;
     _useBusForDirectionReversal = useBusForDirectionReversal;

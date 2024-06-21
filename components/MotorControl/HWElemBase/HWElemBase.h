@@ -11,7 +11,7 @@
 
 #include <functional>
 #include <list>
-#include "BusBase.h"
+#include "RaftBus.h"
 #include "BusRequestInfo.h"
 #include "HWElemMsg.h"
 #include "HWElemConsts.h"
@@ -192,13 +192,13 @@ public:
     }
 
     // Get bus
-    virtual BusBase* getBus()
+    virtual RaftBus* getBus()
     {
         return _pBus;
     }
     
     // Connect to bus
-    virtual void connectToBus(BusBase* pBus)
+    virtual void connectToBus(RaftBus* pBus)
     {
         _pBus = pBus;
     }
@@ -395,7 +395,7 @@ protected:
     }
 
     // Bus this element is connected to
-    BusBase* _pBus = nullptr;
+    RaftBus* _pBus = nullptr;
 
     // Settings
     String _name;
