@@ -8,6 +8,7 @@
 
 #include "MotorControl.h"
 #include "RaftJsonPrefixed.h"
+#include "RaftBusSystem.h"
 #include "Logger.h"
 
 static const char *MODULE_PREFIX = "MotorControl";
@@ -19,8 +20,7 @@ static const char *MODULE_PREFIX = "MotorControl";
 /// @param pClassName device class name
 /// @param pDevConfigJson device configuration JSON
 MotorControl::MotorControl(const char* pClassName, const char *pDevConfigJson)
-        : RaftDevice(pClassName, pDevConfigJson),
-          _motorSerialBus(nullptr, nullptr)
+        : RaftDevice(pClassName, pDevConfigJson)
 {
 }
 
@@ -36,16 +36,14 @@ MotorControl::~MotorControl()
 // @brief Setup the device
 void MotorControl::setup()
 {
-    // Setup serial bus
-    RaftJsonPrefixed motorSerialConfig(deviceConfig, "MotorSerial");
-    _motorSerialBus.setup(motorSerialConfig);
-
     // Setup motion controller
     RaftJsonPrefixed motorsConfig(deviceConfig, "Motors");
     _motionController.setup(motorsConfig);
 
-    // If HWElem is configured with a bus then use soft commands for direction reversal
-    _motionController.setupSerialBus(&_motorSerialBus, true); 
+    // Setup serial bus
+    String serialBusName = deviceConfig.getString("bus", "");
+    _pMotorSerialBus = raftBusSystem.getBusByName(serialBusName);
+    _motionController.setupSerialBus(_pMotorSerialBus, true); 
 
     // Debug
     LOG_I(MODULE_PREFIX, "setup type %s", deviceClassName.c_str());

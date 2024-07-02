@@ -11,7 +11,7 @@
 #include "RaftRetCode.h"
 #include "RaftDevice.h"
 #include "MotionController.h"
-#include "BusSerial.h"
+#include "RaftBus.h"
 
 class MotorControl : public RaftDevice
 {
@@ -86,7 +86,7 @@ private:
     MotionController _motionController;
 
     // Motor serial bus
-    BusSerial _motorSerialBus;
+    RaftBus* _pMotorSerialBus = nullptr;
 
     // Command handlers
     void handleCmdBinary_MoveTo(const uint8_t* pData, uint32_t dataLen);

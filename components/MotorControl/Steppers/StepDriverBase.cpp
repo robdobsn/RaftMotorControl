@@ -68,7 +68,7 @@ void StepDriverBase::service()
     {
 #ifdef DEBUG_REGISTER_READ_PROCESS
             LOG_I(MODULE_PREFIX, "service read axis %s rxAvail %d rdBytesToIgnore %d rdBytesReqd %d", 
-                        _name.c_str(), _pSerialBus->rxDataBytesAvailable(), _readBytesToIgnore, _readBytesRequired);
+                        _name.c_str(), _pSerialBus ? _pSerialBus->rxDataBytesAvailable() : 0, _readBytesToIgnore, _readBytesRequired);
 #endif
         // Check for enough data to fulfill read
         if (busValid() && _pSerialBus->rxDataBytesAvailable() >= _readBytesToIgnore + _readBytesRequired)
