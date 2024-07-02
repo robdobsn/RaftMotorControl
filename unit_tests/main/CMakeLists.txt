@@ -1,8 +1,11 @@
 idf_component_register(SRCS 
-                        "test_main.cpp"
-                        "xyz_test.cpp"
-                    INCLUDE_DIRS 
-                        "."
-                    REQUIRES
-                        unity
-                    )
+            "test_main.cpp"
+            "xyz_test.cpp"
+        INCLUDE_DIRS 
+            "."
+        REQUIRES
+            unity
+            RaftCore
+            RaftMotorControl
+        WHOLE_ARCHIVE
+        )

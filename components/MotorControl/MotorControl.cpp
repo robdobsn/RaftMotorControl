@@ -14,13 +14,16 @@ static const char *MODULE_PREFIX = "MotorControl";
 #define DEBUG_STEPPER_CMD_JSON
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Constructor / Destructor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-MotorControl::MotorControl()
+/// @brief Constructor
+/// @param pClassName device class name
+/// @param pDevConfigJson device configuration JSON
+MotorControl::MotorControl(const char* pClassName, const char *pDevConfigJson)
+        : RaftDevice(pClassName, pDevConfigJson),
+          _motorSerialBus(nullptr, nullptr)
 {
 }
 
+/// @brief Destructor
 MotorControl::~MotorControl()
 {
     // Tell motion controller to stop
@@ -28,47 +31,32 @@ MotorControl::~MotorControl()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotorControl::setup(RaftJsonIF& config)
+// @brief Setup the device
+void MotorControl::setup()
 {
-    // Base setup
-    HWElemBase::setup(config);
-
     // Setup motion controller
-    _motionController.setup(config);
+    _motionController.setup(deviceConfig);
+
+    // If HWElem is configured with a bus then use soft commands for direction reversal
+    _motionController.setupSerialBus(&_motorSerialBus, true); 
 
     // Debug
-    LOG_I(MODULE_PREFIX, "setup name %s type %s bus %s pollRateHz %f",
-            _name.c_str(), _type.c_str(), _busName.c_str(), _pollRateHz);
+    LOG_I(MODULE_PREFIX, "setup type %s", deviceClassName.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Post-Setup - called after any buses have been connected
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotorControl::postSetup()
-{
-    // If HWElem is configured with a bus then use soft commands for direction reversal
-    _motionController.setupSerialBus(getBus(), getBus() != nullptr); 
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Service
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotorControl::service()
+// @brief Main loop for the device (called frequently)
+void MotorControl::loop()
 {
     // Service motion controller
     _motionController.service();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Has capability
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool MotorControl::hasCapability(const char* pCapabilityStr)
+/// @brief Check if device has capability
+/// @param pCapabilityStr capability string
+/// @return true if the device has the capability
+bool MotorControl::hasCapability(const char* pCapabilityStr) const
 {
     switch(pCapabilityStr[0])
     {
@@ -79,20 +67,21 @@ bool MotorControl::hasCapability(const char* pCapabilityStr)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get Data JSON
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-String MotorControl::getDataJSON(HWElemStatusLevel_t level)
+/// @brief Get JSON data from the device
+/// @param level Level of data to return
+/// @return JSON string
+String MotorControl::getDataJSON(RaftDeviceJSONLevel level) const
 {
     // Get data
     return _motionController.getDataJSON(level);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get a named value
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-double MotorControl::getNamedValue(const char* param, bool& isFresh)
+/// @brief Get named value from the device
+/// @param pParam Parameter name
+/// @param isFresh (out) true if the value is fresh
+/// @return double value
+double MotorControl::getNamedValue(const char* param, bool& isFresh) const
 {
     switch(tolower(param[0]))
     {
@@ -124,18 +113,22 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get values binary = format specific to hardware
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-uint32_t MotorControl::getValsBinary(uint32_t formatCode, uint8_t* pBuf, uint32_t bufMaxLen)
+/// @brief Get binary data from the device
+/// @param formatCode format code for the command
+/// @param buf (out) buffer to receive the binary data
+/// @param bufMaxLen maximum length of data to return
+/// @return RaftRetCode
+RaftRetCode MotorControl::getDataBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen) const
 {
-    return 0;
+    return RAFT_NOT_IMPLEMENTED;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Send encoded command
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Send a binary command to the device
+/// @param formatCode Format code for the command
+/// @param pData Pointer to the data
+/// @param dataLen Length of the data
+/// @return RaftRetCode
 RaftRetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
 {
     // Check format code
@@ -159,9 +152,9 @@ RaftRetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint8_t* pDat
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Handle JSON command
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Send a JSON command to the device
+/// @param jsonCmd JSON command
+/// @return RaftRetCode
 RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 {
     // Extract command from JSON
@@ -181,9 +174,9 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Handle MoveTo
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Handle binary move-to command
+/// @param pData Pointer to the data
+/// @param dataLen Length of the data
 void MotorControl::handleCmdBinary_MoveTo(const uint8_t* pData, uint32_t dataLen)
 {
     // Check length ok
@@ -203,9 +196,8 @@ void MotorControl::handleCmdBinary_MoveTo(const uint8_t* pData, uint32_t dataLen
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get debug str
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get debug string
+/// @return Debug string
 String MotorControl::getDebugStr()
 {
     return _motionController.getDebugStr();

@@ -75,7 +75,7 @@ public:
     // Progress
     // int getLastCompletedNumberedCmdIdx();
 
-    RampGenStats& getStats()
+    const RampGenStats& getStats() const
     {
         return _stats;
     }

@@ -31,7 +31,7 @@ public:
             uint32_t maxStepRatePerTTicks);
     void stepDirn(uint32_t axisIdx, bool dirnPositive);
     void stepStart(uint32_t axisIdx);
-    String getStatsStr();
+    String getStatsStr() const;
 
 private:
     // Stats

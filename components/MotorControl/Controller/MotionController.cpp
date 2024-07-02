@@ -323,9 +323,9 @@ void MotionController::goHome(const MotionArgs &args)
 // Get Data JSON
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String MotionController::getDataJSON(HWElemStatusLevel_t level)
+String MotionController::getDataJSON(RaftDeviceJSONLevel level) const
 {
-    if (level >= ELEM_STATUS_LEVEL_MIN)
+    if (level >= DEVICE_JSON_LEVEL_MIN)
     {
         return _rampGenerator.getStats().getStatsStr();
     }

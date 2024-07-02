@@ -10,10 +10,10 @@
 
 #include "AxesParams.h"
 #include "RaftBus.h"
-#include "HWElemConsts.h"
 #include "MotionPlanner.h"
 #include "MotionBlockManager.h"
 #include "RampGenerator.h"
+#include "RaftDeviceJSONLevel.h"
 
 class StepDriverBase;
 class EndStops;
@@ -66,7 +66,7 @@ public:
     AxesPosValues getLastMonitoredPos() const;
 
     // Get data (diagnostics)
-    String getDataJSON(HWElemStatusLevel_t level);
+    String getDataJSON(RaftDeviceJSONLevel level) const;
 
     // Get queue slots (buffers) available for streaming
     uint32_t streamGetQueueSlots() const;

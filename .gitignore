@@ -3,7 +3,7 @@
 build
 builds
 sdkconfig
-compile_commands_win.json
+compile_commands.json
 *.pyc
 logs/
 test/logs
@@ -12,6 +12,10 @@ scripts/config.ini
 .venv
 test/eepromPartitionTest/prewritedata.bin
 test/eepromPartitionTest/readbackdata.bin
+build_raft_artifacts
+managed_components
+node_modules
+P2_test
 
 # Generated updater files
 current_version.json

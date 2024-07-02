@@ -10,8 +10,6 @@
 
 #include "StepDriverBase.h"
 
-class HWElemBase;
-
 class StepDriverTMC2209 : public StepDriverBase
 {
 public:

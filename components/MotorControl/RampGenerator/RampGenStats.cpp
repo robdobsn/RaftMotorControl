@@ -9,7 +9,7 @@
 #include "esp_attr.h"
 #include "RampGenStats.h"
 
-String RampGenStats::getStatsStr()
+String RampGenStats::getStatsStr() const
 {
 #ifndef RAMP_GEN_DETAILED_STATS
     char dbg[100];
