@@ -7,6 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "MotorControl.h"
+#include "RaftJsonPrefixed.h"
 #include "Logger.h"
 
 static const char *MODULE_PREFIX = "MotorControl";
@@ -23,6 +24,7 @@ MotorControl::MotorControl(const char* pClassName, const char *pDevConfigJson)
 {
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Destructor
 MotorControl::~MotorControl()
 {
@@ -34,8 +36,13 @@ MotorControl::~MotorControl()
 // @brief Setup the device
 void MotorControl::setup()
 {
+    // Setup serial bus
+    RaftJsonPrefixed motorSerialConfig(deviceConfig, "MotorSerial");
+    _motorSerialBus.setup(motorSerialConfig);
+
     // Setup motion controller
-    _motionController.setup(deviceConfig);
+    RaftJsonPrefixed motorsConfig(deviceConfig, "Motors");
+    _motionController.setup(motorsConfig);
 
     // If HWElem is configured with a bus then use soft commands for direction reversal
     _motionController.setupSerialBus(&_motorSerialBus, true); 
