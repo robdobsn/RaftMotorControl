@@ -9,7 +9,7 @@
 #include <math.h>
 #include <limits.h>
 #include "unity.h"
-#include "AxisGeomXYZ.h"
+#include "RaftKinematicsSystem.h"
 #include "AxesPosition.h"
 #include "AxesParams.h"
 
@@ -25,7 +25,7 @@ struct TestGeomPt
     AxesPosition curPos;
 };
 
-void testPtToActuator(AxisGeomXYZ& axisGeom, AxesParams& axesParams, TestGeomPt* pTestPts, int numTestPts)
+void testPtToActuator(RaftKinematics* pKinematics, AxesParams& axesParams, TestGeomPt* pTestPts, int numTestPts)
 {
     // Iterate through test points
     for (int testPtIdx = 0; testPtIdx < numTestPts; testPtIdx++)
@@ -35,7 +35,12 @@ void testPtToActuator(AxisGeomXYZ& axisGeom, AxesParams& axesParams, TestGeomPt*
 
         // Convert point to actuator
         AxesParamVals<AxisStepsDataType> actuator;
-        bool success = axisGeom.ptToActuator(testPt.pt, actuator, testPt.curPos, axesParams, false);
+        if (!pKinematics)
+        {
+            TEST_FAIL_MESSAGE("ptToActuator failed");
+            return;
+        }
+        bool success = pKinematics->ptToActuator(testPt.pt, actuator, testPt.curPos, axesParams, false);
         TEST_ASSERT_MESSAGE(success, "ptToActuator failed");
 
         // Check actuator values
@@ -49,8 +54,8 @@ TEST_CASE("XYZ test 1", "[Geometry]")
 {
     LOG_I(MODULE_PREFIX, "XYZ test 1");
     
-    // Create XYZ geometry
-    AxisGeomXYZ axisGeomXYZ;
+    // Create raft kinematics
+    RaftKinematics* pRaftKinematics = RaftKinematicsSystem::createKinematics("XYZ");
 
     // Create axes params
     AxesParams axesParams;
@@ -109,6 +114,6 @@ TEST_CASE("XYZ test 1", "[Geometry]")
         {{-1.5, -2.5, -3.5}, {-2, -3, -4}},
     };
 
-    testPtToActuator(axisGeomXYZ, axesParams, testPts, sizeof(testPts) / sizeof(TestGeomPt));
+    testPtToActuator(pRaftKinematics, axesParams, testPts, sizeof(testPts) / sizeof(TestGeomPt));
 
 }

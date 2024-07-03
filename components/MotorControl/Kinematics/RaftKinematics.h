@@ -1,8 +1,8 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// AxisGeomBase
+// RaftKinematics
 //
-// Rob Dobson 2016-2023
+// Rob Dobson 2016-2024
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -15,10 +15,10 @@
 class AxesPosition;
 class AxesParams;
 
-class AxisGeomBase
+class RaftKinematics
 {
 public:
-    virtual ~AxisGeomBase()
+    virtual ~RaftKinematics()
     {
     }
 
@@ -47,12 +47,4 @@ public:
     virtual void preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams) const
     {
     }
-
-// typedef bool (*ptToActuatorFnType)(AxisFloats &targetPt, AxisFloats &outActuator, AxesPosition &curPos, AxesParams &axesParams, bool allowOutOfBounds);
-// typedef void (*actuatorToPtFnType)(AxisInt32s &targetActuator, AxisFloats &outPt, AxesPosition &curPos, AxesParams &axesParams);
-// typedef void (*correctStepOverflowFnType)(AxesPosition &curPos, AxesParams &axesParams);
-// typedef void (*convertCoordsFnType)(RobotCommandArgs& cmdArgs, AxesParams &axesParams);
-// typedef void (*setRobotAttributesFnType)(AxesParams& axesParams, String& robotAttributes);
-
-
 };

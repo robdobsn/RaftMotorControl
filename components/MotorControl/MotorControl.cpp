@@ -13,7 +13,7 @@
 
 static const char *MODULE_PREFIX = "MotorControl";
 
-#define DEBUG_STEPPER_CMD_JSON
+#define DEBUG_MOTOR_CMD_JSON
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -37,8 +37,7 @@ MotorControl::~MotorControl()
 void MotorControl::setup()
 {
     // Setup motion controller
-    RaftJsonPrefixed motorsConfig(deviceConfig, "Motors");
-    _motionController.setup(motorsConfig);
+    _motionController.setup(deviceConfig);
 
     // Setup serial bus
     String serialBusName = deviceConfig.getString("bus", "");
@@ -169,7 +168,7 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
     {
         MotionArgs motionArgs;
         motionArgs.fromJSON(cmdJSON);
-#ifdef DEBUG_STEPPER_CMD_JSON
+#ifdef DEBUG_MOTOR_CMD_JSON
         String cmdStr = motionArgs.toJSON();
         LOG_I(MODULE_PREFIX, "sendCmdJSON %s", cmdStr.c_str());
 #endif

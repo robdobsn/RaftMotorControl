@@ -14,10 +14,10 @@
 #include "MotionBlockManager.h"
 #include "RampGenerator.h"
 #include "RaftDeviceJSONLevel.h"
+#include "RaftKinematics.h"
 
 class StepDriverBase;
 class EndStops;
-class AxisGeomBase;
 
 // #define DEBUG_MOTION_CONTROL_TIMER
 

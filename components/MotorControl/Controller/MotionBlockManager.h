@@ -13,9 +13,8 @@
 #include "MotionArgs.h"
 #include "MotorEnabler.h"
 #include "MotionPlanner.h"
-#include "GeometryManager.h"
+#include "RaftKinematics.h"
 
-class AxisGeomBase;
 class MotionPipelineIF;
 
 class MotionBlockManager
@@ -106,8 +105,8 @@ private:
     // Motor enabler
     MotorEnabler& _motorEnabler;
 
-    // Geometry manager
-    GeometryManager _geometryManager;
+    // Kinematics
+    RaftKinematics* _pRaftKinematics = nullptr;
 
     // Axes parameters
     AxesParams& _axesParams;

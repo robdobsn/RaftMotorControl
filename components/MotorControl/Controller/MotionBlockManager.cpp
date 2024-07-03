@@ -7,6 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "MotionBlockManager.h"
+#include "RaftKinematicsSystem.h"
 
 #define DEBUG_RAMPED_BLOCK
 #define DEBUG_COORD_UPDATES
@@ -31,6 +32,8 @@ MotionBlockManager::MotionBlockManager(MotorEnabler& motorEnabler, AxesParams& a
 
 MotionBlockManager::~MotionBlockManager()
 {
+    if (_pRaftKinematics)
+        delete _pRaftKinematics;
 }
 
 void MotionBlockManager::clear()
@@ -55,7 +58,9 @@ void MotionBlockManager::setup(const String& geometry, bool allowAllOutOfBounds,
     _motionPlanner.setup(junctionDeviation, stepGenPeriodUs);
 
     // Set geometry
-    _geometryManager.setGeometry(geometry.c_str());
+    if (_pRaftKinematics)
+        delete _pRaftKinematics;
+    _pRaftKinematics = RaftKinematicsSystem::createKinematics(geometry.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -159,9 +164,8 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
 
 bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline)
 {
-    // Get geometry
-    const AxisGeomBase* pAxisGeometry = _geometryManager.getGeometry();
-    if (!pAxisGeometry)
+    // Get kinematics
+    if (!_pRaftKinematics)
     {
         LOG_W(MODULE_PREFIX, "addToPlanner no geometry set");
         return false;
@@ -169,7 +173,7 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
 
     // Convert the move to actuator coordinates
     AxesParamVals<AxisStepsDataType> actuatorCoords;
-    pAxisGeometry->ptToActuator(args.getAxesPositions(), 
+    _pRaftKinematics->ptToActuator(args.getAxesPositions(), 
             actuatorCoords, 
             _curPosition, 
             _axesParams,
@@ -220,14 +224,13 @@ void MotionBlockManager::coordsActuatorToRealWorld(const AxesParamVals<AxisSteps
             AxesPosValues &outPt) const
 {
     // Get geometry
-    const AxisGeomBase* pAxisGeometry = _geometryManager.getGeometry();
-    if (!pAxisGeometry)
+    if (!_pRaftKinematics)
     {
         LOG_W(MODULE_PREFIX, "coordsActuatorToRealWorld no geometry set");
         return;
     }
 
-    pAxisGeometry->actuatorToPt(targetActuator, outPt, _curPosition, _axesParams);
+    _pRaftKinematics->actuatorToPt(targetActuator, outPt, _curPosition, _axesParams);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -239,13 +242,12 @@ void MotionBlockManager::coordsActuatorToRealWorld(const AxesParamVals<AxisSteps
 void MotionBlockManager::preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams) const
 {
     // Get geometry
-    const AxisGeomBase* pAxisGeometry = _geometryManager.getGeometry();
-    if (!pAxisGeometry)
+    if (!_pRaftKinematics)
     {
         LOG_W(MODULE_PREFIX, "preProcessCoords no geometry set");
         return;
     }    
-    pAxisGeometry->preProcessCoords(axisPositions, axesParams);
+    _pRaftKinematics->preProcessCoords(axisPositions, axesParams);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
