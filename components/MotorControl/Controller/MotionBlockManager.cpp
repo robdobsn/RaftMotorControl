@@ -14,12 +14,6 @@
 #define DEBUG_BLOCK_SPLITTER
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Static
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-static const char* MODULE_PREFIX = "MotionBlockManager";
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Constructor / Destructor
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -46,21 +40,15 @@ void MotionBlockManager::clear()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionBlockManager::setup(const String& geometry, bool allowAllOutOfBounds, 
-            double junctionDeviation, bool homingNeededBeforeAnyMove,
-            uint32_t stepGenPeriodUs)
+void MotionBlockManager::setup(uint32_t stepGenPeriodUs, const RaftJsonIF& motionConfig)
 {
-    // Allow out-of-bounds motion and homing needs
-    _allowAllOutOfBounds = allowAllOutOfBounds;
-    _homingNeededBeforeAnyMove = homingNeededBeforeAnyMove;
-
     // Motion Pipeline and Planner
-    _motionPlanner.setup(junctionDeviation, stepGenPeriodUs);
+    _motionPlanner.setup(_axesParams.getMaxJunctionDeviationMM(), stepGenPeriodUs);
 
     // Set geometry
     if (_pRaftKinematics)
         delete _pRaftKinematics;
-    _pRaftKinematics = RaftKinematicsSystem::createKinematics(geometry.c_str());
+    _pRaftKinematics = RaftKinematicsSystem::createKinematics(motionConfig);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -70,14 +58,13 @@ void MotionBlockManager::setup(const String& geometry, bool allowAllOutOfBounds,
 
 bool MotionBlockManager::addLinearBlock(const MotionArgs& args, MotionPipelineIF& motionPipeline)
 {
-    AxesParamVals<AxisStepsDataType> stepsFromHome = _motionPlanner.moveToLinear(args, 
-                    _lastCommandedAxesPositions.stepsFromHome, 
+    AxesValues<AxisStepsDataType> curPosStepsFromOrigin = _motionPlanner.moveToLinear(args, 
+                    _axesState, 
                     _axesParams, 
                     motionPipeline);
 
     // Since this was a linear move units from home is now invalid
-    _lastCommandedAxesPositions.setUnitsFromHomeValidity(false);
-    _lastCommandedAxesPositions.stepsFromHome = stepsFromHome;
+    _axesState.setStepsFromOriginAndInvalidateUnits(curPosStepsFromOrigin);
 
     return true;
 }
@@ -87,19 +74,19 @@ bool MotionBlockManager::addLinearBlock(const MotionArgs& args, MotionPipelineIF
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 bool MotionBlockManager::addRampedBlock(const MotionArgs& args, 
-                const AxesPosValues& targetPosition, 
+                const AxesValues<AxisPosDataType>& targetPosition, 
                 uint32_t numBlocks)
 {
     _blockMotionArgs = args;
     _targetPosition = targetPosition;
     _numBlocks = numBlocks;
     _nextBlockIdx = 0;
-    _blockDeltaDistance = (_targetPosition - _lastCommandedAxesPositions.unitsFromHome) / double(numBlocks);
+    _blockDeltaDistance = (_targetPosition - _axesState.getUnitsFromOrigin()) / double(numBlocks);
 
 #ifdef DEBUG_RAMPED_BLOCK
     LOG_I(MODULE_PREFIX, "moveTo cur %s curSteps %s new %s numBlocks %d blockDeltaDist %s)",
-                _lastCommandedAxesPositions.unitsFromHome.getDebugStr().c_str(),
-                _lastCommandedAxesPositions.stepsFromHome.getDebugStr().c_str(),
+                _axesState.getUnitsFromOrigin().getDebugStr().c_str(),
+                _axesState.getStepsFromOrigin().getDebugStr().c_str(),
                 _targetPosition.getDebugStr().c_str(),
                 _numBlocks, 
                 _blockDeltaDistance.getDebugStr().c_str());
@@ -124,7 +111,7 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
             return;
 
         // Add to pipeline any blocks that are waiting to be expanded out
-        AxesPosValues nextBlockDest = _lastCommandedAxesPositions.unitsFromHome + _blockDeltaDistance;
+        AxesValues<AxisPosDataType> nextBlockDest = _axesState.getUnitsFromOrigin() + _blockDeltaDistance;
 
         // Bump position
         _nextBlockIdx++;
@@ -142,10 +129,10 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
 
 #ifdef DEBUG_BLOCK_SPLITTER
         LOG_I(MODULE_PREFIX, "pumpBlockSplitter last %s + delta %s => dest %s (%s) nextBlockIdx %d, numBlocks %d", 
-                    _lastCommandedAxesPositions.unitsFromHome.getDebugStr().c_str(),
+                    _axesState.getUnitsFromOrigin().getDebugStr().c_str(),
                     _blockDeltaDistance.getDebugStr().c_str(),
                     nextBlockDest.getDebugStr().c_str(),
-                    _blockMotionArgs.getAxesPositions().getDebugStr().c_str(), 
+                    _blockMotionArgs.getTargetPos().getDebugStr().c_str(), 
                     _nextBlockIdx,
                     _numBlocks);
 #endif
@@ -172,23 +159,20 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
     }
 
     // Convert the move to actuator coordinates
-    AxesParamVals<AxisStepsDataType> actuatorCoords;
-    _pRaftKinematics->ptToActuator(args.getAxesPositions(), 
+    AxesValues<AxisStepsDataType> actuatorCoords;
+    _pRaftKinematics->ptToActuator(args.getTargetPos(), 
             actuatorCoords, 
-            _curPosition, 
-            _axesParams,
-            args.getAllowOutOfBounds() || _allowAllOutOfBounds);
+            _axesState, 
+            _axesParams);
 
     // Plan the move
     bool moveOk = _motionPlanner.moveToRamped(args, actuatorCoords, 
-                        _lastCommandedAxesPositions, _axesParams, motionPipeline);
+                        _axesState, _axesParams, motionPipeline);
 #ifdef DEBUG_COORD_UPDATES
-    LOG_I(MODULE_PREFIX, "addToPlanner moveOk %d pt %s actuator %s Allow OOB Global %d Point %d", 
+    LOG_I(MODULE_PREFIX, "addToPlanner moveOk %d pt %s actuator %s", 
             moveOk,
-            args.getAxesPositions().getDebugStr().c_str(),
-            actuatorCoords.toJSON().c_str(),
-            args.getAllowOutOfBounds(), 
-            _allowAllOutOfBounds);
+            args.getTargetPos().getDebugStr().c_str(),
+            actuatorCoords.toJSON().c_str());
 #endif
 
     // Correct overflows if necessary
@@ -196,7 +180,7 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
     {
         // TODO check that this is already done in moveToRamped - it updates _lastCommandedAxisPos
         // // Update axisMotion
-        // _lastCommandedAxisPos.unitsFromHome = args.getPointMM();
+        // _lastCommandedAxisPos.curPosUnitsFromOrigin = args.getPointMM();
 
         // Correct overflows
         // TODO re-implement
@@ -206,7 +190,7 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
         // }            
 #ifdef DEBUG_COORD_UPDATES
         LOG_I(MODULE_PREFIX, "addToPlanner updatedAxisPos %s",
-            _lastCommandedAxesPositions.unitsFromHome.getDebugStr().c_str());
+            _axesState.getUnitsFromOrigin().getDebugStr().c_str());
 #endif
     }
     else
@@ -220,8 +204,8 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
 // Convert actuator coords to real-world
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionBlockManager::coordsActuatorToRealWorld(const AxesParamVals<AxisStepsDataType> &targetActuator, 
-            AxesPosValues &outPt) const
+void MotionBlockManager::coordsActuatorToRealWorld(const AxesValues<AxisStepsDataType> &targetActuator, 
+            AxesValues<AxisPosDataType> &outPt) const
 {
     // Get geometry
     if (!_pRaftKinematics)
@@ -230,41 +214,25 @@ void MotionBlockManager::coordsActuatorToRealWorld(const AxesParamVals<AxisSteps
         return;
     }
 
-    _pRaftKinematics->actuatorToPt(targetActuator, outPt, _curPosition, _axesParams);
+    _pRaftKinematics->actuatorToPt(targetActuator, outPt, _axesState, _axesParams);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Pre-process coordinates (used for coordinate systems like Theta-Rho which are position dependent)
-// This doesn't convert coords - just checks for things like wrap around in circular coordinate systems
-// Note that values are modified in-place
+// Set current position as origin
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionBlockManager::preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams) const
-{
-    // Get geometry
-    if (!_pRaftKinematics)
-    {
-        LOG_W(MODULE_PREFIX, "preProcessCoords no geometry set");
-        return;
-    }    
-    _pRaftKinematics->preProcessCoords(axisPositions, axesParams);
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Set current position as home
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotionBlockManager::setCurPositionAsHome(uint32_t axisIdx)
+void MotionBlockManager::setCurPositionAsOrigin(uint32_t axisIdx)
 {
     if (axisIdx >= AXIS_VALUES_MAX_AXES)
         return;
-    _lastCommandedAxesPositions.unitsFromHome.setVal(axisIdx, _axesParams.getHomeOffsetVal(axisIdx));
-    _lastCommandedAxesPositions.setUnitsFromHomeValidity(true);
-    _lastCommandedAxesPositions.stepsFromHome.setVal(axisIdx, _axesParams.gethomeOffSteps(axisIdx));
-    // _trinamicsController.setTotalStepPosition(i, _axesParams.gethomeOffSteps(i));
-#ifdef DEBUG_COORD_UPDATES
-        LOG_I(MODULE_PREFIX, "setCurPosAsHome axisIdx %d curMM %0.2f steps %d", axisIdx,
-                    _lastCommandedAxesPositions.unitsFromHome.getVal(axisIdx),
-                    _lastCommandedAxesPositions.stepsFromHome.getVal(axisIdx));
-#endif
+
+    // TODO 
+    // _lastCommandedAxesPositions.curPosUnitsFromOrigin.setVal(axisIdx, 0);
+    // _lastCommandedAxesPositions.setUnitsFromOriginValidity(true);
+    // _lastCommandedAxesPositions.curPosStepsFromOrigin.setVal(axisIdx, 0);
+// #ifdef DEBUG_COORD_UPDATES
+//         LOG_I(MODULE_PREFIX, "setCurPosAsOrigin axisIdx %d curMM %0.2f steps %d", axisIdx,
+//                     _lastCommandedAxesPositions.curPosUnitsFromOrigin.getVal(axisIdx),
+//                     _lastCommandedAxesPositions.curPosStepsFromOrigin.getVal(axisIdx));
+// #endif
 }

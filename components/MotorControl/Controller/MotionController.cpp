@@ -10,7 +10,7 @@
 #include "MotionController.h"
 #include "ConfigPinMap.h"
 #include "RaftUtils.h"
-#include "AxisValues.h"
+#include "AxesValues.h"
 #include "StepDriverBase.h"
 #include "StepDriverTMC2209.h"
 #include "EndStops.h"
@@ -71,13 +71,13 @@ void MotionController::setup(const RaftJsonIF& config)
     RaftJsonPrefixed motorEnConfig(config, "motorEn");
     _motorEnabler.setup(motorEnConfig);
 
-    // Setup motion control
+    // Block manager
     RaftJsonPrefixed motionConfig(config, "motion");
-    setupMotionControl(motionConfig);
+    _blockManager.setup(_rampGenerator.getPeriodUs(), motionConfig);
 
     // If no homing required then set the current position as home
     if (!_homingNeededBeforeAnyMove)
-        setCurPositionAsHome(true);
+        setCurPositionAsOrigin(true);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -226,7 +226,7 @@ bool MotionController::moveToRamped(const MotionArgs& args)
     }
 
     // Check the last commanded position is valid (homing complete, no stepwise movement, etc)
-    if (_blockManager.isHomingNeededBeforeMove() && (!_blockManager.lastPosValid()))
+    if (_blockManager.isHomingNeededBeforeMove() && (!_blockManager.isAxesStateValid()))
     {
 #ifdef DEBUG_MOTION_CONTROLLER
         LOG_I(MODULE_PREFIX, "moveTo lastPos invalid - need to home (initially and after linear moves)");
@@ -235,7 +235,7 @@ bool MotionController::moveToRamped(const MotionArgs& args)
     }
 
     // Get the target axis position
-    AxesPosValues targetAxisPos = args.getAxesPositions();
+    auto targetAxisPos = args.getTargetPosAndValidity();
 
     // Convert coords to real-world if required - this depends on the coordinate type
     // This doesn't convert coords - just checks for things like wrap around in circular coordinate systems
@@ -244,12 +244,12 @@ bool MotionController::moveToRamped(const MotionArgs& args)
     // Fill in the targetAxisPos for axes for which values not specified
     // Handle relative motion calculation if required
     // Setup flags to indicate if each axis should be included in distance calculation
-    bool includeAxisDistCalc[AXIS_VALUES_MAX_AXES];
+    double movementDistSumSq = 0;
     for (int i = 0; i < AXIS_VALUES_MAX_AXES; i++)
     {
-        if (!targetAxisPos.isValid(i))
+        if (!targetAxisPos.getVal(i).isValid())
         {
-            targetAxisPos.setVal(i, _blockManager.getLastPos().getVal(i));
+            targetAxisPos.setVal(i, _blockManager.getAxesState().getUnitsFromOrigin(i));
 #ifdef DEBUG_MOTION_CONTROLLER
             LOG_I(MODULE_PREFIX, "moveTo ax %d, pos %0.2f NoMovementOnThisAxis", 
                     i, 
@@ -262,7 +262,7 @@ bool MotionController::moveToRamped(const MotionArgs& args)
             // explicitly states a moveType
             if (args.isRelative())
             {
-                targetAxisPos.setVal(i, _blockManager.getLastPos().getVal(i) + targetAxisPos.getVal(i));
+                targetAxisPos.setVal(i, _blockManager.getAxesState().getUnitsFromOrigin(i) + targetAxisPos.getVal(i).getVal());
             }
 #ifdef DEBUG_MOTION_CONTROLLER
             LOG_I(MODULE_PREFIX, "moveTo ax %d, pos %0.2f %s", 
@@ -271,21 +271,22 @@ bool MotionController::moveToRamped(const MotionArgs& args)
                     args.isRelative() ? "RELATIVE" : "ABSOLUTE");
 #endif
         }
-        includeAxisDistCalc[i] = _axesParams.isPrimaryAxis(i);
+        if (_axesParams.isPrimaryAxis(i))
+            movementDistSumSq += targetAxisPos.getVal(i).getVal() * targetAxisPos.getVal(i).getVal();
     }
 
-    // Get maximum length of block (for splitting up into blocks if required)
-    double lineLen = targetAxisPos.distanceTo(_blockManager.getLastPos(), includeAxisDistCalc);
+    // Get length of block (for splitting up into blocks if required)
+    double lineLen = sqrt(movementDistSumSq);
 
     // Ensure at least one block
     uint32_t numBlocks = 1;
-    if (_blockDistance > 0.01f && !args.dontSplitMove())
-        numBlocks = int(ceil(lineLen / _blockDistance));
+    if (_maxBlockDistMM > 0.01f && !args.dontSplitMove())
+        numBlocks = int(ceil(lineLen / _maxBlockDistMM));
     if (numBlocks == 0)
         numBlocks = 1;
 
     // Add to the block splitter
-    _blockManager.addRampedBlock(args, targetAxisPos, numBlocks);
+    _blockManager.addRampedBlock(args, targetAxisPos.toAxesPos(), numBlocks);
 
     // Pump the block splitter to prime the pipeline with blocks
     _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline());
@@ -299,14 +300,14 @@ bool MotionController::moveToRamped(const MotionArgs& args)
 // Set current position as home
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setCurPositionAsHome(bool allAxes, uint32_t axisIdx)
+void MotionController::setCurPositionAsOrigin(bool allAxes, uint32_t axisIdx)
 {
     if (!allAxes && (axisIdx >= AXIS_VALUES_MAX_AXES))
         return;
     for (uint32_t i = (allAxes ? 0 : axisIdx); i < (allAxes ? AXIS_VALUES_MAX_AXES : axisIdx+1); i++)
     {
-        _rampGenerator.setTotalStepPosition(i, _axesParams.gethomeOffSteps(i));
-        _blockManager.setCurPositionAsHome(i);
+        _rampGenerator.setTotalStepPosition(i, 0);
+        _blockManager.setCurPositionAsOrigin(i);
     }
 }
 
@@ -544,30 +545,6 @@ void MotionController::setupEndStops(uint32_t axisIdx, const String& axisName, c
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup motion control
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotionController::setupMotionControl(const RaftJsonIF& config)
-{
-    // Params
-    String geometry = config.getString("geom", "XYZ");
-    _blockDistance = config.getDouble("blockDist", _blockDistance_default);
-    bool allowAllOutOfBounds = config.getLong("allowOutOfBounds", false) != 0;
-    double junctionDeviation = config.getDouble("junctionDeviation", junctionDeviation_default);
-    _homingNeededBeforeAnyMove = config.getLong("homeBeforeMove", true) != 0;
-
-    // Debug
-    LOG_I(MODULE_PREFIX, "setupMotion geom %s blockDist %0.2f (0=no-max) allowOoB %s homeBefMove %s jnDev %0.2f",
-               geometry.c_str(), _blockDistance, allowAllOutOfBounds ? "Y" : "N", 
-               _homingNeededBeforeAnyMove ? "Y" : "N",
-               junctionDeviation);
-
-    // Block manager
-    _blockManager.setup(geometry, allowAllOutOfBounds, junctionDeviation, 
-            _homingNeededBeforeAnyMove, _rampGenerator.getPeriodUs());
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Setup serial bus and bus reversal
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -593,25 +570,16 @@ void MotionController::setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCu
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get last commanded position
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-AxesPosValues MotionController::getLastCommandedPos() const
-{
-    return _blockManager.getLastPos();
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get last monitored position
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-AxesPosValues MotionController::getLastMonitoredPos() const
+AxesValues<AxisPosDataType> MotionController::getLastMonitoredPos() const
 {
     // Get current position
-    AxesParamVals<AxisStepsDataType> curActuatorPos;
+    AxesValues<AxisStepsDataType> curActuatorPos;
     _rampGenerator.getTotalStepPosition(curActuatorPos);
     // Use reverse kinematics to get location
-    AxesPosValues lastMonitoredPos;
+    AxesValues<AxisPosDataType> lastMonitoredPos;
     _blockManager.coordsActuatorToRealWorld(curActuatorPos, lastMonitoredPos);
     return lastMonitoredPos;
 }

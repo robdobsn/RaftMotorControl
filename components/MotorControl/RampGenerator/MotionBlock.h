@@ -9,7 +9,6 @@
 #pragma once
 
 #include <math.h>
-#include "AxisValues.h"
 #include "AxesParams.h"
 #include "AxisEndstopChecks.h"
 
@@ -29,14 +28,25 @@ public:
     uint32_t getMotionTrackingIndex();
 
     // Target
-    AxisStepsDataType getStepsToTarget(int axisIdx) const;
-    AxisStepsDataType getAbsStepsToTarget(int axisIdx) const;
-    void setStepsToTarget(int axisIdx, AxisStepsDataType steps);
+    AxesValues<AxisStepsDataType> getStepsToTarget() const
+    {
+        return _stepsTotalMaybeNeg;
+    }
+    void setStepsToTarget(const AxesValues<AxisStepsDataType>& steps)
+    {
+        _stepsTotalMaybeNeg = steps;
+        for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+        {
+            int steps = _stepsTotalMaybeNeg.getVal(axisIdx);
+            if (abs(steps) > abs(_stepsTotalMaybeNeg.getVal(_axisIdxWithMaxSteps)))
+                _axisIdxWithMaxSteps = axisIdx;
+        }
+    }
 
     // Rates
     uint32_t getExitStepRatePerTTicks();
-    static AxisVelocityDataType maxAchievableSpeed(AxisAccDataType acceleration, 
-                        AxisVelocityDataType target_velocity, 
+    static AxisSpeedDataType maxAchievableSpeed(AxisAccDataType acceleration, 
+                        AxisSpeedDataType target_velocity, 
                         AxisDistDataType distance);
 
     // End stops
@@ -99,24 +109,24 @@ public:
         bool _blockIsFollowed : 1;
     };
 
-    // Requested max velocity for move - either axis units-per-sec or 
+    // Requested max speed for move - either axis units-per-sec or 
     // stepsPerSec depending if move is stepwise
-    AxisVelocityDataType _requestedVelocity = 0;
+    AxisSpeedDataType _requestedSpeed = 0;
     // Distance (pythagorean) to move considering primary axes only
     AxisDistDataType _moveDistPrimaryAxesMM = 0;
     // Unit vector on axis with max movement
     AxisUnitVectorDataType _unitVecAxisWithMaxDist = 0;
     // Computed max entry speed for a block based on max junction deviation calculation
-    AxisVelocityDataType _maxEntrySpeedMMps = 0;
+    AxisSpeedDataType _maxEntrySpeedMMps = 0;
     // Computed entry speed for this block
-    AxisVelocityDataType _entrySpeedMMps = 0;
+    AxisSpeedDataType _entrySpeedMMps = 0;
     // Computed exit speed for this block
-    AxisVelocityDataType _exitSpeedMMps = 0;
+    AxisSpeedDataType _exitSpeedMMps = 0;
     // End-stops to test
     AxisEndstopChecks _endStopsToCheck;
 
     // Steps to target and before deceleration
-    int32_t _stepsTotalMaybeNeg[AXIS_VALUES_MAX_AXES] = {0};
+    AxesValues<AxisStepsDataType> _stepsTotalMaybeNeg;
     int _axisIdxWithMaxSteps = 0;
     uint32_t _stepsBeforeDecel = 0;
 

@@ -1,6 +1,6 @@
 {
   "name": "RaftMotorControl",
-  "version": "1.2.4",
+  "version": "1.2.5",
   "description": "Motor Control for the Raft ESP32 framework",
   "keywords": "esp32, esp32s3, framework",
   "repository": {

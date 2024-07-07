@@ -17,59 +17,86 @@ class KinematicsXYZ : public RaftKinematics
 {
 public:
 
-    static RaftKinematics *create()
+    /// @brief create method for factory
+    /// @param config Configuration
+    /// @return new instance of this class
+    static RaftKinematics *create(const RaftJsonIF& config)
     {
-        return new KinematicsXYZ();
+        return new KinematicsXYZ(config);
     }
 
-    virtual bool ptToActuator(AxesPosValues targetPt,
-                              AxesParamVals<AxisStepsDataType> &outActuator,
-                              const AxesPosition &curPos,
-                              const AxesParams &axesParams,
-                              bool allowOutOfBounds) const override final
+    /// @brief Constructor
+    /// @param config Configuration
+    KinematicsXYZ(const RaftJsonIF& config)
     {
-        // Check machine bounds and fix the value if required
-        bool ptWasValid = axesParams.ptInBounds(targetPt, !allowOutOfBounds);
+    }
+
+    /// @brief Convert a point in cartesian to actuator steps
+    /// @param targetPt Target point cartesian from origin
+    /// @param outActuator Output actuator in absolute steps from origin
+    /// @param curAxesState Current position (in both units and steps from origin)
+    /// @param axesParams Axes parameters
+    /// @return false if out of bounds or invalid
+    virtual bool ptToActuator(const AxesValues<AxisPosDataType>& targetPt,
+                              AxesValues<AxisStepsDataType>& outActuator,
+                              const AxesState& curAxesState,
+                              const AxesParams& axesParams) const override final
+    {
+        // Check machine bounds
+        bool pointIsValid = axesParams.ptInBounds(targetPt);
+        if (!pointIsValid)
+        {
+            LOG_I(MODULE_PREFIX, "ptToActuator FAIL out of bounds");
+            return false;
+        }
 
         // Perform conversion
-        for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+        for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
         {
             // Axis val from home point
-            float axisValFromHome = targetPt.getVal(axisIdx) - axesParams.getHomeOffsetVal(axisIdx);
-            // Convert to steps and add offset to home in steps
-            outActuator.setVal(axisIdx, round(axisValFromHome * axesParams.getStepsPerUnit(axisIdx) + axesParams.gethomeOffSteps(axisIdx)));
+            float axisValFromHome = targetPt.getVal(axisIdx);
+
+            // Convert to steps
+            outActuator.setVal(axisIdx, round(axisValFromHome * axesParams.getStepsPerUnit(axisIdx)));
+
+            // TODO - decide if this origin steps needed
+            // outActuator.setVal(axisIdx, round(axisValFromHome * axesParams.getStepsPerUnit(axisIdx) + axesParams.gethomeOffsetSteps(axisIdx)));
 
 #ifdef DEBUG_KINEMATICS_XYZ
-            LOG_I(MODULE_PREFIX, "ptToActuator axis%d %f%s-> %d (homeOffVal %f, homeOffSteps %d)",
+            LOG_I(MODULE_PREFIX, "ptToActuator axis%d %.2f-> %d",
                   axisIdx,
                   targetPt.getVal(axisIdx),
-                  ptWasValid ? " " : "(OOB) ",
-                  outActuator.getVal(axisIdx),
-                  axesParams.getHomeOffsetVal(axisIdx),
-                  axesParams.gethomeOffSteps(axisIdx));
+                  outActuator.getVal(axisIdx));
 #endif
         }
-        return ptWasValid;
+        return true;
     }
-    virtual bool actuatorToPt(const AxesParamVals<AxisStepsDataType> &targetActuator,
-                              AxesPosValues &outPt,
-                              const AxesPosition &curPos,
-                              const AxesParams &axesParams) const override final
+
+    /// @brief Convert actuator steps to a point in cartesian
+    /// @param targetActuator Target actuator steps
+    /// @param outPt Output point in cartesian
+    /// @param curAxesState Current axes state (axes position and origin status)
+    /// @param axesParams Axes parameters
+    /// @return true if successful    
+    virtual bool actuatorToPt(const AxesValues<AxisStepsDataType>& targetActuator,
+                              AxesValues<AxisPosDataType>& outPt,
+                              const AxesState &curAxesState,
+                              const AxesParams& axesParams) const override final
     {
         // Perform conversion
-        for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+        for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
         {
-            double ptVal = targetActuator.getVal(axisIdx) - axesParams.gethomeOffSteps(axisIdx);
-            ptVal = ptVal / axesParams.getStepsPerUnit(axisIdx) + axesParams.getHomeOffsetVal(axisIdx);
+            // TODO - decide if this origin steps needed
+            // double ptVal = targetActuator.getVal(axisIdx) - axesParams.gethomeOffsetSteps(axisIdx);
+            double ptVal = targetActuator.getVal(axisIdx);
+            ptVal = ptVal / axesParams.getStepsPerUnit(axisIdx);
             outPt.setVal(axisIdx, ptVal);
 #ifdef DEBUG_KINEMATICS_XYZ
-            LOG_I(MODULE_PREFIX, "actuatorToPt axis%d %d -> %f (perunit %f, homeOffSteps %d, homeOffVal %f)",
+            LOG_I(MODULE_PREFIX, "actuatorToPt axis%d %d -> %.2f (perunit %.2f)",
                             axisIdx, 
                             targetActuator.getVal(axisIdx),
                             ptVal, 
-                            axesParams.getStepsPerUnit(axisIdx), 
-                            axesParams.gethomeOffSteps(axisIdx),
-                            axesParams.getHomeOffsetVal(axisIdx));
+                            axesParams.getStepsPerUnit(axisIdx));
 #endif
         }
         return true;        

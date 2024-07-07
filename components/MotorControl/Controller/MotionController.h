@@ -54,16 +54,16 @@ public:
     bool isBusy() const;
 
     // Set current position as home
-    void setCurPositionAsHome(bool allAxes = true, uint32_t axisIdx = 0);
+    void setCurPositionAsOrigin(bool allAxes = true, uint32_t axisIdx = 0);
 
     // Go to previously set home position
     void goHome(const MotionArgs &args);
 
     // Get last commanded position
-    AxesPosValues getLastCommandedPos() const;
+    AxesValues<AxisPosDataType> getLastCommandedPos() const;
 
     // Get last monitored position
-    AxesPosValues getLastMonitoredPos() const;
+    AxesValues<AxisPosDataType> getLastMonitoredPos() const;
 
     // Get data (diagnostics)
     String getDataJSON(RaftDeviceJSONLevel level) const;
@@ -106,7 +106,7 @@ private:
     bool _homingNeededBeforeAnyMove = true;
 
     // Block distance
-    double _blockDistance = 0.0f;
+    double _maxBlockDistMM = 0.0f;
 
     // Pause status
     bool _isPaused = false;
@@ -118,15 +118,12 @@ private:
     void setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig);
     void setupEndStops(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig);
     void setupRampGenerator(const RaftJsonIF& config);
-    void setupMotionControl(const RaftJsonIF& config);
     bool moveToLinear(const MotionArgs& args);
     bool moveToRamped(const MotionArgs& args);
 
     // Defaults
     static constexpr const char* DEFAULT_DRIVER_CHIP = "TMC2209";
     static constexpr const char* DEFAULT_HARDWARE_LOCATION = "local";
-    static constexpr double _blockDistance_default = 0.0f;
-    static constexpr double junctionDeviation_default = 0.05f;
     static constexpr double distToTravel_ignoreBelow = 0.01f;
     static constexpr uint32_t MAX_TIME_BEFORE_STOP_COMPLETE_MS = 500;
 };

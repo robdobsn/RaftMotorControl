@@ -29,7 +29,7 @@ MotionPlanner::MotionPlanner()
     _prevMotionBlockValid = false;
     _minimumPlannerSpeedMMps = 0;
     // Configure the motion pipeline - these values will be changed in config
-    _junctionDeviation = 0;
+    _maxJunctionDeviationMM = 0;
     _stepGenPeriodNs = RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT * 1000;
 }
 
@@ -37,11 +37,11 @@ MotionPlanner::MotionPlanner()
 // Setup
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionPlanner::setup(double junctionDeviation, uint32_t stepGenPeriodUs)
+void MotionPlanner::setup(double maxJunctionDeviationMM, uint32_t stepGenPeriodUs)
 {
-    _junctionDeviation = junctionDeviation;
+    _maxJunctionDeviationMM = maxJunctionDeviationMM;
     _stepGenPeriodNs = stepGenPeriodUs * 1000;
-    LOG_I(MODULE_PREFIX, "setup junctionDev %0.2f stepGenPeriodNs %d", junctionDeviation, _stepGenPeriodNs);
+    LOG_I(MODULE_PREFIX, "setup maxJunctionDeviationMM %0.2f stepGenPeriodNs %d", maxJunctionDeviationMM, _stepGenPeriodNs);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -49,8 +49,8 @@ void MotionPlanner::setup(double junctionDeviation, uint32_t stepGenPeriodUs)
 // Returns steps from home
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-AxesParamVals<AxisStepsDataType> MotionPlanner::moveToLinear(const MotionArgs &args,
-                    AxesParamVals<AxisStepsDataType> curAxesStepsFromHome,
+AxesValues<AxisStepsDataType> MotionPlanner::moveToLinear(const MotionArgs &args,
+                    AxesState& axesState,
                     const AxesParams &axesParams, 
                     MotionPipelineIF& motionPipeline)
 {
@@ -63,6 +63,7 @@ AxesParamVals<AxisStepsDataType> MotionPlanner::moveToLinear(const MotionArgs &a
     // Find if there are any steps
     bool hasSteps = false;
     AxisStepRateDataType lowestMaxStepRatePerSecForAnyAxis = 1e8;
+    AxesValues<AxisStepsDataType> stepsToTarget;
     for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
     {
         // Check if any steps to perform
@@ -73,7 +74,7 @@ AxesParamVals<AxisStepsDataType> MotionPlanner::moveToLinear(const MotionArgs &a
             if (args.isRelative())
                 steps = args.getAxisPos(axisIdx);
             else
-                steps = args.getAxisPos(axisIdx) - curAxesStepsFromHome.getVal(axisIdx);
+                steps = args.getAxisPos(axisIdx) - axesState.getStepsFromOrigin(axisIdx);
         }
         // Set steps to target
         if (steps != 0)
@@ -83,12 +84,14 @@ AxesParamVals<AxisStepsDataType> MotionPlanner::moveToLinear(const MotionArgs &a
                 lowestMaxStepRatePerSecForAnyAxis = axesParams.getMaxStepRatePerSec(axisIdx);
         }
         // Value (and direction)
-        block.setStepsToTarget(axisIdx, steps);
+        stepsToTarget.setVal(axisIdx, steps);
     }
+
+    block.setStepsToTarget(stepsToTarget);
 
     // Check there are some actual steps
     if (!hasSteps)
-        return curAxesStepsFromHome;
+        return axesState.getStepsFromOrigin();
 
     // Set unit vector
     block._unitVecAxisWithMaxDist = 1.0;
@@ -100,7 +103,7 @@ AxesParamVals<AxisStepsDataType> MotionPlanner::moveToLinear(const MotionArgs &a
     block.setMotionTrackingIndex(args.getMotionTrackingIndex());
 
     // Compute the requestedVelocity
-    AxisVelocityDataType requestedVelocity = lowestMaxStepRatePerSecForAnyAxis;
+    AxisSpeedDataType requestedVelocity = lowestMaxStepRatePerSecForAnyAxis;
     if (args.isTargetSpeedValid() && (requestedVelocity > args.getTargetSpeed()))
         requestedVelocity = args.getTargetSpeed();
 
@@ -113,7 +116,7 @@ AxesParamVals<AxisStepsDataType> MotionPlanner::moveToLinear(const MotionArgs &a
             feedrateAsRatioToMax = args.getFeedrate() / 60.0 / axesParams.masterAxisMaxSpeed();
     }
     requestedVelocity *= feedrateAsRatioToMax;
-    block._requestedVelocity = requestedVelocity;
+    block._requestedSpeed = requestedVelocity;
 
     // Prepare for stepping
     if (block.prepareForStepping(axesParams, true))
@@ -127,26 +130,27 @@ AxesParamVals<AxisStepsDataType> MotionPlanner::moveToLinear(const MotionArgs &a
     _prevMotionBlockValid = true;
 
     // Return the change in actuator position
-    for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
-        curAxesStepsFromHome.setVal(axisIdx,
-            curAxesStepsFromHome.getVal(axisIdx) + block.getStepsToTarget(axisIdx));
+    AxesValues<AxisStepsDataType> newStepsFromOrigin = axesState.getStepsFromOrigin() + block.getStepsToTarget();
 
 #ifdef DEBUG_MOTIONPLANNER_INFO
     LOG_I(MODULE_PREFIX, "^^^^^^^^^^^^^^^^^^^^^^^STEPWISE^^^^^^^^^^^^^^^^^^^^^^^^");
     motionPipeline.debugShowBlocks(axesParams);
 #endif
 
-    return curAxesStepsFromHome;
+    return newStepsFromOrigin;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Entry point for adding a motion block
-// Updates curAxisPositions before returning
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Add a ramped (variable acceleration) motion block
+/// @param args MotionArgs define the parameters for motion
+/// @param destActuatorCoords Destination actuator coordinates
+/// @param axesState Current state of the axes including position and origin status
+/// @param axesParams Parameters for the axes
+/// @param motionPipeline Motion pipeline to add the block to
+/// @return true if a block was added
 bool MotionPlanner::moveToRamped(const MotionArgs& args,
-            const AxesParamVals<AxisStepsDataType>& destActuatorCoords,
-            AxesPosition& curAxisPositions,
+            const AxesValues<AxisStepsDataType>& destActuatorCoords,
+            AxesState& axesState,
             const AxesParams& axesParams, 
             MotionPipelineIF& motionPipeline)
 {
@@ -164,9 +168,17 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
     bool isAPrimaryMove = false;
     int axisWithMaxMoveDist = 0;
     float squareSum = 0;
+    AxesValues<AxisPosDataType> targetAxesPos;
     for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
     {
-        deltas[axisIdx] = args.getAxisPos(axisIdx) - curAxisPositions.unitsFromHome._pt[axisIdx];
+        // Calculate target position
+        if (args.isAxisPosValid(axisIdx))
+            targetAxesPos.setVal(axisIdx, args.getAxisPos(axisIdx));
+        else
+            targetAxesPos.setVal(axisIdx, axesState.getUnitsFromOrigin(axisIdx));
+
+        // Calculate deltas
+        deltas[axisIdx] = targetAxesPos.getVal(axisIdx) - axesState.getUnitsFromOrigin(axisIdx);
         if (deltas[axisIdx] != 0)
         {
             isAMove = true;
@@ -176,6 +188,8 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
                 isAPrimaryMove = true;
             }
         }
+
+        // Check max distance axis
         if (fabs(deltas[axisIdx]) > fabs(deltas[axisWithMaxMoveDist]))
             axisWithMaxMoveDist = axisIdx;
     }
@@ -203,7 +217,7 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
     block.setMotionTrackingIndex(args.getMotionTrackingIndex());
 
     // Compute the requestedVelocity from the first primary axis
-    AxisVelocityDataType requestedVelocity = axesParams.getMaxSpeed(firstPrimaryAxis);
+    AxisSpeedDataType requestedVelocity = axesParams.getMaxSpeedUps(firstPrimaryAxis);
     if (args.isTargetSpeedValid() && (requestedVelocity > args.getTargetSpeed()))
         requestedVelocity = args.getTargetSpeed();
 
@@ -218,12 +232,12 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
     requestedVelocity *= feedrateAsRatioToMax;
 
 #ifdef DEBUG_REQUESTED_VELOCITY
-    LOG_I(MODULE_PREFIX, "maxSpeed %0.2f targetSpeed %0.2f feedrate %0.2f requestedVelocity %0.2f", axesParams.getMaxSpeed(firstPrimaryAxis), 
+    LOG_I(MODULE_PREFIX, "maxSpeed %0.2f targetSpeed %0.2f feedrate %0.2f requestedVelocity %0.2f", axesParams.getMaxSpeedUps(firstPrimaryAxis), 
             args.getTargetSpeed(), args.getFeedrate(), requestedVelocity);
 #endif
 
     // Find the unit vectors for the primary axes and check the feedrate
-    AxesParamVals<AxisUnitVectorDataType> unitVectors;
+    AxesValues<AxisUnitVectorDataType> unitVectors;
     for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
     {
         if (axesParams.isPrimaryAxis(axisIdx))
@@ -234,21 +248,23 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
     }
 
     // Store values in the block
-    block._requestedVelocity = requestedVelocity;
+    block._requestedSpeed = requestedVelocity;
     block._moveDistPrimaryAxesMM = moveDist;
 
     // Find if there are any steps
     bool hasSteps = false;
+    AxesValues<AxisStepsDataType> stepsToPerform;
     for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
     {
         // Check if any steps to perform
-        float stepsFloat = destActuatorCoords.getVal(axisIdx) - curAxisPositions.stepsFromHome.getVal(axisIdx);
+        float stepsFloat = destActuatorCoords.getVal(axisIdx) - axesState.getStepsFromOrigin(axisIdx);
         int32_t steps = int32_t(ceilf(stepsFloat));
         if (steps != 0)
             hasSteps = true;
         // Value (and direction)
-        block.setStepsToTarget(axisIdx, steps);
+        stepsToPerform.setVal(axisIdx, steps);
     }
+    block.setStepsToTarget(stepsToPerform);
 
 #ifdef DEBUG_MOTIONPLANNER_DETAILED_INFO
     LOG_I(MODULE_PREFIX, "F %0.2f D %0.2f uX %0.2f uY %0.2f, uZ %0.2f maxStAx %d maxDAx %d %s", 
@@ -267,9 +283,9 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
     block._unitVecAxisWithMaxDist = unitVectors.getVal(axisWithMaxMoveDist);
 
     // If there is a prior block then compute the maximum speed at exit of the second block to keep
-    // the junction deviation within bounds - there are more comments in the Smoothieware (and GRBL) code
-    float junctionDeviation = _junctionDeviation;
-    float vmaxJunction = _minimumPlannerSpeedMMps;
+    // the max junction deviation (mm) within bounds - there are more comments in the Smoothieware (and GRBL) code
+    float maxJunctionDeviationMM = _maxJunctionDeviationMM;
+    float vmaxJunctionMMps = _minimumPlannerSpeedMMps;
 
     // Invalidate the data stored for the prev element if the pipeline becomes empty
     if (!motionPipeline.canGet())
@@ -279,10 +295,10 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
     if (isAPrimaryMove && _prevMotionBlockValid)
     {
         float prevParamSpeed = isAPrimaryMove ? _prevMotionBlock._maxParamSpeedMMps : 0;
-        if (junctionDeviation > 0.0f && prevParamSpeed > 0.0f)
+        if (maxJunctionDeviationMM > 0.0f && prevParamSpeed > 0.0f)
         {
             // Compute cosine of angle between previous and current path. (prev_unit_vec is negative)
-            // NOTE: Max junction velocity is computed without sin() or acos() by trig half angle identity.
+            // NOTE: Max junction speed is computed without sin() or acos() by trig half angle identity.
             float cosTheta = - unitVectors.vectorMultSum(_prevMotionBlock._unitVectors);
 
 #ifdef DEBUG_ANGLE_CALCULATIONS
@@ -292,40 +308,40 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
                         cosTheta);
 #endif
 
-            // Skip and use default max junction speed for 0 degree acute junction.
+            // Skip and use default max junction speed for 0 degree acute junction
             if (cosTheta < 0.95F)
             {
-                vmaxJunction = fmin(prevParamSpeed, block._requestedVelocity);
+                vmaxJunctionMMps = fmin(prevParamSpeed, block._requestedSpeed);
                 // Skip and avoid divide by zero for straight junctions at 180 degrees. Limit to min() of nominal speeds.
                 if (cosTheta > -0.95F)
                 {
-                    // Compute maximum junction velocity based on maximum acceleration and junction deviation
+                    // Compute maximum junction speed based on maximum acceleration and junction deviation
                     // Trig half angle identity, always positive
                     float sinThetaD2 = sqrt(0.5F * (1.0F - cosTheta));
-                    vmaxJunction = fmin(vmaxJunction,
-                                            sqrt(axesParams.masterAxisMaxAccel() * junctionDeviation * sinThetaD2 /
+                    vmaxJunctionMMps = fmin(vmaxJunctionMMps,
+                                            sqrt(axesParams.masterAxisMaxAccel() * maxJunctionDeviationMM * sinThetaD2 /
                                                 (1.0F - sinThetaD2)));
                 }
 
 #ifdef DEBUG_ANGLE_CALCULATIONS
-                LOG_I(MODULE_PREFIX, "moveToRamped cosTheta %0.2f vmaxJn %0.2f jnDev %0.2f",
-                        cosTheta, vmaxJunction, junctionDeviation);
+                LOG_I(MODULE_PREFIX, "moveToRamped cosTheta %0.2f vmaxJnMMps %0.2f maxJnDevMM %0.2f",
+                        cosTheta, vmaxJunctionMMps, maxJunctionDeviationMM);
 #endif
 
             }
         }
     }
-    block._maxEntrySpeedMMps = vmaxJunction;
+    block._maxEntrySpeedMMps = vmaxJunctionMMps;
 
 #ifdef DEBUG_MOTIONPLANNER_DETAILED_INFO
-    LOG_I(MODULE_PREFIX, "PrevMoveInQueue %d, JunctionDeviation %0.2f, blockMaxEntrySpeed %0.2f",
-                motionPipeline.canGet(), junctionDeviation, block._maxEntrySpeedMMps);
+    LOG_I(MODULE_PREFIX, "PrevMoveInQueue %d, maxJunctionDeviationMM %0.2f, blockMaxEntrySpeedMMps %0.2f",
+                motionPipeline.canGet(), maxJunctionDeviationMM, block._maxEntrySpeedMMps);
 #endif
 
     // Add the element to the pipeline and remember previous element
     motionPipeline.add(block);
     MotionBlockSequentialData prevBlockInfo;
-    prevBlockInfo._maxParamSpeedMMps = block._requestedVelocity;
+    prevBlockInfo._maxParamSpeedMMps = block._requestedSpeed;
     prevBlockInfo._unitVectors = unitVectors;
     _prevMotionBlock = prevBlockInfo;
     _prevMotionBlockValid = true;
@@ -333,15 +349,9 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
     // Recalculate the whole queue
     recalculatePipeline(motionPipeline, axesParams);
 
-    // Update current actuator position
-    for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
-    {
-        curAxisPositions.stepsFromHome.setVal(axisIdx,
-                    curAxisPositions.stepsFromHome.getVal(axisIdx) + block.getStepsToTarget(axisIdx));
-    }
+    // Update current position
+    axesState.setPosition(targetAxesPos, block.getStepsToTarget(), true);
 
-    // Update current position in axis units
-    curAxisPositions.unitsFromHome = args.getAxesPositions();
     return true;
 }
 
@@ -457,7 +467,7 @@ void MotionPlanner::recalculatePipeline(MotionPipelineIF& motionPipeline, const 
         pBlock->_entrySpeedMMps = previousBlockExitSpeed;
 
         // Calculate maximum speed possible for the block - based on acceleration at the best rate
-        AxisVelocityDataType maxExitSpeed = pBlock->maxAchievableSpeed(axesParams.masterAxisMaxAccel(),
+        AxisSpeedDataType maxExitSpeed = pBlock->maxAchievableSpeed(axesParams.masterAxisMaxAccel(),
                                                         pBlock->_entrySpeedMMps, pBlock->_moveDistPrimaryAxesMM);
         pBlock->_exitSpeedMMps = fmin(maxExitSpeed, pBlock->_exitSpeedMMps);
 
@@ -508,7 +518,7 @@ void MotionPlanner::debugShowPipeline(MotionPipelineIF& motionPipeline, unsigned
     {
         LOG_I(MODULE_PREFIX, "#%d En %0.2f Ex %0.2f (maxEntry %0.2f, requestedVel %0.2f) mm/s", curIdx,
                     pCurBlock->_entrySpeedMMps, pCurBlock->_exitSpeedMMps,
-                    pCurBlock->_maxEntrySpeedMMps, pCurBlock->_requestedVelocity);
+                    pCurBlock->_maxEntrySpeedMMps, pCurBlock->_requestedSpeed);
         // Next
         curIdx++;
     }

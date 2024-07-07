@@ -6,11 +6,13 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
 #include <math.h>
 #include <limits.h>
 #include "unity.h"
 #include "RaftKinematicsSystem.h"
-#include "AxesPosition.h"
+#include "AxesValues.h"
 #include "AxesParams.h"
 
 static const char* MODULE_PREFIX = "XYZUnitTest";
@@ -18,15 +20,17 @@ static const char* MODULE_PREFIX = "XYZUnitTest";
 // Test points and expected results
 struct TestGeomPt
 {
-    TestGeomPt(AxesPosValues pt_, AxesParamVals<AxisStepsDataType> actuator_)
+    TestGeomPt(AxesValues<AxisPosDataType> pt_, AxesValues<AxisStepsDataType> actuator_)
         : pt(pt_), actuator(actuator_) {}
-    AxesPosValues pt;
-    AxesParamVals<AxisStepsDataType> actuator;
-    AxesPosition curPos;
+    AxesValues<AxisPosDataType> pt;
+    AxesValues<AxisStepsDataType> actuator;
+    AxesState curPos;
 };
 
 void testPtToActuator(RaftKinematics* pKinematics, AxesParams& axesParams, TestGeomPt* pTestPts, int numTestPts)
 {
+    if (!pKinematics)
+        return;
     // Iterate through test points
     for (int testPtIdx = 0; testPtIdx < numTestPts; testPtIdx++)
     {
@@ -34,13 +38,8 @@ void testPtToActuator(RaftKinematics* pKinematics, AxesParams& axesParams, TestG
         TestGeomPt& testPt = pTestPts[testPtIdx];
 
         // Convert point to actuator
-        AxesParamVals<AxisStepsDataType> actuator;
-        if (!pKinematics)
-        {
-            TEST_FAIL_MESSAGE("ptToActuator failed");
-            return;
-        }
-        bool success = pKinematics->ptToActuator(testPt.pt, actuator, testPt.curPos, axesParams, false);
+        AxesValues<AxisStepsDataType> actuator;
+        bool success = pKinematics->ptToActuator(testPt.pt, actuator, testPt.curPos, axesParams);
         TEST_ASSERT_MESSAGE(success, "ptToActuator failed");
 
         // Check actuator values
@@ -54,9 +53,6 @@ TEST_CASE("XYZ test 1", "[Geometry]")
 {
     LOG_I(MODULE_PREFIX, "XYZ test 1");
     
-    // Create raft kinematics
-    RaftKinematics* pRaftKinematics = RaftKinematicsSystem::createKinematics("XYZ");
-
     // Create axes params
     AxesParams axesParams;
     const char* paramsStr =
@@ -93,6 +89,22 @@ TEST_CASE("XYZ test 1", "[Geometry]")
         ])";
     RaftJson axesParamsJson(paramsStr);
     axesParams.setupAxes(axesParamsJson);
+
+    // Create kinematics params
+    RaftJson config(
+        R"({"geom": "XYZ",
+            "blockDistMM": 1,
+            "fixOutOfBounds": 0,
+            "homeBeforeMove": 0,
+            "maxJunctionDeviationMM": 0.05}
+            )");
+
+    // Create raft kinematics
+    RaftKinematics* pRaftKinematics = RaftKinematicsSystem::createKinematics(config);
+
+    vTaskDelay(2000);
+
+    TEST_ASSERT_MESSAGE(pRaftKinematics != nullptr, "ptToActuator failed");
 
     // Test points
     TestGeomPt testPts[] = {

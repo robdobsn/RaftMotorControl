@@ -178,7 +178,7 @@ void RampGenerator::resetTotalStepPosition()
         _totalStepsInc[i] = 0;
     }
 }
-void RampGenerator::getTotalStepPosition(AxesParamVals<AxisStepsDataType>& actuatorPos) const
+void RampGenerator::getTotalStepPosition(AxesValues<AxisStepsDataType>& actuatorPos) const
 {
     for (int i = 0; i < AXIS_VALUES_MAX_AXES; i++)
     {

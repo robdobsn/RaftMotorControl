@@ -9,7 +9,6 @@
 #pragma once
 
 #include "AxesParams.h"
-#include "AxesPosition.h"
 #include "MotionArgs.h"
 #include "MotorEnabler.h"
 #include "MotionPlanner.h"
@@ -28,8 +27,7 @@ public:
     void clear();
 
     // Setup
-    void setup(const String& geometry, bool allowAllOutOfBounds, double junctionDeviation, 
-                bool homingNeededBeforeAnyMove, uint32_t stepGenPeriodUs);
+    void setup(uint32_t stepGenPeriodUs, const RaftJsonIF& motionConfig);
 
     // pumpBlockSplitter - should be called regularly 
     // A single moveTo command can be split into blocks - this function checks if such
@@ -47,32 +45,41 @@ public:
 
     // Add rampled block (which may be split up)
     bool addRampedBlock(const MotionArgs& args, 
-                const AxesPosValues& targetPosition, 
+                const AxesValues<AxisPosDataType>& targetPosition, 
                 uint32_t numBlocks);
 
-    // Get last commanded position in axes units
-    AxesPosValues getLastPos() const
+    // Get current state of axes
+    const AxesState& getAxesState() const
     {
-        return _lastCommandedAxesPositions.unitsFromHome;
+        return _axesState;
     }
 
     // Check last commanded position is valid
-    bool lastPosValid() const
+    bool isAxesStateValid() const
     {
-        return _lastCommandedAxesPositions.unitsFromHomeValid();
+        return _axesState.isValid();
     }
 
     // Convert actuator coords to real-world coords
-    void coordsActuatorToRealWorld(const AxesParamVals<AxisStepsDataType> &targetActuator, 
-                AxesPosValues &outPt) const;
+    void coordsActuatorToRealWorld(const AxesValues<AxisStepsDataType> &targetActuator, 
+                AxesValues<AxisPosDataType> &outPt) const;
 
     // Convert coordinates (used for coordinate systems like Theta-Rho which are position dependent)
     // This doesn't convert coords - just checks for things like wrap around in circular coordinate systems
     // Note that values are modified in-place
-    void preProcessCoords(AxesPosValues& axisPositions, const AxesParams& axesParams) const;
+    void preProcessCoords(AxesValues<AxisPosAndValidDataType>& axesPositions, const AxesParams& axesParams) const
+    {
+        // Get kinematics
+        if (!_pRaftKinematics)
+        {
+            LOG_W(MODULE_PREFIX, "preProcessCoords no kinematics set");
+            return;
+        }    
+        _pRaftKinematics->preProcessCoords(axesPositions, axesParams);
+    }
 
     // Set current position as home
-    void setCurPositionAsHome(uint32_t axisIdx);
+    void setCurPositionAsOrigin(uint32_t axisIdx);
 
     // Homing needed before any move
     bool isHomingNeededBeforeMove() const
@@ -81,17 +88,20 @@ public:
     }
     
 private:
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "MotionBlockManager";
+
     // Args for motion
     MotionArgs _blockMotionArgs;
 
-    // Current position
-    AxesPosition _curPosition;
+    // State of axes (including current position and origin status)
+    AxesState _axesState;
 
     // Target position
-    AxesPosValues _targetPosition;
+    AxesValues<AxisPosDataType> _targetPosition;
 
     // Block delta distance
-    AxesPosValues _blockDeltaDistance;
+    AxesValues<AxisPosDataType> _blockDeltaDistance;
 
     // Num blocks to split over
     uint32_t _numBlocks = 0;
@@ -111,11 +121,8 @@ private:
     // Axes parameters
     AxesParams& _axesParams;
 
-    // Last commanded axes positions
-    AxesPosition _lastCommandedAxesPositions;
-
-    // Allow all out of bounds movement
-    bool _allowAllOutOfBounds = false;
+    // // Last commanded axes positions
+    // AxesState _lastCommandedAxesPositions;
 
     // Homing is needed before any movement
     bool _homingNeededBeforeAnyMove = false;

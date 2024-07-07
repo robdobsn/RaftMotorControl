@@ -10,10 +10,11 @@
 
 #include "RaftKinematics.h"
 #include "KinematicsXYZ.h"
+#include "KinematicsSingleArmSCARA.h"
 #include <list>
 
 /// @brief RaftKinematics factory creator function
-typedef RaftKinematics* (*RaftKinematicsFactoryCreatorFn)();
+typedef RaftKinematics* (*RaftKinematicsFactoryCreatorFn)(const RaftJsonIF& config);
 
 /// @brief RaftKinematics factory record type definition
 class RaftKinematicsFactoryTypeDef
@@ -47,6 +48,7 @@ public:
     {
         // Register all kinematics
         registerKinematics("XYZ", KinematicsXYZ::create);
+        registerKinematics("SingleArmSCARA", KinematicsSingleArmSCARA::create);
     }
 
     // Destructor
@@ -74,9 +76,9 @@ public:
     /// @brief Create a kinematics type
     /// @param name Name of the kinematics type
     /// @return RaftKinematics* pointer to the created kinematics
-    static RaftKinematics* createKinematics(const char* name)
+    static RaftKinematics* createKinematics(const RaftJsonIF& config)
     {
-        return getInstance().create(name);
+        return getInstance().create(config);
     }
 
 private:
@@ -92,13 +94,16 @@ private:
     std::list<RaftKinematicsFactoryTypeDef> _kinematicsFactoryTypeList;
 
     // Factory method
-    RaftKinematics* create(const char* name)
+    RaftKinematics* create(const RaftJsonIF& config)
     {
+        // Get the name of the kinematics type
+        String name = config.getString("geom", "");
+
         // Find the kinematics type
         for (const RaftKinematicsFactoryTypeDef& el : _kinematicsFactoryTypeList)
         {
             if (el.nameMatch(name))
-                return el._createFn();
+                return el._createFn(config);
         }
         return nullptr;
     }

@@ -1,6 +1,6 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //
-// AxisValidBools
+// AxesPackedBools
 //
 // Rob Dobson 2016-2023
 //
@@ -12,7 +12,7 @@
 #include "Logger.h"
 #include "RaftArduino.h"
 #include "esp_attr.h"
-class AxisValidBools
+class AxesPackedBools
 {
 public:
     struct BoolBitValues
@@ -26,24 +26,24 @@ public:
         uint16_t _uint;
     };
 
-    AxisValidBools()
+    AxesPackedBools()
     {
         _uint = 0;
     }
-    AxisValidBools(const AxisValidBools &other)
+    AxesPackedBools(const AxesPackedBools &other)
     {
         _uint = other._uint;
     }
-    AxisValidBools &operator=(const AxisValidBools &other)
+    AxesPackedBools &operator=(const AxesPackedBools &other)
     {
         _uint = other._uint;
         return *this;
     }
-    bool operator==(const AxisValidBools& other)
+    bool operator==(const AxesPackedBools& other)
     {
         return _uint == other._uint;
     }
-    bool operator!=(const AxisValidBools& other)
+    bool operator!=(const AxesPackedBools& other)
     {
         return !(*this == other);
     }
@@ -51,7 +51,7 @@ public:
     {
         return _uint & (1 << axisIdx);
     }
-    AxisValidBools(bool xValid, bool yValid, bool zValid)
+    AxesPackedBools(bool xValid, bool yValid, bool zValid)
     {
         _uint = 0;
         _bits.bX = xValid;

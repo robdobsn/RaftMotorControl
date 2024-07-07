@@ -95,7 +95,7 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
         {
             // Get axis position
             isFresh = true;
-            AxesPosValues pos = _motionController.getLastMonitoredPos();
+            AxesValues<AxisPosDataType> pos = _motionController.getLastMonitoredPos();
             switch(tolower(param[0]))
             {
                 case 'x': return pos.getVal(0);

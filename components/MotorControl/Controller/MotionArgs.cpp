@@ -25,7 +25,6 @@ std::vector<MotionArgs::FieldDefType> MotionArgs::getFieldDefs()
     fieldDefs.push_back(FieldDefType("speedOk", &_targetSpeedValid, "bool"));
     fieldDefs.push_back(FieldDefType("cw", &_moveClockwise, "bool"));
     fieldDefs.push_back(FieldDefType("rapid", &_moveRapid, "bool"));
-    fieldDefs.push_back(FieldDefType("OoBOk", &_allowOutOfBounds, "bool"));
     fieldDefs.push_back(FieldDefType("more", &_moreMovesComing, "bool"));
     fieldDefs.push_back(FieldDefType("homing", &_isHoming, "bool"));
     fieldDefs.push_back(FieldDefType("idxOk", &_motionTrackingIndexValid, "bool"));
@@ -76,19 +75,15 @@ void MotionArgs::fromJSON(const char* jsonStr)
     // Extract position
     std::vector<String> posList;
     cmdJson.getArrayElems("pos", posList);
+    _targetPosMaybePartial.clear();
     for (const RaftJson pos : posList)
     {
         int32_t axisIdx = pos.getLong("a", -1);
-        double axisPos = pos.getDouble("p", 0);
-        
+        double axisPos = pos.getDouble("p", 0);        
 #ifdef DEBUG_MOTION_ARGS
-        LOG_I(MODULE_PREFIX, "cmdJson %s pos %s axisIdx: %d, axisPos: %f", cmdJson.getJsonDoc(), pos.getJsonDoc(), axisIdx, axisPos);
+        LOG_I(MODULE_PREFIX, "cmdJson %s pos %s axisIdx: %d, axisPos: %.2f", cmdJson.getJsonDoc(), pos.getJsonDoc(), axisIdx, axisPos);
 #endif
-
-        if ((axisIdx < 0) || (axisIdx >= MULTISTEPPER_MAX_AXES))
-            continue;
-        _axisValid[axisIdx] = true;
-        _axisPos[axisIdx] = axisPos;
+        _targetPosMaybePartial.setVal(axisIdx, axisPos);
     }
 }
 
@@ -122,14 +117,12 @@ String MotionArgs::toJSON()
     bool firstAxis = true;
     for (int32_t axisIdx = 0; axisIdx < MULTISTEPPER_MAX_AXES; axisIdx++)
     {
-        if (!_axisValid[axisIdx])
-            continue;
         if (!firstAxis)
         {
             jsonStr += ",";
             firstAxis = false;
         }
-        jsonStr += "{\"a\":" + String(axisIdx) + ",\"p\":" + String(_axisPos[axisIdx]) + "}";
+        jsonStr += "{\"a\":" + String(axisIdx) + ",\"p\":" + String(_targetPosMaybePartial.getVal(axisIdx).getVal()) + "}";
     }
     jsonStr += "]";
     return "{" + jsonStr + "}";

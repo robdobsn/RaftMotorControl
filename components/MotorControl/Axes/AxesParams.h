@@ -9,10 +9,10 @@
 #pragma once
 
 #include "AxisParams.h"
-#include "AxisValues.h"
-#include "AxesPosValues.h"
-#include "AxesParamVals.h"
+#include "AxesValues.h"
 #include <vector>
+
+#define DEBUG_AXES_PARAMS
 
 class AxesParams
 {
@@ -25,10 +25,12 @@ public:
     void clearAxes()
     {
         _masterAxisIdx = -1;
-        _masterAxisMaxAccUnitsPerSec2 = AxisParams::acceleration_default;
+        _masterAxisMaxAccUps2 = AxisParams::maxAccUps2_default;
         _axisParams.clear();
     }
 
+    // Note that this should not be in the normal steps data type as it may be a fraction and
+    // step counts may be integers
     double getStepsPerUnit(uint32_t axisIdx) const
     {
         if (axisIdx >= _axisParams.size())
@@ -36,73 +38,46 @@ public:
         return _axisParams[axisIdx].stepsPerUnit();
     }
 
-    double getStepsPerRot(uint32_t axisIdx) const
+    AxisStepsDataType getStepsPerRot(uint32_t axisIdx) const
     {
         if (axisIdx >= _axisParams.size())
             return AxisParams::stepsPerRot_default;
         return _axisParams[axisIdx]._stepsPerRot;
     }
 
-    double getunitsPerRot(uint32_t axisIdx) const
+    AxisPosDataType getunitsPerRot(uint32_t axisIdx) const
     {
         if (axisIdx >= _axisParams.size())
             return AxisParams::posUnitsPerRot_default;
         return _axisParams[axisIdx]._unitsPerRot;
     }
 
-    AxisStepsDataType gethomeOffSteps(uint32_t axisIdx) const
+    AxisPosDataType getMaxUnits(uint32_t axisIdx) const
     {
         if (axisIdx >= _axisParams.size())
             return 0;
-        return _axisParams[axisIdx]._homeOffSteps;
+        return _axisParams[axisIdx]._maxUnits;
     }
 
-    void sethomeOffSteps(uint32_t axisIdx, AxisStepsDataType newVal)
-    {
-        if (axisIdx >= _axisParams.size())
-            return;
-        _axisParams[axisIdx]._homeOffSteps = newVal;
-    }
-
-    double getHomeOffsetVal(uint32_t axisIdx) const
-    {
-        if (axisIdx >= _axisParams.size())
-            return 0;
-        return _axisParams[axisIdx]._homeOffsetVal;
-    }
-
-    double getMaxVal(uint32_t axisIdx, double &maxVal) const
+    AxisPosDataType getMinUnits(uint32_t axisIdx) const
     {
         if (axisIdx >= _axisParams.size())
             return false;
-        if (!_axisParams[axisIdx]._maxValValid)
-            return false;
-        maxVal = _axisParams[axisIdx]._maxVal;
-        return true;
+        return _axisParams[axisIdx]._minUnits;
     }
 
-    double getMinVal(uint32_t axisIdx, double &minVal) const
+    AxisSpeedDataType getMaxSpeedUps(uint32_t axisIdx) const
     {
         if (axisIdx >= _axisParams.size())
-            return false;
-        if (!_axisParams[axisIdx]._minValValid)
-            return false;
-        minVal = _axisParams[axisIdx]._minVal;
-        return true;
+            return AxisParams::maxVelocityUps_default;
+        return _axisParams[axisIdx]._maxSpeedUps;
     }
 
-    double getMaxSpeed(uint32_t axisIdx) const
+    AxisSpeedDataType getMinSpeedUps(uint32_t axisIdx) const
     {
         if (axisIdx >= _axisParams.size())
-            return AxisParams::maxVelocity_default;
-        return _axisParams[axisIdx]._maxVelocityUnitsPerSec;
-    }
-
-    double getMinSpeed(uint32_t axisIdx) const
-    {
-        if (axisIdx >= _axisParams.size())
-            return AxisParams::minVelocity_default;
-        return _axisParams[axisIdx]._minVelocityUnitsPerSec;
+            return AxisParams::minVelocityUps_default;
+        return _axisParams[axisIdx]._minSpeedUps;
     }
 
     AxisStepRateDataType getMaxStepRatePerSec(uint32_t axisIdx, bool forceRecalc = false) const
@@ -114,11 +89,21 @@ public:
         return _maxStepRatesPerSec.getVal(axisIdx);
     }
 
-    double getMaxAccel(uint32_t axisIdx) const
+    AxisAccDataType getMaxAccelUps2(uint32_t axisIdx) const
     {
         if (axisIdx >= _axisParams.size())
-            return AxisParams::acceleration_default;
-        return _axisParams[axisIdx]._maxAccelUnitsPerSec2;
+            return AxisParams::maxAccUps2_default;
+        return _axisParams[axisIdx]._maxAccelUps2;
+    }
+
+    String getGeometry() const
+    {
+        return _geometry;
+    }
+
+    AxisPosDataType getMaxJunctionDeviationMM() const
+    {
+        return _maxJunctionDeviationMM;
     }
 
     bool isPrimaryAxis(uint32_t axisIdx) const
@@ -128,20 +113,32 @@ public:
         return _axisParams[axisIdx]._isPrimaryAxis;
     }
 
-    bool ptInBounds(AxesPosValues &pt, bool correctValueInPlace) const
+    bool ptInBounds(const AxesValues<AxisPosDataType>& pt) const
     {
-        bool wasValid = true;
+        bool isValid = true;
         for (uint32_t axisIdx = 0; (axisIdx < _axisParams.size()) && (axisIdx < pt.numAxes()); axisIdx++)
-            wasValid = wasValid && _axisParams[axisIdx].ptInBounds(pt._pt[axisIdx], correctValueInPlace);
-        return wasValid;
+            isValid = isValid && _axisParams[axisIdx].ptInBounds(pt[axisIdx]);
+        return isValid;
     }
 
     bool setupAxes(const RaftJsonIF& config)
     {
         // Clear existing
         _axisParams.clear();
-        
-        // TODO REFACTOR TO USE JSON PATHS
+
+        // Get params related to kinematics
+        _geometry = config.getString("motion/geom", "XYZ");
+        _maxBlockDistMM = config.getDouble("motion/blockDistMM", _maxBlockDistanceMM_default);
+        _maxJunctionDeviationMM = config.getDouble("motion/maxJunctionDeviationMM", maxJunctionDeviationMM_default);
+        _homingNeededBeforeAnyMove = config.getBool("motion/homeBeforeMove", true);
+
+#ifdef DEBUG_AXES_PARAMS
+        // Debug
+        LOG_I(MODULE_PREFIX, "setupAxes geom %s blockDistMM %0.2f (0=no-max) homeBefMove %s jnDev %0.2fmm",
+               _geometry.c_str(), _maxBlockDistMM,
+               _homingNeededBeforeAnyMove ? "Y" : "N",
+               _maxJunctionDeviationMM);
+#endif
         
         // Extract sub-system elements
         std::vector<String> axesVec;
@@ -211,31 +208,44 @@ public:
             _masterAxisIdx = fallbackAxisIdx;
 
         // Cache values for master axis
-        _masterAxisMaxAccUnitsPerSec2 = getMaxAccel(_masterAxisIdx);
+        _masterAxisMaxAccUps2 = getMaxAccelUps2(_masterAxisIdx);
     }
 
     AxisAccDataType masterAxisMaxAccel() const
     {
-        return _masterAxisMaxAccUnitsPerSec2;
+        return _masterAxisMaxAccUps2;
     }
 
-    AxisVelocityDataType masterAxisMaxSpeed() const
+    AxisSpeedDataType masterAxisMaxSpeed() const
     {
         if (_masterAxisIdx != -1)
-            return getMaxSpeed(_masterAxisIdx);
-        return getMaxSpeed(0);
+            return getMaxSpeedUps(_masterAxisIdx);
+        return getMaxSpeedUps(0);
     }
 
+    // Defaults
+    static constexpr double _maxBlockDistanceMM_default = 0.0f;
+    static constexpr double maxJunctionDeviationMM_default = 0.05f;
+
 private:
+
+    static constexpr const char* MODULE_PREFIX = "AxesParams";
+
+    // Kinematics
+    String _geometry;
+    double _maxBlockDistMM = _maxBlockDistanceMM_default;
+    bool _homingNeededBeforeAnyMove = true;
+    double _maxJunctionDeviationMM = maxJunctionDeviationMM_default;
+
     // Axis parameters
     std::vector<AxisParams> _axisParams;
 
     // Master axis
-    int _masterAxisIdx;
+    int _masterAxisIdx = 0;
 
     // Cache values for master axis as they are used frequently in the planner
-    AxisAccDataType _masterAxisMaxAccUnitsPerSec2;
+    AxisAccDataType _masterAxisMaxAccUps2 = AxisParams::maxAccUps2_default;
 
     // Cache max step rate
-    AxesParamVals<AxisStepRateDataType> _maxStepRatesPerSec;
+    AxesValues<AxisStepRateDataType> _maxStepRatesPerSec;
 };

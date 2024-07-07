@@ -11,40 +11,53 @@
 #include "RaftJson.h"
 #include "Logger.h"
 #include "RaftUtils.h"
-#include "AxisValues.h"
+#include "AxesValues.h"
+
+// This class holds the parameters for a single axis of a machine which may be driven by a stepper or servo
+// The parameters are used to convert between machine units and steps using kinematics which are specific to
+// the machine configuration and may include cartesian, SCARA, etc.
+// Some parameters are specific to particular types of machine (e.g. activeLenMM for a SCARA arm)
+// Units may be mm or degrees, etc. depending on the machine configuration
+// For a cartesian machine the units are typically mm and for a SCARA machine the units are typically degrees
+// The term Ups means units per second and Ups2 means units per second squared (acceleration)
 
 class AxisParams
 {
 public:
-    static constexpr AxisVelocityDataType maxVelocity_default = 100.0f;
-    static constexpr AxisVelocityDataType minVelocity_default = 0.0f;
-    static constexpr AxisAccDataType acceleration_default = 100.0f;
+    static constexpr AxisSpeedDataType maxVelocityUps_default = 100.0f;
+    static constexpr AxisSpeedDataType minVelocityUps_default = 0.0f;
+    static constexpr AxisAccDataType maxAccUps2_default = 100.0f;
     static constexpr AxisStepsFactorDataType stepsPerRot_default = 1.0f;
     static constexpr AxisPosFactorDataType posUnitsPerRot_default = 1.0f;
     static constexpr AxisRPMDataType maxRPM_default = 300.0f;
-    static constexpr AxisPosDataType homeOffsetVal_default = 0.0f;
-    static constexpr AxisStepsDataType homeOffSteps_default = 0;
+    static constexpr AxisPosDataType originOffsetUnits_default = 0.0f;
     static constexpr AxisStepsDataType stepsForAxisHoming_default = 100000;
 
-    // Parameters
-    AxisVelocityDataType _maxVelocityUnitsPerSec;
-    AxisVelocityDataType _minVelocityUnitsPerSec;
-    AxisAccDataType _maxAccelUnitsPerSec2;
+    // Max and min speed in units per second
+    AxisSpeedDataType _maxSpeedUps;
+    AxisSpeedDataType _minSpeedUps;
+
+    // Max acceleration in units per second squared
+    AxisAccDataType _maxAccelUps2;
+
+    // Steps per rotation and units per rotation
     AxisStepsFactorDataType _stepsPerRot;
     AxisPosFactorDataType _unitsPerRot;
+
+    // Max RPM
     AxisRPMDataType _maxRPM;
-    bool _minValValid;
-    AxisPosDataType _minVal;
-    bool _maxValValid;
-    AxisPosDataType _maxVal;
+
+    // Min and max values for the axis in units
+    AxisPosDataType _minUnits;
+    AxisPosDataType _maxUnits;
+
+    // Axis type
     bool _isPrimaryAxis;
     bool _isDominantAxis;
     // A servo axis is one which does not require blockwise stepping to a destination
     bool _isServoAxis;
-    AxisPosDataType _homeOffsetVal;
-    AxisStepsDataType _homeOffSteps;
 
-  public:
+public:
     AxisParams()
     {
         clear();
@@ -52,21 +65,17 @@ public:
 
     void clear()
     {
-        _maxVelocityUnitsPerSec = maxVelocity_default;
-        _minVelocityUnitsPerSec = minVelocity_default;
-        _maxAccelUnitsPerSec2 = acceleration_default;
+        _maxSpeedUps = maxVelocityUps_default;
+        _minSpeedUps = minVelocityUps_default;
+        _maxAccelUps2 = maxAccUps2_default;
         _stepsPerRot = stepsPerRot_default;
         _unitsPerRot = posUnitsPerRot_default;
         _maxRPM = maxRPM_default;
-        _minValValid = false;
-        _minVal = 0;
-        _maxValValid = false;
-        _maxVal = 0;
+        _minUnits = 0;
+        _maxUnits = 0;
         _isPrimaryAxis = true;
         _isDominantAxis = false;
         _isServoAxis = false;
-        _homeOffsetVal = homeOffsetVal_default;
-        _homeOffSteps = homeOffSteps_default;
     }
 
     AxisStepsFactorDataType stepsPerUnit() const
@@ -76,40 +85,30 @@ public:
         return 1;
     }
 
-    bool ptInBounds(AxisPosDataType &val, bool correctValueInPlace) const
+    bool ptInBounds(const AxisPosDataType &val) const
     {
-        bool wasValid = true;
-        if (_minValValid && val < _minVal)
-        {
-            wasValid = false;
-            if (correctValueInPlace)
-                val = _minVal;
-        }
-        if (_maxValValid && val > _maxVal)
-        {
-            wasValid = false;
-            if (correctValueInPlace)
-                val = _maxVal;
-        }
-        return wasValid;
+        return (val >= _minUnits) && ((_maxUnits == 0) || (val <= _maxUnits));
+    }
+
+    AxisPosDataType getNearestInBoundsValue(AxisPosDataType val) const
+    {
+        if (val < _minUnits)
+            return _minUnits;
+        if ((_maxUnits != 0) && (val > _maxUnits))
+            return _maxUnits;
+        return val;
     }
 
     void setFromJSON(const char *axisJSON)
     {
         RaftJson config(axisJSON);
-        int arrayLen = 0;
-        // Stepper motor
-        _maxVelocityUnitsPerSec = AxisVelocityDataType(config.getDouble("maxSpeed", AxisParams::maxVelocity_default));
-        _maxAccelUnitsPerSec2 = AxisAccDataType(config.getDouble("maxAcc", AxisParams::acceleration_default));
+        _maxSpeedUps = AxisSpeedDataType(config.getDouble("maxSpeedUps", AxisParams::maxVelocityUps_default));
+        _maxAccelUps2 = AxisAccDataType(config.getDouble("maxAccUps2", AxisParams::maxAccUps2_default));
         _stepsPerRot = AxisStepsFactorDataType(config.getDouble("stepsPerRot", AxisParams::stepsPerRot_default));
         _unitsPerRot = AxisPosFactorDataType(config.getDouble("unitsPerRot", AxisParams::posUnitsPerRot_default));
         _maxRPM = AxisRPMDataType(config.getDouble("maxRPM", AxisParams::maxRPM_default));
-        _minVal = AxisPosDataType(config.getDouble("minVal", 0));
-        _minValValid = config.getType("minVal", arrayLen) == RaftJson::RAFT_JSON_NUMBER;
-        _maxVal = AxisPosDataType(config.getDouble("maxVal", 0));
-        _maxValValid = config.getType("maxVal", arrayLen) == RaftJson::RAFT_JSON_NUMBER;
-        _homeOffsetVal = AxisPosDataType(config.getDouble("homeOffsetVal", 0));
-        _homeOffSteps = AxisStepsDataType(config.getDouble("homeOffSteps", 0));
+        _minUnits = AxisPosDataType(config.getDouble("minUnits", 0));
+        _maxUnits = AxisPosDataType(config.getDouble("maxUnits", 0));
         _isDominantAxis = config.getBool("isDominantAxis", 0);
         _isPrimaryAxis = config.getBool("isPrimaryAxis", 1);
         _isServoAxis = config.getBool("isServoAxis", 0);
@@ -118,9 +117,9 @@ public:
     void debugLog(int axisIdx)
     {
         static const char* MODULE_PREFIX = "AxisParams";
-        LOG_I(MODULE_PREFIX, "Axis%d params maxSpeed %0.2f, acceleration %0.2f, stepsPerRot %0.2f, unitsPerRot %0.2f, maxRPM %0.2f",
-                   axisIdx, _maxVelocityUnitsPerSec, _maxAccelUnitsPerSec2, _stepsPerRot, _unitsPerRot, _maxRPM);
-        LOG_I(MODULE_PREFIX, "Axis%d params minVal %0.2f (%d), maxVal %0.2f (%d), isDominant %d, isServo %d, homeOffVal %0.2f, homeOffSteps %d",
-                   axisIdx, _minVal, _minValValid, _maxVal, _maxValValid, _isDominantAxis, _isServoAxis, _homeOffsetVal, _homeOffSteps);
+        LOG_I(MODULE_PREFIX, "Axis%d params maxSpeed %0.2f acceleration %0.2f stepsPerRot %0.2f unitsPerRot %0.2f maxRPM %0.2f",
+                   axisIdx, _maxSpeedUps, _maxAccelUps2, _stepsPerRot, _unitsPerRot, _maxRPM);
+        LOG_I(MODULE_PREFIX, "Axis%d params minVal %0.2f maxVal %0.2f isDominant %d isServo %d",
+                   axisIdx, _minUnits, _maxUnits, _isDominantAxis, _isServoAxis);
     }
 };

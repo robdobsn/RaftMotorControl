@@ -7,7 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "MotionBlock.h"
-#include "AxisValues.h"
+#include "AxesValues.h"
 #include "AxesParams.h"
 #include "Logger.h"
 #include "RaftUtils.h"
@@ -43,7 +43,7 @@ void MotionBlock::setTimerPeriodNs(uint32_t stepGenPeriodNs)
 void MotionBlock::clear()
 {
     // Clear values
-    _requestedVelocity = 0;
+    _requestedSpeed = 0;
     _moveDistPrimaryAxesMM = 0;
     _maxEntrySpeedMMps = 0;
     _entrySpeedMMps = 0;
@@ -79,38 +79,6 @@ uint32_t IRAM_ATTR MotionBlock::getMotionTrackingIndex()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Target info
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-int32_t MotionBlock::getStepsToTarget(int axisIdx) const
-{
-    if ((axisIdx >= 0) && (axisIdx < AXIS_VALUES_MAX_AXES))
-    {
-        return _stepsTotalMaybeNeg[axisIdx];
-    }
-    return 0;
-}
-
-int32_t MotionBlock::getAbsStepsToTarget(int axisIdx) const
-{
-    if ((axisIdx >= 0) && (axisIdx < AXIS_VALUES_MAX_AXES))
-    {
-        return abs(_stepsTotalMaybeNeg[axisIdx]);
-    }
-    return 0;
-}
-
-void MotionBlock::setStepsToTarget(int axisIdx, int32_t steps)
-{
-    if ((axisIdx >= 0) && (axisIdx < AXIS_VALUES_MAX_AXES))
-    {
-        _stepsTotalMaybeNeg[axisIdx] = steps;
-        if (abs(steps) > abs(_stepsTotalMaybeNeg[_axisIdxWithMaxSteps]))
-            _axisIdxWithMaxSteps = axisIdx;
-    }
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Block params
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -120,7 +88,7 @@ uint32_t MotionBlock::getExitStepRatePerTTicks()
 }
 
 float MotionBlock::maxAchievableSpeed(AxisAccDataType acceleration, 
-                AxisVelocityDataType target_velocity, 
+                AxisSpeedDataType target_velocity, 
                 AxisDistDataType distance)
 {
     return sqrtf(target_velocity * target_velocity + 2.0F * acceleration * distance);
@@ -175,7 +143,7 @@ bool MotionBlock::prepareForStepping(const AxesParams &axesParams, bool isLinear
     if (isLinear)
     {
         // requestedVelocity is in steps per second in this case
-        float stepRatePerSec = _requestedVelocity;
+        float stepRatePerSec = _requestedSpeed;
         if (stepRatePerSec > axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps))
             stepRatePerSec = axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps);
         initialStepRatePerSec = stepRatePerSec;
@@ -194,7 +162,7 @@ bool MotionBlock::prepareForStepping(const AxesParams &axesParams, bool isLinear
         finalStepRatePerSec = fabs(_exitSpeedMMps / stepDistMM);
         if (finalStepRatePerSec > axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps))
             finalStepRatePerSec = axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps);
-        maxAccStepsPerSec2 = fabs(axesParams.getMaxAccel(_axisIdxWithMaxSteps) / stepDistMM);
+        maxAccStepsPerSec2 = fabs(axesParams.getMaxAccelUps2(_axisIdxWithMaxSteps) / stepDistMM);
 
         // Calculate the distance decelerating and ensure within bounds
         // Using the facts for the block ... (assuming max accleration followed by max deceleration):
@@ -218,7 +186,7 @@ bool MotionBlock::prepareForStepping(const AxesParams &axesParams, bool isLinear
         stepsDecelerating = 0;
 
         // Find max possible rate for axis with max steps
-        axisMaxStepRatePerSec = fabs(_requestedVelocity / stepDistMM);
+        axisMaxStepRatePerSec = fabs(_requestedSpeed / stepDistMM);
         if (axisMaxStepRatePerSec > axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps))
             axisMaxStepRatePerSec = axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps);
 
@@ -279,9 +247,9 @@ void MotionBlock::debugShowBlock(int elemIdx, const AxesParams &axesParams) cons
                 elemIdx,
                 _entrySpeedMMps,
                 _exitSpeedMMps,
-                (int)getStepsToTarget(0),
-                (int)getStepsToTarget(1),
-                (int)getStepsToTarget(2),
+                (int)_stepsTotalMaybeNeg[0],
+                (int)_stepsTotalMaybeNeg[1],
+                (int)_stepsTotalMaybeNeg[2],
                 (int)_stepsBeforeDecel);
     char extStr[200];
     snprintf(extStr, sizeof(extStr), "%8.3f(%10ld)%8.3f(%10ld)%8.3f(%10ld)%8.3f(%10lu)%13.8f%11.6f%11.8f%11.3f",
@@ -290,7 +258,7 @@ void MotionBlock::debugShowBlock(int elemIdx, const AxesParams &axesParams) cons
                 debugStepRateToMMps(_finalStepRatePerTTicks), (long int)_finalStepRatePerTTicks,
                 debugStepRateToMMps2(_accStepsPerTTicksPerMS), (long unsigned)_accStepsPerTTicksPerMS,
                 _unitVecAxisWithMaxDist,
-                _requestedVelocity,
+                _requestedSpeed,
                 _debugStepDistMM,
                 axesParams.getMaxStepRatePerSec(0));
     LOG_I(MODULE_PREFIX, "%s%s", baseStr, extStr);

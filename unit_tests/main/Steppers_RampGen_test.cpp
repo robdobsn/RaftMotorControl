@@ -90,7 +90,7 @@ public:
         _stepStarted = true;
         _ticksToCompletion = _testClockCount;
 
-        // Get time (in clock ticks) between steps (velocity)
+        // Get time (in clock ticks) between steps (speed)
         uint32_t ticksPerStep = _testClockCount - _lastStepClockCount;
         _lastStepClockCount = _testClockCount;
 
@@ -212,7 +212,7 @@ TEST_CASE("test_RampGenerator", "[RampGenerator]")
 //     // Set tick time
 //     motionBlock.setTimerPeriodNs(rampGenTimer.getPeriodUs() * 1000);
 //     // Requested speed in mm/s
-//     motionBlock._requestedVelocity = 100;
+//     motionBlock._requestedSpeed = 100;
 //     // Move distance
 //     motionBlock._moveDistPrimaryAxesMM = 10;
 //     // Primary axis vector
