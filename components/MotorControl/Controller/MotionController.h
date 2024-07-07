@@ -24,33 +24,44 @@ class EndStops;
 class MotionController
 {
 public:
-    // Constructor / Destructor
+    /// @brief Constructor
     MotionController();
+
+    /// @brief Destructor
     ~MotionController();
 
-    // Setup / deinit
+    /// @brief Setup the motion controller
+    /// @param config JSON configuration
     void setup(const RaftJsonIF& config);
+
+    /// @brief Deinit the motion controller
     void deinit();
 
-    // Set serial bus and whether to use bus for direction reversal 
+    /// @brief Setup bus to use for serial comms with driver and whether to use it for direction reversal
     void setupSerialBus(RaftBus* pBus, bool useBusForDirectionReversal);
 
-    // Loop - called frequently
+    /// @brief Main loop for the device (called frequently)
     void loop();
 
-    // Move to a specific location
-    bool moveTo(const MotionArgs &args);
+    /// @brief Move to a specific location (flat or ramped and relative or absolute)
+    /// @param args MotionArgs specify the motion to be performed
+    /// @return true if the motion was successfully added to the pipeline
+    /// @note The args may be modified so cannot be const
+    bool moveTo(MotionArgs &args);
 
-    // Pause (or un-pause) all motion
+    /// @brief Pause (or resume) all motion
+    /// @param pauseIt true to pause, false to resume
     void pause(bool pauseIt);
 
-    // Check if paused
+    /// @brief Check if the motion controller is paused
+    /// @return true if paused
     bool isPaused() const
     {
         return _isPaused;
     }
 
-    // Check if busy (moving)
+    /// @brief Check if the motion controller is busy
+    /// @return true if any motion is in the pipeline
     bool isBusy() const;
 
     // Set current position as home
@@ -121,7 +132,12 @@ private:
     void setupEndStops(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig);
     void setupRampGenerator(const RaftJsonIF& config);
     bool moveToNonRamped(const MotionArgs& args);
-    bool moveToRamped(const MotionArgs& args);
+
+    /// @brief Move to a specific location (relative or absolute) using ramped motion
+    /// @param args MotionArgs specify the motion to be performed
+    /// @return true if the motion was successfully added to the pipeline
+    /// @note The args may be modified so cannot be const
+    bool moveToRamped(MotionArgs& args);
 
     // Defaults
     static constexpr const char* DEFAULT_DRIVER_CHIP = "TMC2209";

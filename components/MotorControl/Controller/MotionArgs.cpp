@@ -77,15 +77,15 @@ void MotionArgs::fromJSON(const char* jsonStr)
     // Extract position
     std::vector<String> posList;
     cmdJson.getArrayElems("pos", posList);
-    _targetPosMaybePartial.clear();
+    _axesPos.clear();
     for (const RaftJson pos : posList)
     {
         int32_t axisIdx = pos.getLong("a", -1);
         double axisPos = pos.getDouble("p", 0);        
 #ifdef DEBUG_MOTION_ARGS
-        LOG_I(MODULE_PREFIX, "cmdJson %s pos %s axisIdx: %d, axisPos: %.2f", cmdJson.getJsonDoc(), pos.getJsonDoc(), axisIdx, axisPos);
+        LOG_I(MODULE_PREFIX, "fromJSON %s pos %s axisIdx: %d, axisPos: %.2f", cmdJson.getJsonDoc(), pos.getJsonDoc(), axisIdx, axisPos);
 #endif
-        _targetPosMaybePartial.setVal(axisIdx, axisPos);
+        _axesPos.setVal(axisIdx, axisPos);
     }
 }
 
@@ -124,7 +124,7 @@ String MotionArgs::toJSON()
             jsonStr += ",";
         }
         firstAxis = false;
-        jsonStr += "{\"a\":" + String(axisIdx) + ",\"p\":" + String(_targetPosMaybePartial.getVal(axisIdx).getVal()) + "}";
+        jsonStr += "{\"a\":" + String(axisIdx) + ",\"p\":" + String(_axesPos.getVal(axisIdx)) + "}";
     }
     jsonStr += "]";
     return "{" + jsonStr + "}";

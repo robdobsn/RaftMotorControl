@@ -171,7 +171,8 @@ bool MotionController::isBusy() const
 /// @brief Move to a specific location (flat or ramped and relative or absolute)
 /// @param args MotionArgs specify the motion to be performed
 /// @return true if the motion was successfully added to the pipeline
-bool MotionController::moveTo(const MotionArgs &args)
+/// @note The args may be modified so cannot be const
+bool MotionController::moveTo(MotionArgs &args)
 {
     // Handle stop
     if (args.isStopMotion())
@@ -212,7 +213,8 @@ void MotionController::pause(bool pauseIt)
 /// @brief Move to a specific location (relative or absolute) using ramped motion
 /// @param args MotionArgs specify the motion to be performed
 /// @return true if the motion was successfully added to the pipeline
-bool MotionController::moveToRamped(const MotionArgs& args)
+/// @note The args may be modified so cannot be const
+bool MotionController::moveToRamped(MotionArgs& args)
 {
     // Check not busy
     if (_blockManager.isBusy())
@@ -232,59 +234,18 @@ bool MotionController::moveToRamped(const MotionArgs& args)
         return false;
     }
 
-    // Get the target axis position
-    auto targetAxisPos = args.getTargetPosAndValidity();
-
-    // Convert coords to real-world if required - this depends on the coordinate type
-    // This doesn't convert coords - just checks for things like wrap around in circular coordinate systems
-    _blockManager.preProcessCoords(targetAxisPos, _axesParams);
-
-    // Fill in the targetAxisPos for axes for which values not specified
-    // Handle relative motion calculation if required
-    // Setup flags to indicate if each axis should be included in distance calculation
-    double movementDistSumSq = 0;
-    for (int i = 0; i < AXIS_VALUES_MAX_AXES; i++)
-    {
-        if (!targetAxisPos.getVal(i).isValid())
-        {
-            targetAxisPos.setVal(i, _blockManager.getAxesState().getUnitsFromOrigin(i));
-#ifdef DEBUG_MOTION_CONTROLLER
-            LOG_I(MODULE_PREFIX, "moveTo NOT_SPECIFIED ax %d, pos %0.2f (remain at current pos)", 
-                    i, 
-                    targetAxisPos.getVal(i));
-#endif
-        }
-        else
-        {
-            // Check relative motion - override current options if this command
-            // explicitly states a moveType
-            if (args.isRelative())
-            {
-                targetAxisPos.setVal(i, _blockManager.getAxesState().getUnitsFromOrigin(i) + targetAxisPos.getVal(i).getVal());
-            }
-#ifdef DEBUG_MOTION_CONTROLLER
-            LOG_I(MODULE_PREFIX, "moveTo SPECIFIED ax %d, pos %0.2f %s", 
-                    i, 
-                    targetAxisPos.getVal(i), 
-                    args.isRelative() ? "RELATIVE" : "ABSOLUTE");
-#endif
-        }
-        if (_axesParams.isPrimaryAxis(i))
-            movementDistSumSq += targetAxisPos.getVal(i).getVal() * targetAxisPos.getVal(i).getVal();
-    }
-
-    // Get length of block (for splitting up into blocks if required)
-    double lineLen = sqrt(movementDistSumSq);
+    // Pre-process coordinates - this fills in unspecified values for axes and handles relative motion
+    AxisPosDataType moveDistanceMM = _blockManager.preProcessCoords(args.getAxesPos(), args.getAxesSpecified(), args.isRelative());
 
     // Ensure at least one block
     uint32_t numBlocks = 1;
     if (_maxBlockDistMM > 0.01f && !args.dontSplitMove())
-        numBlocks = int(ceil(lineLen / _maxBlockDistMM));
+        numBlocks = int(ceil(moveDistanceMM / _maxBlockDistMM));
     if (numBlocks == 0)
         numBlocks = 1;
 
     // Add to the block splitter
-    _blockManager.addRampedBlock(args, targetAxisPos.toAxesPos(), numBlocks);
+    _blockManager.addRampedBlock(args, numBlocks);
 
     // Pump the block splitter to prime the pipeline with blocks
     _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline());
@@ -552,7 +513,7 @@ AxesValues<AxisPosDataType> MotionController::getLastMonitoredPos() const
     _rampGenerator.getTotalStepPosition(curActuatorPos);
     // Use reverse kinematics to get location
     AxesValues<AxisPosDataType> lastMonitoredPos;
-    _blockManager.coordsActuatorToRealWorld(curActuatorPos, lastMonitoredPos);
+    _blockManager.actuatorToPt(curActuatorPos, lastMonitoredPos);
     return lastMonitoredPos;
 }
 

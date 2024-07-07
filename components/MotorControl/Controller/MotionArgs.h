@@ -51,7 +51,7 @@ public:
         _feedrate = 100.0;
         _extrudeDistance = 1;
         _motionTrackingIdx = 0;
-        _targetPosMaybePartial.clear();
+        _axesPos.clear();
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -120,32 +120,37 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Axis values
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get axis positions
+    /// @return AxesValues<AxisPosDataType>
+    /// @note The values may be modified by the kinematics so this cannot be const
+    AxesValues<AxisPosDataType>& getAxesPos()
+    {
+        return _axesPos;
+    }
 
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get Axis positions const
+    /// @return const AxesValues<AxisPosDataType>&
+    const AxesValues<AxisPosDataType>& getAxesPosConst() const
+    {
+        return _axesPos;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Get axes specified (which axes are specified in the command)
+    /// @return AxesValues<AxisSpecifiedDataType>
+    /// @note The values may be modified by the kinematics so this cannot be const
+    AxesValues<AxisSpecifiedDataType>& getAxesSpecified()
+    {
+        return _axesSpecified;
+    }
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Set axes positions
+    /// @param axisPositions AxesValues<AxisPosDataType>
     void setAxesPositions(const AxesValues<AxisPosDataType>& axisPositions)
     {
-        _targetPosMaybePartial.fromAxesPos(axisPositions);
-    }
-
-    AxesValues<AxisPosAndValidDataType> getTargetPosAndValidity() const
-    {
-        return _targetPosMaybePartial;
-    }
-
-    AxesValues<AxisPosDataType> getTargetPos() const
-    {
-        return _targetPosMaybePartial.toAxesPos();
-    }
-
-    AxisPosDataType getAxisPos(uint32_t axisIdx) const
-    {
-        return _targetPosMaybePartial.getVal(axisIdx).getVal();
-    }
-
-    bool isAxisPosValid(uint32_t axisIdx) const
-    {
-        return _targetPosMaybePartial.getVal(axisIdx).isValid();
+        _axesPos = axisPositions;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -333,9 +338,10 @@ private:
     // Coords
     // When _unitsAreSteps flag is true these represent the position in steps
     // When _unitsAreSteps flag is false units are axes units (defined in axes config)
-    // Some axes may not have a valid position and this is indicated by the valid flag
-    // which indicates that the axis should not be moved
-    AxesValues<AxisPosAndValidDataType> _targetPosMaybePartial;
+    AxesValues<AxisPosDataType> _axesPos;
+
+    // When used as a command argument some axes may not be specified
+    AxesValues<AxisSpecifiedDataType> _axesSpecified;
 };
 
 #pragma pack(pop)

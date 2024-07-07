@@ -19,69 +19,101 @@ class MotionPipelineIF;
 class MotionBlockManager
 {
 public:
-    // Constructor / Destructor
+    /// @brief Constructor
     MotionBlockManager(MotorEnabler& motorEnabler, AxesParams& axesParams);
+
+    /// @brief Destructor
     virtual ~MotionBlockManager();
 
-    // Clear
+    /// @brief Clear all blocks
     void clear();
 
-    // Setup
+    /// @brief Setup
+    /// @param stepGenPeriodUs Period of the step generator in microseconds
+    /// @param motionConfig JSON configuration
     void setup(uint32_t stepGenPeriodUs, const RaftJsonIF& motionConfig);
 
-    // pumpBlockSplitter - should be called regularly 
-    // A single moveTo command can be split into blocks - this function checks if such
-    // splitting is in progress and adds the split-up motion blocks accordingly
+    /// @brief Pump the block splitter - should be called regularly 
+    /// @param motionPipeline Motion pipeline to add the block to
+    /// @note This is used to manage splitting of a single moveTo command into multiple blocks
     void pumpBlockSplitter(MotionPipelineIF& motionPipeline);
 
-    // Check is busy
+    /// @brief Check if the motion block manager is busy
+    /// @return true if busy
     bool isBusy() const
     {
         return _numBlocks != 0;
     }
 
-    // Add non-ramped motion block
-    bool addNonRampedBlock(const MotionArgs& args, MotionPipelineIF& motionPipeline);
+    /// @brief Add non-ramped motion block (used for homing, etc)
+    /// @param args MotionArgs define the parameters for motion including target position, speed, etc
+    /// @param motionPipeline Motion pipeline to add the block to
+    /// @return true if the block was added
+    /// @note args may be modified by this function
+    bool addNonRampedBlock(MotionArgs& args, MotionPipelineIF& motionPipeline);
 
-    // Add rampled block (which may be split up)
-    bool addRampedBlock(const MotionArgs& args, 
-                const AxesValues<AxisPosDataType>& targetPosition, 
-                uint32_t numBlocks);
+    /// @brief Add a ramped motion block (which may be split up)
+    /// @param args MotionArgs define the parameters for motion including target position, speed, etc
+    /// @param numBlocks Number of blocks to split the motion into
+    /// @return true if the block was added
+    bool addRampedBlock(const MotionArgs& args, uint32_t numBlocks);
 
-    // Get current state of axes
+    /// @brief Get current state of axes
+    /// @return AxesState
     const AxesState& getAxesState() const
     {
         return _axesState;
     }
 
-    // Check last commanded position is valid
+    /// @brief Check last commanded position is valid
+    /// @return true if valid
     bool isAxesStateValid() const
     {
         return _axesState.isValid();
     }
 
-    // Convert actuator coords to real-world coords
-    void coordsActuatorToRealWorld(const AxesValues<AxisStepsDataType> &targetActuator, 
-                AxesValues<AxisPosDataType> &outPt) const;
+    /// @brief Convert actuator coords to real-world coords
+    /// @param targetActuator Target actuator coordinates
+    /// @param outPt Output real-world coordinates
+    void actuatorToPt(const AxesValues<AxisStepsDataType> &targetActuator, 
+                AxesValues<AxisPosDataType> &outPt) const
+    {
+        // Get kinematics
+        if (!_pRaftKinematics)
+        {
+            LOG_W(MODULE_PREFIX, "actuatorToPt no kinematics set");
+            return;
+        }
+        _pRaftKinematics->actuatorToPt(targetActuator, outPt, _axesState, _axesParams);
+    }
 
-    // Convert coordinates (used for coordinate systems like Theta-Rho which are position dependent)
-    // This doesn't convert coords - just checks for things like wrap around in circular coordinate systems
-    // Note that values are modified in-place
-    void preProcessCoords(AxesValues<AxisPosAndValidDataType>& axesPositions, const AxesParams& axesParams) const
+    /// @brief Pre-process coordinates
+    /// @param axisPositions Axis positions (may be modified)
+    /// @param axesSpecified Axes specified (may be modified)
+    /// @param relativeMotion true if relative motion
+    /// @return Distance to move in MM
+    /// @note This is used to manage unspecified axes and for coordinate systems like Theta-Rho 
+    ///       which are curret-position dependent
+    AxisDistDataType preProcessCoords(AxesValues<AxisPosDataType>& axisPositions, 
+                AxesValues<AxisSpecifiedDataType>& axesSpecified,
+                bool relativeMotion
+                ) const
     {
         // Get kinematics
         if (!_pRaftKinematics)
         {
             LOG_W(MODULE_PREFIX, "preProcessCoords no kinematics set");
-            return;
+            return 0;
         }    
-        _pRaftKinematics->preProcessCoords(axesPositions, axesParams);
+        return _pRaftKinematics->preProcessCoords(axisPositions, axesSpecified, _axesState, _axesParams, relativeMotion);
     }
 
-    // Set current position as home
+    /// @brief Set current position as origin
+    /// @param axisIdx Axis index
     void setCurPositionAsOrigin(uint32_t axisIdx);
 
-    // Homing needed before any move
+    /// @brief Check if homing needed before any move
+    /// @return true if homing is needed
     bool isHomingNeededBeforeMove() const
     {
         return _homingNeededBeforeAnyMove;
@@ -94,11 +126,11 @@ private:
     // Args for motion
     MotionArgs _blockMotionArgs;
 
+    // Final target position (this is a copy of the requested position because _blockMotionArgs may be modified)
+    AxesValues<AxisPosDataType> _finalTargetPos;
+
     // State of axes (including current position and origin status)
     AxesState _axesState;
-
-    // Target position
-    AxesValues<AxisPosDataType> _targetPosition;
 
     // Block motion as a vector
     AxesValues<AxisPosDataType> _blockMotionVector;
@@ -127,6 +159,10 @@ private:
     // Homing is needed before any movement
     bool _homingNeededBeforeAnyMove = false;
 
-    // Helpers
+    /// @brief Add to planner
+    /// @param args MotionArgs define the parameters for motion
+    /// @param motionPipeline Motion pipeline to add the block to
+    /// @return true if successful
+    /// @note The planner is responsible for computing suitable motion
     bool addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline);
 };

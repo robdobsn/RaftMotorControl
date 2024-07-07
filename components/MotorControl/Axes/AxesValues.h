@@ -29,42 +29,8 @@ typedef int32_t AxisStepsDataType;
 typedef int32_t AxisStepsDataType;
 typedef float AxisUnitVectorDataType;
 typedef float AxisDistDataType;
+typedef bool AxisSpecifiedDataType;
 
-class AxisPosAndValidDataType
-{
-public:
-    AxisPosAndValidDataType()
-    {
-        _pos = 0;
-        _valid = false;
-    }
-    AxisPosAndValidDataType(AxisPosDataType pos, bool valid = true)
-    {
-        _pos = pos;
-        _valid = valid;
-    }
-    void clear()
-    {
-        _pos = 0;
-        _valid = false;
-    }
-    bool isValid() const
-    {
-        return _valid;
-    }
-    AxisPosDataType getVal() const
-    {
-        return _pos;
-    }
-    void setVal(AxisPosDataType pos)
-    {
-        _pos = pos;
-        _valid = true;
-    }
-private:
-    AxisPosDataType _pos;
-    bool _valid;
-};
 
 /// @brief Templated class for axis values
 /// @tparam T Type of value
@@ -231,20 +197,6 @@ public:
         }
         jsonStr += "]";
         return jsonStr;
-    }
-
-    // Convert to AxesValus<AxesPosDataType>
-    AxesValues<AxisPosDataType> toAxesPos() const
-    {
-        AxesValues<AxisPosDataType> result;
-        for (uint32_t i = 0; i < AXIS_VALUES_MAX_AXES; i++)
-            result.setVal(i, _vals[i].getVal());
-        return result;
-    }
-    void fromAxesPos(const AxesValues<AxisPosDataType>& axesPos)
-    {
-        for (uint32_t i = 0; i < AXIS_VALUES_MAX_AXES; i++)
-            _vals[i] = (T) axesPos.getVal(i);
     }
 
 private:

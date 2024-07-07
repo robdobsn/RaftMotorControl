@@ -127,33 +127,33 @@ RaftRetCode MotorControl::getDataBinary(uint32_t formatCode, std::vector<uint8_t
     return RAFT_NOT_IMPLEMENTED;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Send a binary command to the device
-/// @param formatCode Format code for the command
-/// @param pData Pointer to the data
-/// @param dataLen Length of the data
-/// @return RaftRetCode
-RaftRetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
-{
-    // Check format code
-    if (formatCode == MULTISTEPPER_CMD_BINARY_FORMAT_1)
-    {
-        // Check length ok
-        if (dataLen < MULTISTEPPER_OPCODE_POS + 1)
-            return RAFT_INVALID_DATA;
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /// @brief Send a binary command to the device
+// /// @param formatCode Format code for the command
+// /// @param pData Pointer to the data
+// /// @param dataLen Length of the data
+// /// @return RaftRetCode
+// RaftRetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
+// {
+//     // Check format code
+//     if (formatCode == MULTISTEPPER_CMD_BINARY_FORMAT_1)
+//     {
+//         // Check length ok
+//         if (dataLen < MULTISTEPPER_OPCODE_POS + 1)
+//             return RAFT_INVALID_DATA;
 
-        // Check op-code
-        switch(pData[MULTISTEPPER_OPCODE_POS])
-        {
-            case MULTISTEPPER_MOVETO_OPCODE:
-            {
-                handleCmdBinary_MoveTo(pData + MULTISTEPPER_OPCODE_POS + 1, dataLen - MULTISTEPPER_OPCODE_POS - 1);
-                break;
-            }
-        }
-    }
-    return RAFT_OK;
-}
+//         // Check op-code
+//         switch(pData[MULTISTEPPER_OPCODE_POS])
+//         {
+//             case MULTISTEPPER_MOVETO_OPCODE:
+//             {
+//                 handleCmdBinary_MoveTo(pData + MULTISTEPPER_OPCODE_POS + 1, dataLen - MULTISTEPPER_OPCODE_POS - 1);
+//                 break;
+//             }
+//         }
+//     }
+//     return RAFT_OK;
+// }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Send a JSON command to the device
@@ -177,27 +177,27 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
     return RAFT_OK;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Handle binary move-to command
-/// @param pData Pointer to the data
-/// @param dataLen Length of the data
-void MotorControl::handleCmdBinary_MoveTo(const uint8_t* pData, uint32_t dataLen)
-{
-    // Check length ok
-    if (dataLen < MULTISTEPPER_MOVETO_BINARY_FORMAT_POS + 1)
-        return;
+// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// /// @brief Handle binary move-to command
+// /// @param pData Pointer to the data
+// /// @param dataLen Length of the data
+// void MotorControl::handleCmdBinary_MoveTo(const uint8_t* pData, uint32_t dataLen)
+// {
+//     // Check length ok
+//     if (dataLen < MULTISTEPPER_MOVETO_BINARY_FORMAT_POS + 1)
+//         return;
     
-    // Check version of args
-    if (pData[MULTISTEPPER_MOVETO_BINARY_FORMAT_POS] != MULTISTEPPER_MOTION_ARGS_BINARY_FORMAT_1)
-        return;
+//     // Check version of args
+//     if (pData[MULTISTEPPER_MOVETO_BINARY_FORMAT_POS] != MULTISTEPPER_MOTION_ARGS_BINARY_FORMAT_1)
+//         return;
 
-    // Check args length
-    if (dataLen < sizeof(MotionArgs))
-        return;
+//     // Check args length
+//     if (dataLen < sizeof(MotionArgs))
+//         return;
 
-    // Send the request for interpretation
-    _motionController.moveTo((const MotionArgs&)*pData);
-}
+//     // Send the request for interpretation
+//     _motionController.moveTo((const MotionArgs&)*pData);
+// }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get debug string

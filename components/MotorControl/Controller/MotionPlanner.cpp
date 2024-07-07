@@ -47,7 +47,9 @@ void MotionPlanner::setup(double maxJunctionDeviationMM, uint32_t stepGenPeriodU
 /// @param axesParams Parameters for the axes
 /// @param motionPipeline Motion pipeline to add the block to
 /// @return AxesValues<AxisStepsDataType> containing the destination actuator coordinates
-AxesValues<AxisStepsDataType> MotionPlanner::moveToNonRamped(const MotionArgs &args,
+/// @note This function is used for non-ramped motion such as homing where the actuator moves at a constant speed
+///       args may be modified by this function
+AxesValues<AxisStepsDataType> MotionPlanner::moveToNonRamped(MotionArgs &args,
                     AxesState& axesState,
                     const AxesParams &axesParams, 
                     MotionPipelineIF& motionPipeline)
@@ -65,15 +67,15 @@ AxesValues<AxisStepsDataType> MotionPlanner::moveToNonRamped(const MotionArgs &a
     for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
     {
         // Check if any steps to perform
-        int32_t steps = 0;
-        if (args.isAxisPosValid(axisIdx))
+        AxisStepsDataType steps = 0;
+        if (args.getAxesSpecified().getVal(axisIdx))
         {
-            // See if absolute or relative motion
             if (args.isRelative())
-                steps = args.getAxisPos(axisIdx);
+                steps = args.getAxesPosConst().getVal(axisIdx);
             else
-                steps = args.getAxisPos(axisIdx) - axesState.getStepsFromOrigin(axisIdx);
+                steps = args.getAxesPosConst().getVal(axisIdx) - axesState.getUnitsFromOrigin(axisIdx);
         }
+
         // Set steps to target
         if (steps != 0)
         {
@@ -170,10 +172,7 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
     for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
     {
         // Calculate target position
-        if (args.isAxisPosValid(axisIdx))
-            targetAxesPos.setVal(axisIdx, args.getAxisPos(axisIdx));
-        else
-            targetAxesPos.setVal(axisIdx, axesState.getUnitsFromOrigin(axisIdx));
+        targetAxesPos.setVal(axisIdx, args.getAxesPosConst().getVal(axisIdx));
 
         // Calculate deltas
         deltas[axisIdx] = targetAxesPos.getVal(axisIdx) - axesState.getUnitsFromOrigin(axisIdx);

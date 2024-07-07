@@ -14,9 +14,9 @@
 #define DEBUG_BLOCK_SPLITTER
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Constructor / Destructor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Constructor
+/// @param motorEnabler object to enable/disable motors
+/// @param axesParams parameters for the axes
 MotionBlockManager::MotionBlockManager(MotorEnabler& motorEnabler, AxesParams& axesParams)
                 :   _motorEnabler(motorEnabler), 
                     _axesParams(axesParams)
@@ -24,12 +24,16 @@ MotionBlockManager::MotionBlockManager(MotorEnabler& motorEnabler, AxesParams& a
     clear();
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Destructor
 MotionBlockManager::~MotionBlockManager()
 {
     if (_pRaftKinematics)
         delete _pRaftKinematics;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Clear
 void MotionBlockManager::clear()
 {
     _numBlocks = 0;
@@ -37,9 +41,9 @@ void MotionBlockManager::clear()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Setup
+/// @param stepGenPeriodUs Period of the step generator in microseconds
+/// @param motionConfig JSON configuration
 void MotionBlockManager::setup(uint32_t stepGenPeriodUs, const RaftJsonIF& motionConfig)
 {
     // Motion Pipeline and Planner
@@ -56,7 +60,8 @@ void MotionBlockManager::setup(uint32_t stepGenPeriodUs, const RaftJsonIF& motio
 /// @param args Motion arguments
 /// @param motionPipeline Motion pipeline to add the block to
 /// @return true if successful
-bool MotionBlockManager::addNonRampedBlock(const MotionArgs& args, MotionPipelineIF& motionPipeline)
+/// @note args may be modified by this function
+bool MotionBlockManager::addNonRampedBlock(MotionArgs& args, MotionPipelineIF& motionPipeline)
 {
     AxesValues<AxisStepsDataType> curPosStepsFromOrigin = _motionPlanner.moveToNonRamped(args, 
                     _axesState, 
@@ -71,25 +76,22 @@ bool MotionBlockManager::addNonRampedBlock(const MotionArgs& args, MotionPipelin
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Add a ramped block (which may be split up) to the pipeline
-/// @param args Motion arguments
-/// @param targetPosition Target position
+/// @param args Motion arguments including target position, speed, etc
 /// @param numBlocks Number of blocks to split the move into
 /// @return true if successful
-bool MotionBlockManager::addRampedBlock(const MotionArgs& args, 
-                const AxesValues<AxisPosDataType>& targetPosition, 
-                uint32_t numBlocks)
+bool MotionBlockManager::addRampedBlock(const MotionArgs& args, uint32_t numBlocks)
 {
     _blockMotionArgs = args;
-    _targetPosition = targetPosition;
     _numBlocks = numBlocks;
     _nextBlockIdx = 0;
-    _blockMotionVector = (_targetPosition - _axesState.getUnitsFromOrigin()) / double(numBlocks);
+    _finalTargetPos = args.getAxesPosConst();
+    _blockMotionVector = (_finalTargetPos - _axesState.getUnitsFromOrigin()) / double(numBlocks);
 
 #ifdef DEBUG_RAMPED_BLOCK
-    LOG_I(MODULE_PREFIX, "moveTo curUnits %s curSteps %s newUnits %s numBlocks %d blockMotionVector %s)",
+    LOG_I(MODULE_PREFIX, "moveTo curUnits %s curSteps %s targetPosUnits %s numBlocks %d blockMotionVector %s)",
                 _axesState.getUnitsFromOrigin().getDebugStr().c_str(),
                 _axesState.getStepsFromOrigin().getDebugStr().c_str(),
-                _targetPosition.getDebugStr().c_str(),
+                _finalTargetPos.getDebugStr().c_str(),
                 _numBlocks, 
                 _blockMotionVector.getDebugStr().c_str());
 #endif
@@ -97,12 +99,11 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args,
     return true;
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// pumpBlockSplitter - should be called regularly 
-// A single moveTo command can be split into blocks - this function checks if such
-// splitting is in progress and adds the split-up motion blocks accordingly
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Pump the block splitter - should be called regularly 
+/// @param motionPipeline Motion pipeline to add the block to
+/// @note This is used to manage splitting of a single moveTo command into multiple blocks
 void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
 {
     // Check if we can add anything to the pipeline
@@ -118,11 +119,11 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
         // Bump position
         _nextBlockIdx++;
 
-        // Check if done, use end point coords if so
+        // Check if done, use final target coords if so to ensure cumulative errors don't creep in
         if (_nextBlockIdx >= _numBlocks)
         {
             _numBlocks = 0;
-            nextBlockDest = _targetPosition;
+            nextBlockDest = _finalTargetPos;
         }
 
         // Prepare add to planner
@@ -134,7 +135,7 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
                     _axesState.getUnitsFromOrigin().getDebugStr().c_str(),
                     _blockMotionVector.getDebugStr().c_str(),
                     nextBlockDest.getDebugStr().c_str(),
-                    _blockMotionArgs.getTargetPos().getDebugStr().c_str(), 
+                    _blockMotionArgs.getAxesPos().getDebugStr().c_str(), 
                     _nextBlockIdx,
                     _numBlocks);
 #endif
@@ -148,9 +149,12 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Add a movement to the pipeline using the planner which computes suitable motion
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Add to planner
+/// @param args MotionArgs define the parameters for motion
+/// @param motionPipeline Motion pipeline to add the block to
+/// @return true if successful
+/// @note The planner is responsible for computing suitable motion
+///       and args may be modified by this function
 bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline)
 {
     // Get kinematics
@@ -162,7 +166,7 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
 
     // Convert the move to actuator coordinates
     AxesValues<AxisStepsDataType> actuatorCoords;
-    _pRaftKinematics->ptToActuator(args.getTargetPos(), 
+    _pRaftKinematics->ptToActuator(args.getAxesPosConst(), 
             actuatorCoords, 
             _axesState, 
             _axesParams);
@@ -173,7 +177,7 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
 #ifdef DEBUG_COORD_UPDATES
     LOG_I(MODULE_PREFIX, "addToPlanner moveOk %d pt %s actuator %s", 
             moveOk,
-            args.getTargetPos().getDebugStr().c_str(),
+            args.getAxesPosConst().getDebugStr().c_str(),
             actuatorCoords.toJSON().c_str());
 #endif
 
@@ -200,23 +204,6 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
         LOG_W(MODULE_PREFIX, "addToPlanner moveToRamped failed");
     }
     return moveOk;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Convert actuator coords to real-world
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotionBlockManager::coordsActuatorToRealWorld(const AxesValues<AxisStepsDataType> &targetActuator, 
-            AxesValues<AxisPosDataType> &outPt) const
-{
-    // Get geometry
-    if (!_pRaftKinematics)
-    {
-        LOG_W(MODULE_PREFIX, "coordsActuatorToRealWorld no geometry set");
-        return;
-    }
-
-    _pRaftKinematics->actuatorToPt(targetActuator, outPt, _axesState, _axesParams);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

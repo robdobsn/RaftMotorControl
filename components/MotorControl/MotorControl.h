@@ -88,6 +88,6 @@ private:
     // Motor serial bus
     RaftBus* _pMotorSerialBus = nullptr;
 
-    // Command handlers
-    void handleCmdBinary_MoveTo(const uint8_t* pData, uint32_t dataLen);
+    // // Command handlers
+    // void handleCmdBinary_MoveTo(const uint8_t* pData, uint32_t dataLen);
 };

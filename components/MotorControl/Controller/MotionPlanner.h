@@ -27,7 +27,9 @@ public:
     /// @param axesParams Parameters for the axes
     /// @param motionPipeline Motion pipeline to add the block to
     /// @return AxesValues<AxisStepsDataType> containing the destination actuator coordinates
-    AxesValues<AxisStepsDataType> moveToNonRamped(const MotionArgs& args,
+    /// @note This function is used for non-ramped motion such as homing where the actuator moves at a constant speed
+    ///       args may be modified by this function
+    AxesValues<AxisStepsDataType> moveToNonRamped(MotionArgs& args,
                     AxesState& axesState,
                     const AxesParams& axesParams, 
                     MotionPipelineIF& motionPipeline);
