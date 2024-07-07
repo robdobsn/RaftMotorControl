@@ -8,7 +8,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "AxisEndstopChecks.h"
-#include "AxisValues.h"
+#include "AxesValues.h"
 
 static const char* AxisEndstopMinMaxEnumStrs[] = {"0", "1", "T", "X"};
 
