@@ -13,7 +13,6 @@
 #include "RaftArduino.h"
 #include "StepDriverBase.h"
 #include "EndStops.h"
-#include "AxisInt32s.h"
 #include "AxisEndstopChecks.h"
 
 #define RAMP_GEN_DETAILED_STATS

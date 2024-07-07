@@ -94,7 +94,6 @@ TEST_CASE("XYZ test 1", "[Geometry]")
     RaftJson config(
         R"({"geom": "XYZ",
             "blockDistMM": 1,
-            "fixOutOfBounds": 0,
             "homeBeforeMove": 0,
             "maxJunctionDeviationMM": 0.05}
             )");

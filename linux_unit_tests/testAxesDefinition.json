@@ -5,7 +5,6 @@
     "motion": {
         "geom": "SingleArmSCARA",
         "blockDistMM": 1,
-        "fixOutOfBounds": 0,
         "homeBeforeMove": 0,
         "maxJunctionDeviationMM": 0.05,
         "arm1LenMM": 100,
