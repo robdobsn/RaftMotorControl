@@ -66,7 +66,7 @@ public:
         _testClockCount++;
 #endif
     }
-    virtual void IRAM_ATTR service() override final
+    virtual void IRAM_ATTR loop() override final
     {
 
     }

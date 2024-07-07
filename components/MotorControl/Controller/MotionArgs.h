@@ -31,7 +31,7 @@ public:
 
         // Flags
         _isRelative = false;
-        _linearNoRamp = false;
+        _rampedMotion = true;
         _unitsAreSteps = false;
         _dontSplitMove = false;
         _extrudeValid = false;
@@ -58,13 +58,13 @@ public:
     // Motion Flags
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    void setLinear(bool flag)
+    void setRamped(bool flag)
     {
-        _linearNoRamp = flag;
+        _rampedMotion = flag;
     }
-    bool isLinear() const
+    bool isRamped() const
     {
-        return _linearNoRamp;
+        return _rampedMotion;
     }
     void setRelative(bool flag)
     {
@@ -282,7 +282,7 @@ private:
 
     // Flags
     bool _isRelative = false;
-    bool _linearNoRamp = false;
+    bool _rampedMotion = true;
     bool _unitsAreSteps = false;
     bool _dontSplitMove = false;
     bool _extrudeValid = false;

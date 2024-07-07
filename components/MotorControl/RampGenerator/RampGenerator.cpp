@@ -22,21 +22,15 @@
 // #define DEBUG_RAMP_GEN_SERVICE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Consts
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-static const char* MODULE_PREFIX = "RampGen";
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Constructor / Destructor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Constructor
 RampGenerator::RampGenerator()
 {
     // Init
     resetTotalStepPosition();
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Destructor
 RampGenerator::~RampGenerator()
 {
     // Release timer hook
@@ -44,9 +38,10 @@ RampGenerator::~RampGenerator()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Setup ramp generator
+/// @param config Configuration
+/// @param stepperDrivers Stepper drivers
+/// @param axisEndStops End stops
 void RampGenerator::setup(const RaftJsonIF& config,
             const std::vector<StepDriverBase*>& stepperDrivers,
             const std::vector<EndStops*>& axisEndStops)
@@ -103,22 +98,21 @@ void RampGenerator::setup(const RaftJsonIF& config,
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Service method called by main program loop
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void RampGenerator::service()
+/// @brief Loop - must be called very frequently if not using timer ISR (maybe called less frequently if using timer ISR)
+void RampGenerator::loop()
 {
-    // Service RampGenIO
-    // _rampGenIO.service();
+    // Loop RampGenIO
+    // TODO
+    // _rampGenIO.loop();
 
     // Check if timer used for pulse generation - otherwise pump many times to
     // aid testing
     if (!_useRampGenTimer)
     {
         // Check time to generate pulses
-        if (Raft::isTimeout(millis(), _nonTimerServiceLastMs, NON_TIMER_SERVICE_CALL_MIN_MS))
+        if (Raft::isTimeout(millis(), _nonTimerLoopLastMs, NON_TIMER_SERVICE_CALL_MIN_MS))
         {
-            _nonTimerServiceLastMs = millis();
+            _nonTimerLoopLastMs = millis();
             // Calculate times to call to give equivalent to timer rate
             uint32_t numCalls = (NON_TIMER_SERVICE_CALL_MIN_MS * 1000) / (_stepGenPeriodNs / 1000);
             for (uint32_t i = 0; i < numCalls; i++)
@@ -128,20 +122,18 @@ void RampGenerator::service()
 
 #ifdef DEBUG_RAMP_GEN_SERVICE
     // Debug
-    _debugRampGenServiceCount++;
-    if (Raft::isTimeout(millis(), _debugRampGenServiceLastMs, 1000))
+    _debugRampGenLoopCount++;
+    if (Raft::isTimeout(millis(), _debugRampGenLoopLastMs, 1000))
     {
-        LOG_I(MODULE_PREFIX, "service count %d useRampGenTimer %d", _debugRampGenServiceCount, _useRampGenTimer);
-        _debugRampGenServiceLastMs = millis();
+        LOG_I(MODULE_PREFIX, "loop count %d useRampGenTimer %d", _debugRampGenLoopCount, _useRampGenTimer);
+        _debugRampGenLoopLastMs = millis();
     }
 #endif
 
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Start / stop / pause
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief start ramp generation
 void RampGenerator::start()
 {
     _rampGenEnabled = true;
@@ -151,11 +143,15 @@ void RampGenerator::start()
         _rampGenTimer.enable(true);
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief stop ramp generation
 void RampGenerator::stop()
 {
     _stopPending = true;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief pause ramp generation
 void RampGenerator::pause(bool pauseIt)
 {
     _isPaused = pauseIt;
@@ -254,10 +250,10 @@ bool IRAM_ATTR RampGenerator::handleStepEnd()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup new block - cache all the info needed to process the block and reset
-// motion accumulators to facilitate the block's execution
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Setup new block
+/// @param pBlock Motion block defines all motion parameters
+/// @note This function is called when a new block is added to the pipeline
+///       It sets up the block for execution recording all the info needed to process the block
 void IRAM_ATTR RampGenerator::setupNewBlock(MotionBlock *pBlock)
 {
     // Setup step counts, direction and endstops for each axis
@@ -332,9 +328,8 @@ void IRAM_ATTR RampGenerator::setupNewBlock(MotionBlock *pBlock)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Update millisecond accumulator to handle acceleration and deceleration
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Update the motion block time accumulators to handle acceleration and deceleration
+/// @param pBlock Motion block defines all motion parameters
 void IRAM_ATTR RampGenerator::updateMSAccumulator(MotionBlock *pBlock)
 {
     // Bump the millisec accumulator
@@ -362,9 +357,10 @@ void IRAM_ATTR RampGenerator::updateMSAccumulator(MotionBlock *pBlock)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Handle start of step on each axis
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Handle step motion
+/// @param pBlock Motion block defines all motion parameters
+/// @return true if any axis is still moving
+/// @note Handle the start of step on each axis
 bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
 {
     // Complete Flag
@@ -441,9 +437,9 @@ bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// End motion
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief End motion
+/// @param pBlock Motion block defines all motion parameters
+/// @note This function is called when a block is completed and removes the block from the pipeline
 void IRAM_ATTR RampGenerator::endMotion(MotionBlock *pBlock)
 {
     _motionPipeline.remove();
@@ -453,9 +449,8 @@ void IRAM_ATTR RampGenerator::endMotion(MotionBlock *pBlock)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Generate motion pulses
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Generate motion pulses
+/// @note This function is called from the timer ISR or from the main loop if not using a timer ISR
 void IRAM_ATTR RampGenerator::generateMotionPulses()
 {
     // Instrumentation code to time ISR execution (if enabled)
@@ -631,9 +626,8 @@ void IRAM_ATTR RampGenerator::generateMotionPulses()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Timer callback
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Timer callback
+/// @param pObject Object to call (this class instance)
 void IRAM_ATTR RampGenerator::rampGenTimerCallback(void* pObject)
 {
     if (pObject)
@@ -641,9 +635,7 @@ void IRAM_ATTR RampGenerator::rampGenTimerCallback(void* pObject)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Debug
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Debug show stats
 void RampGenerator::debugShowStats()
 {
     LOG_I(MODULE_PREFIX, "%s isrCount %d", _stats.getStatsStr().c_str(), _isrCount);

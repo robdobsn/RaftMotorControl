@@ -23,20 +23,14 @@
 #define INFO_LOG_AXES_PARAMS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Static
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-static const char* MODULE_PREFIX = "MotionController";
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Constructor / Destructor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Constructor
 MotionController::MotionController() : 
             _blockManager(_motorEnabler, _axesParams)
 {
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Destructor
 MotionController::~MotionController()
 {
     // Clear all steppers
@@ -47,14 +41,12 @@ MotionController::~MotionController()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup
-// Setup the motor and pipeline parameters using a JSON input string
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Setup
+/// @param config Configuration (from JSON)
 void MotionController::setup(const RaftJsonIF& config)
 {
-    // Teardown first
-    teardown();
+    // De-init first
+    deinit();
 
     // Setup axes (and associated hardware)
     setupAxes(config);
@@ -81,10 +73,8 @@ void MotionController::setup(const RaftJsonIF& config)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Teardown
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotionController::teardown()
+/// @brief De-init (teardown)
+void MotionController::deinit()
 {
     // Stop any motion
     _rampGenerator.stop();
@@ -93,26 +83,37 @@ void MotionController::teardown()
     // Clear block manager
     _blockManager.clear();
 
-    // Remove any config
-    deinit();
+    // Remote steppers
+    for (StepDriverBase*& pDriver : _stepperDrivers)
+    {
+        if (pDriver)
+            delete pDriver;
+        pDriver = nullptr;
+    }
+
+    // Remote endstops
+    for (EndStops*& pEndStops : _axisEndStops)
+    {
+        if (pEndStops)
+            delete pEndStops;
+    }
+    _axisEndStops.clear();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Service
-// Called regularly to allow the MotionController to do background work such as adding split-up blocks to the
-// pipeline and checking if motors should be disabled after a period of no motion
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotionController::service()
+/// @brief Loop
+/// @note Called frequently to allow the MotionController to do background work such as adding split-up blocks to the
+/// pipeline and checking if motors should be disabled after a period of no motion
+void MotionController::loop()
 {
-    // LOG_I(MODULE_PREFIX, "service stepper drivers %d", _stepperDrivers.size());
+    // LOG_I(MODULE_PREFIX, "loop stepper drivers %d", _stepperDrivers.size());
 
-    // Service stepper drivers
+    // Loop stepper drivers
     for (StepDriverBase* pStepDriver : _stepperDrivers)
     {
-        // LOG_I(MODULE_PREFIX, "service stepper driver %d", pStepDriver->getSerialAddress());
+        // LOG_I(MODULE_PREFIX, "loop stepper driver %d", pStepDriver->getSerialAddress());
         if (pStepDriver)
-            pStepDriver->service();
+            pStepDriver->loop();
     }
 
     // // Check if stop requested
@@ -130,21 +131,23 @@ void MotionController::service()
     //     }
     // }
 
-    // Service motor enabler
-    _motorEnabler.service();
+    // Loop motor enabler
+    _motorEnabler.loop();
     
     // Call process on motion actuator - only really used for testing as
     // motion is handled by ISR
-    _rampGenerator.service();
+    _rampGenerator.loop();
 
-    // // Process for trinamic devices
+    // Process for trinamic devices
+    // TODO
     // _trinamicsController.process();
 
     // Process any split-up blocks to be added to the pipeline
     _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline());
 
-    // // Service homing
-    // _motionHoming.service(_axesParams);
+    // Loop homing
+    // TODO
+    // _motionHoming.loop(_axesParams);
 
     // Ensure motors enabled when homing or moving
     if ((_rampGenerator.getMotionPipeline().count() > 0) 
@@ -157,20 +160,17 @@ void MotionController::service()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Check if busy
-// Returns true if the motion controller is busy (i.e. moving)
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Check if the motion controller is busy
+/// @return true if any motion is in the pipeline
 bool MotionController::isBusy() const
 {
     return _rampGenerator.getMotionPipelineConst().count() > 0;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Handle MoveTo
-// Command the robot to move (adding a command to the pipeline of motion)
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Move to a specific location (flat or ramped and relative or absolute)
+/// @param args MotionArgs specify the motion to be performed
+/// @return true if the motion was successfully added to the pipeline
 bool MotionController::moveTo(const MotionArgs &args)
 {
     // Handle stop
@@ -192,16 +192,15 @@ bool MotionController::moveTo(const MotionArgs &args)
         return true;
     }
 
-    // Handle linear motion (no ramp) - motion is defined in terms of steps (not mm)
-    if (args.isLinear())
-        return _blockManager.addLinearBlock(args, _rampGenerator.getMotionPipeline());
-    return moveToRamped(args);
+    // Handle flat motion (no ramp) - motion is defined in terms of steps (not mm)
+    if (args.isRamped())
+        return moveToRamped(args);
+    return _blockManager.addNonRampedBlock(args, _rampGenerator.getMotionPipeline());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Pause (or un-pause) all motion
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Pause (or resume) all motion
+/// @param pauseIt true to pause, false to resume
 void MotionController::pause(bool pauseIt)
 {
     _rampGenerator.pause(pauseIt);
@@ -210,10 +209,9 @@ void MotionController::pause(bool pauseIt)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Motion helper for ramped motion
-// Ramped motion (variable acceleration) is used for normal motion
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Move to a specific location (relative or absolute) using ramped motion
+/// @param args MotionArgs specify the motion to be performed
+/// @return true if the motion was successfully added to the pipeline
 bool MotionController::moveToRamped(const MotionArgs& args)
 {
     // Check not busy
@@ -229,7 +227,7 @@ bool MotionController::moveToRamped(const MotionArgs& args)
     if (_blockManager.isHomingNeededBeforeMove() && (!_blockManager.isAxesStateValid()))
     {
 #ifdef DEBUG_MOTION_CONTROLLER
-        LOG_I(MODULE_PREFIX, "moveTo lastPos invalid - need to home (initially and after linear moves)");
+        LOG_I(MODULE_PREFIX, "moveTo lastPos invalid - need to home (initially and after non-ramped moves)");
 #endif
         return false;
     }
@@ -251,7 +249,7 @@ bool MotionController::moveToRamped(const MotionArgs& args)
         {
             targetAxisPos.setVal(i, _blockManager.getAxesState().getUnitsFromOrigin(i));
 #ifdef DEBUG_MOTION_CONTROLLER
-            LOG_I(MODULE_PREFIX, "moveTo ax %d, pos %0.2f NoMovementOnThisAxis", 
+            LOG_I(MODULE_PREFIX, "moveTo NOT_SPECIFIED ax %d, pos %0.2f (remain at current pos)", 
                     i, 
                     targetAxisPos.getVal(i));
 #endif
@@ -265,7 +263,7 @@ bool MotionController::moveToRamped(const MotionArgs& args)
                 targetAxisPos.setVal(i, _blockManager.getAxesState().getUnitsFromOrigin(i) + targetAxisPos.getVal(i).getVal());
             }
 #ifdef DEBUG_MOTION_CONTROLLER
-            LOG_I(MODULE_PREFIX, "moveTo ax %d, pos %0.2f %s", 
+            LOG_I(MODULE_PREFIX, "moveTo SPECIFIED ax %d, pos %0.2f %s", 
                     i, 
                     targetAxisPos.getVal(i), 
                     args.isRelative() ? "RELATIVE" : "ABSOLUTE");
@@ -297,9 +295,9 @@ bool MotionController::moveToRamped(const MotionArgs& args)
 
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Set current position as home
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Set current position of the axes as the origin
+/// @param allAxes true to set all axes, false to set a specific axis
+/// @param axisIdx if allAxes is false, the axis to set
 void MotionController::setCurPositionAsOrigin(bool allAxes, uint32_t axisIdx)
 {
     if (!allAxes && (axisIdx >= AXIS_VALUES_MAX_AXES))
@@ -312,18 +310,16 @@ void MotionController::setCurPositionAsOrigin(bool allAxes, uint32_t axisIdx)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Go to home position
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotionController::goHome(const MotionArgs &args)
+/// @brief Go to previously set origin position
+void MotionController::goToOrigin(const MotionArgs &args)
 {
-    
+    // TODO - implement
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get Data JSON
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get status data in JSON format
+/// @param level Level of detail required
+/// @return JSON string
 String MotionController::getDataJSON(RaftDeviceJSONLevel level) const
 {
     if (level >= DEVICE_JSON_LEVEL_MIN)
@@ -334,35 +330,11 @@ String MotionController::getDataJSON(RaftDeviceJSONLevel level) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get queue slots (buffers) available for streaming
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get number of queue slots available for streaming
+/// @return Number of slots
 uint32_t MotionController::streamGetQueueSlots() const
 {
     return _rampGenerator.getMotionPipelineConst().remaining();
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// De-init
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void MotionController::deinit()
-{
-    // Remote steppers
-    for (StepDriverBase*& pDriver : _stepperDrivers)
-    {
-        if (pDriver)
-            delete pDriver;
-        pDriver = nullptr;
-    }
-
-    // Remote endstops
-    for (EndStops*& pEndStops : _axisEndStops)
-    {
-        if (pEndStops)
-            delete pEndStops;
-    }
-    _axisEndStops.clear();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

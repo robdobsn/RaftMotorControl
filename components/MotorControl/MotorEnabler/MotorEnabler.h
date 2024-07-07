@@ -88,7 +88,7 @@ public:
         return _motorEnLastUnixTime;
     }
 
-    void service()
+    void loop()
     {
         // Check for motor enable timeout
         if (_motorsAreEnabled && Raft::isTimeout(millis(), _motorEnLastMillis,

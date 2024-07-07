@@ -40,8 +40,8 @@ public:
         return _numBlocks != 0;
     }
 
-    // Add linear motion block
-    bool addLinearBlock(const MotionArgs& args, MotionPipelineIF& motionPipeline);
+    // Add non-ramped motion block
+    bool addNonRampedBlock(const MotionArgs& args, MotionPipelineIF& motionPipeline);
 
     // Add rampled block (which may be split up)
     bool addRampedBlock(const MotionArgs& args, 
@@ -100,8 +100,8 @@ private:
     // Target position
     AxesValues<AxisPosDataType> _targetPosition;
 
-    // Block delta distance
-    AxesValues<AxisPosDataType> _blockDeltaDistance;
+    // Block motion as a vector
+    AxesValues<AxisPosDataType> _blockMotionVector;
 
     // Num blocks to split over
     uint32_t _numBlocks = 0;

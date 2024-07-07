@@ -20,8 +20,14 @@ public:
 
     void setup(double maxJunctionDeviationMM, uint32_t );
 
-    // Add a linear (no ramp) motion block (used for homing, etc)
-    AxesValues<AxisStepsDataType> moveToLinear(const MotionArgs& args,
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Add a non-ramped motion block (used for homing, etc)
+    /// @param args MotionArgs define the parameters for motion
+    /// @param axesState Current state of the axes including position and origin status
+    /// @param axesParams Parameters for the axes
+    /// @param motionPipeline Motion pipeline to add the block to
+    /// @return AxesValues<AxisStepsDataType> containing the destination actuator coordinates
+    AxesValues<AxisStepsDataType> moveToNonRamped(const MotionArgs& args,
                     AxesState& axesState,
                     const AxesParams& axesParams, 
                     MotionPipelineIF& motionPipeline);
@@ -40,10 +46,17 @@ public:
                     const AxesParams& axesParams,
                     MotionPipelineIF& motionPipeline);
 
-    // Debug
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// @brief Debug show pipeline contents
+    /// @param motionPipeline Motion pipeline to show
+    /// @param minQLen Minimum queue length to show
     void debugShowPipeline(MotionPipelineIF& motionPipeline, unsigned int minQLen);
 
 private:
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "MotionPlanner";
+
     // Minimum planner speed mm/s
     float _minimumPlannerSpeedMMps = 0.0f;
     // Max junction deviation (mm)

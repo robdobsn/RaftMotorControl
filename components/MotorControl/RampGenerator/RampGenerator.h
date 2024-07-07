@@ -32,7 +32,7 @@ public:
 
     // Must be called frequently - if useRampGenTimer is false (in setup) then
     // this function generates stepping pulses
-    void service();
+    void loop();
 
     // Start / stop / pause
     void start();
@@ -85,6 +85,10 @@ public:
     }
 
 private:
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "RampGen";
+
     // Consts
     static constexpr uint32_t PIPELINE_LEN_DEFAULT = 100;
     static constexpr uint32_t NON_TIMER_SERVICE_CALL_MIN_MS = 5;
@@ -108,8 +112,8 @@ private:
     uint32_t _stepGenPeriodNs = 0;
     uint32_t _minStepRatePerTTicks = 0;
 
-    // Non-timer service rate
-    uint32_t _nonTimerServiceLastMs = 0;
+    // Non-timer loop rate
+    uint32_t _nonTimerLoopLastMs = 0;
 
     // Steppers
     std::vector<StepDriverBase*> _stepperDrivers;
@@ -163,6 +167,6 @@ private:
     uint32_t _debugLastQueuePeekMs = 0;
 
     // Debug ramp gen timer
-    uint32_t _debugRampGenServiceLastMs = 0;
-    uint32_t _debugRampGenServiceCount = 0;
+    uint32_t _debugRampGenLoopLastMs = 0;
+    uint32_t _debugRampGenLoopCount = 0;
 };

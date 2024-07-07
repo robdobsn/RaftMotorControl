@@ -52,27 +52,29 @@ void MotionBlockManager::setup(uint32_t stepGenPeriodUs, const RaftJsonIF& motio
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Motion helper for linear motion
-// Linear motion is used for homing, etc
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-bool MotionBlockManager::addLinearBlock(const MotionArgs& args, MotionPipelineIF& motionPipeline)
+/// @brief Add a non-ramped (constant speed) block to the pipeline (for homing etc)
+/// @param args Motion arguments
+/// @param motionPipeline Motion pipeline to add the block to
+/// @return true if successful
+bool MotionBlockManager::addNonRampedBlock(const MotionArgs& args, MotionPipelineIF& motionPipeline)
 {
-    AxesValues<AxisStepsDataType> curPosStepsFromOrigin = _motionPlanner.moveToLinear(args, 
+    AxesValues<AxisStepsDataType> curPosStepsFromOrigin = _motionPlanner.moveToNonRamped(args, 
                     _axesState, 
                     _axesParams, 
                     motionPipeline);
 
-    // Since this was a linear move units from home is now invalid
+    // Since this was a non-ramped move units from home is now invalid
     _axesState.setStepsFromOriginAndInvalidateUnits(curPosStepsFromOrigin);
 
     return true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Add block to be split
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Add a ramped block (which may be split up) to the pipeline
+/// @param args Motion arguments
+/// @param targetPosition Target position
+/// @param numBlocks Number of blocks to split the move into
+/// @return true if successful
 bool MotionBlockManager::addRampedBlock(const MotionArgs& args, 
                 const AxesValues<AxisPosDataType>& targetPosition, 
                 uint32_t numBlocks)
@@ -81,15 +83,15 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args,
     _targetPosition = targetPosition;
     _numBlocks = numBlocks;
     _nextBlockIdx = 0;
-    _blockDeltaDistance = (_targetPosition - _axesState.getUnitsFromOrigin()) / double(numBlocks);
+    _blockMotionVector = (_targetPosition - _axesState.getUnitsFromOrigin()) / double(numBlocks);
 
 #ifdef DEBUG_RAMPED_BLOCK
-    LOG_I(MODULE_PREFIX, "moveTo cur %s curSteps %s new %s numBlocks %d blockDeltaDist %s)",
+    LOG_I(MODULE_PREFIX, "moveTo curUnits %s curSteps %s newUnits %s numBlocks %d blockMotionVector %s)",
                 _axesState.getUnitsFromOrigin().getDebugStr().c_str(),
                 _axesState.getStepsFromOrigin().getDebugStr().c_str(),
                 _targetPosition.getDebugStr().c_str(),
                 _numBlocks, 
-                _blockDeltaDistance.getDebugStr().c_str());
+                _blockMotionVector.getDebugStr().c_str());
 #endif
 
     return true;
@@ -111,7 +113,7 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
             return;
 
         // Add to pipeline any blocks that are waiting to be expanded out
-        AxesValues<AxisPosDataType> nextBlockDest = _axesState.getUnitsFromOrigin() + _blockDeltaDistance;
+        AxesValues<AxisPosDataType> nextBlockDest = _axesState.getUnitsFromOrigin() + _blockMotionVector;
 
         // Bump position
         _nextBlockIdx++;
@@ -130,7 +132,7 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
 #ifdef DEBUG_BLOCK_SPLITTER
         LOG_I(MODULE_PREFIX, "pumpBlockSplitter last %s + delta %s => dest %s (%s) nextBlockIdx %d, numBlocks %d", 
                     _axesState.getUnitsFromOrigin().getDebugStr().c_str(),
-                    _blockDeltaDistance.getDebugStr().c_str(),
+                    _blockMotionVector.getDebugStr().c_str(),
                     nextBlockDest.getDebugStr().c_str(),
                     _blockMotionArgs.getTargetPos().getDebugStr().c_str(), 
                     _nextBlockIdx,

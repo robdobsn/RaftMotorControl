@@ -24,8 +24,8 @@ public:
     // Add endstop
     void add(bool isMax, const char* name, int endStopPin, bool actvLevel, int inputType);
 
-    // Service - called frequently
-    virtual void service();
+    // Loop - called frequently
+    virtual void loop();
 
     // Check if at end stop
     bool isAtEndStop(bool max);
@@ -37,6 +37,10 @@ public:
     bool getPinAndLevel(bool max, int& pin, bool& actvLevel);
 
 private:
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "EndStops";
+
     String _maxName;
     int _maxEndStopPin;
     bool _maxActLevel;

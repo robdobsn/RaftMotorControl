@@ -101,7 +101,7 @@ TEST_CASE("test_MotorControl", "[MotorControl]")
     {
         delay(1);
         busSerial.service();
-        motorControl.service();
+        motorControl.loop();
         if (progressCount == 100)
         {
             // Motion command

@@ -14,11 +14,13 @@
 static const char* MODULE_PREFIX = "MotionArgs";
 #endif
 
+/// @brief Get field definitions for JSON serialization
+/// @return std::vector<MotionArgs::FieldDefType>
 std::vector<MotionArgs::FieldDefType> MotionArgs::getFieldDefs()
 {
     std::vector<FieldDefType> fieldDefs;
     fieldDefs.push_back(FieldDefType("rel", &_isRelative, "bool"));
-    fieldDefs.push_back(FieldDefType("lin", &_linearNoRamp, "bool"));
+    fieldDefs.push_back(FieldDefType("ramped", &_rampedMotion, "bool"));
     fieldDefs.push_back(FieldDefType("steps", &_unitsAreSteps, "bool"));
     fieldDefs.push_back(FieldDefType("nosplit", &_dontSplitMove, "bool"));
     fieldDefs.push_back(FieldDefType("exDistOk", &_extrudeValid, "bool"));
@@ -122,7 +124,7 @@ String MotionArgs::toJSON()
             jsonStr += ",";
             firstAxis = false;
         }
-        jsonStr += "{\"a\":" + String(axisIdx) + ",\"p\":" + String(_targetPosMaybePartial.getVal(axisIdx).getVal()) + "}";
+        jsonStr += "{\"a\":" + String(axisIdx) + ",\"pp\":" + String(_targetPosMaybePartial.getVal(axisIdx).getVal()) + "}";
     }
     jsonStr += "]";
     return "{" + jsonStr + "}";

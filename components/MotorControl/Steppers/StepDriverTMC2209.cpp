@@ -23,9 +23,7 @@ static const char* MODULE_PREFIX = "StepDrv2209";
 // #define DEBUG_DIRECTION_ONLY_IF_NOT_ISR
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Constructor/Destructor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Constructor
 StepDriverTMC2209::StepDriverTMC2209()
 {
     // Sync byte
@@ -52,9 +50,11 @@ StepDriverTMC2209::StepDriverTMC2209()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Setup
+/// @param stepperName - name of stepper
+/// @param stepperParams - parameters for the stepper
+/// @param usingISR - true if using ISR
+/// @return true if successful
 bool StepDriverTMC2209::setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR)
 {
     // Configure base
@@ -130,16 +130,14 @@ bool StepDriverTMC2209::setup(const String& stepperName, const StepDriverParams&
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Service - called frequently
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-void StepDriverTMC2209::service()
+/// @brief Loop - called frequently
+void StepDriverTMC2209::loop()
 {
-    // Service base
-    StepDriverBase::service();
+    // Loop base
+    StepDriverBase::loop();
 
     // Check if driver is ready
-    if (driverBusy())
+    if (isBusy())
     {
 #ifdef WARN_ON_DRIVER_BUSY
         if (!_warnOnDriverBusyDone)
@@ -150,7 +148,7 @@ void StepDriverTMC2209::service()
             }
             else if (Raft::isTimeout(millis(), _warnOnDriverBusyStartTimeMs, WARN_ON_DRIVER_BUSY_AFTER_MS))
             {
-                LOG_E(MODULE_PREFIX, "service driver busy for too long");
+                LOG_E(MODULE_PREFIX, "loop driver busy for too long");
                 _warnOnDriverBusyStartTimeMs = 0;
                 _warnOnDriverBusyDone = true;
             }
@@ -172,7 +170,7 @@ void StepDriverTMC2209::service()
     if (_driverRegisters[_driverRegisterIdx].readInProgress)
     {
 #ifdef DEBUG_REGISTER_READ_PROCESS
-        LOG_I(MODULE_PREFIX, "service readinprogress");
+        LOG_I(MODULE_PREFIX, "loop readinprogress");
 #endif
     }
     // Check for init required
@@ -188,7 +186,7 @@ void StepDriverTMC2209::service()
     {
         // Start reading register
 #ifdef DEBUG_REGISTER_READ_PROCESS
-        LOG_I(MODULE_PREFIX, "service start read regCode %d", _driverRegisterIdx);
+        LOG_I(MODULE_PREFIX, "loop start read regCode %d", _driverRegisterIdx);
 #endif
         startReadTrinamicsRegister(_driverRegisterIdx);
         _driverRegisters[_driverRegisterIdx].readPending = false;
@@ -204,7 +202,7 @@ void StepDriverTMC2209::service()
                     _driverRegisters[_driverRegisterIdx].regAddr, newRegValue);
         _driverRegisters[_driverRegisterIdx].writePending = false;
 #ifdef DEBUG_REGISTER_WRITE_PROCESS
-        LOG_I(MODULE_PREFIX, "service write regCode %d regAddr 0x%02x regVal 0x%08x", 
+        LOG_I(MODULE_PREFIX, "loop write regCode %d regAddr 0x%02x regVal 0x%08x", 
                     _driverRegisterIdx, _driverRegisters[_driverRegisterIdx].regAddr, newRegValue);
 #endif
     }
@@ -214,9 +212,8 @@ void StepDriverTMC2209::service()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Set microsteps
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Set motor microsteps
+/// @param microsteps - number of microsteps
 void StepDriverTMC2209::setMicrosteps(uint32_t microsteps)
 {
     // Set mres value into CHOPCONF register
@@ -227,9 +224,9 @@ void StepDriverTMC2209::setMicrosteps(uint32_t microsteps)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get MRES value from microsteps
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Get MRES value from microsteps
+/// @param microsteps - number of microsteps
+/// @return MRES value
 uint32_t StepDriverTMC2209::getMRESFieldValue(uint32_t microsteps)
 {
     // Get MRES value
@@ -251,9 +248,13 @@ uint32_t StepDriverTMC2209::getMRESFieldValue(uint32_t microsteps)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Convert RMS current setting to register values
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Convert RMS current setting to register values
+/// @param reqCurrentAmps - required current in Amps
+/// @param holdFactor - hold factor
+/// @param holdMode - hold mode
+/// @param vsenseOut - vsense value
+/// @param irunOut - irun value
+/// @param iholdOut - ihold value
 void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double holdFactor, 
             StepDriverParams::HoldModeEnum holdMode, bool& vsenseOut, uint32_t& irunOut, uint32_t& iholdOut)
 {
@@ -301,9 +302,9 @@ void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double ho
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Set direction
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Set direction
+/// @param dirn - direction
+/// @param forceSet - force set
 void IRAM_ATTR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
 {
 #ifdef DEBUG_DIRECTION_ONLY_IF_NOT_ISR
@@ -333,9 +334,7 @@ void IRAM_ATTR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Start a step
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Start a step
 void IRAM_ATTR StepDriverTMC2209::stepStart()
 {
     // Check hardware pin
@@ -363,9 +362,7 @@ void IRAM_ATTR StepDriverTMC2209::stepStart()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// End a step
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief End a step
 bool IRAM_ATTR StepDriverTMC2209::stepEnd()
 {
     if (_stepCurActive && (_stepperParams.stepPin >= 0))
@@ -384,9 +381,8 @@ bool IRAM_ATTR StepDriverTMC2209::stepEnd()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Set the max motor current
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Set the max motor current
+/// @param maxMotorCurrentAmps - max motor current in Amps
 void StepDriverTMC2209::setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
 {
     // Set the max motor current
@@ -400,9 +396,7 @@ void StepDriverTMC2209::setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Set the motor current
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Set the main registers with stored values
 void StepDriverTMC2209::setMainRegs()
 {
     // Get CHOPCONF vsense value and IRUN, IHOLD values from required RMS current

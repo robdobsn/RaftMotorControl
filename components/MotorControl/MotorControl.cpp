@@ -29,7 +29,7 @@ MotorControl::MotorControl(const char* pClassName, const char *pDevConfigJson)
 MotorControl::~MotorControl()
 {
     // Tell motion controller to stop
-    _motionController.teardown();
+    _motionController.deinit();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -52,8 +52,8 @@ void MotorControl::setup()
 // @brief Main loop for the device (called frequently)
 void MotorControl::loop()
 {
-    // Service motion controller
-    _motionController.service();
+    // Loop motion controller
+    _motionController.loop();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

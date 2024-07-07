@@ -28,15 +28,15 @@ public:
     MotionController();
     ~MotionController();
 
-    // Setup / teardown
+    // Setup / deinit
     void setup(const RaftJsonIF& config);
-    void teardown();
+    void deinit();
 
     // Set serial bus and whether to use bus for direction reversal 
     void setupSerialBus(RaftBus* pBus, bool useBusForDirectionReversal);
 
-    // Service - called frequently
-    void service();
+    // Loop - called frequently
+    void loop();
 
     // Move to a specific location
     bool moveTo(const MotionArgs &args);
@@ -57,7 +57,7 @@ public:
     void setCurPositionAsOrigin(bool allAxes = true, uint32_t axisIdx = 0);
 
     // Go to previously set home position
-    void goHome(const MotionArgs &args);
+    void goToOrigin(const MotionArgs &args);
 
     // Get last commanded position
     AxesValues<AxisPosDataType> getLastCommandedPos() const;
@@ -84,6 +84,9 @@ public:
     String getDebugStr() const;
 
 private:
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "MotionController";
+
     // Axis stepper motors
     std::vector<StepDriverBase*> _stepperDrivers;
 
@@ -112,13 +115,12 @@ private:
     bool _isPaused = false;
 
     // Helpers
-    void deinit();
     void setupAxes(const RaftJsonIF& config);
     void setupAxisHardware(uint32_t axisIdx, const RaftJsonIF& config);
     void setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig);
     void setupEndStops(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig);
     void setupRampGenerator(const RaftJsonIF& config);
-    bool moveToLinear(const MotionArgs& args);
+    bool moveToNonRamped(const MotionArgs& args);
     bool moveToRamped(const MotionArgs& args);
 
     // Defaults

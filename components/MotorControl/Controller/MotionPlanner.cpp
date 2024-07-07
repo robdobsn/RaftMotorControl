@@ -18,12 +18,8 @@
 // #define DEBUG_MOTIONPLANNER_BEFORE
 // #define DEBUG_MOTIONPLANNER_AFTER
 
-static const char* MODULE_PREFIX = "MotionPlanner";
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Constructor
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Constructor
 MotionPlanner::MotionPlanner()
 {
     _prevMotionBlockValid = false;
@@ -34,9 +30,9 @@ MotionPlanner::MotionPlanner()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Setup
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Setup
+/// @param maxJunctionDeviationMM Maximum junction deviation in mm
+/// @param stepGenPeriodUs Step generation period in microseconds
 void MotionPlanner::setup(double maxJunctionDeviationMM, uint32_t stepGenPeriodUs)
 {
     _maxJunctionDeviationMM = maxJunctionDeviationMM;
@@ -45,11 +41,13 @@ void MotionPlanner::setup(double maxJunctionDeviationMM, uint32_t stepGenPeriodU
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Entry point for adding a motion block for stepwise motion
-// Returns steps from home
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-AxesValues<AxisStepsDataType> MotionPlanner::moveToLinear(const MotionArgs &args,
+/// @brief Move in non-ramped fashion (used for homing, etc)
+/// @param args MotionArgs define the parameters for motion
+/// @param axesState Current state of the axes including position and origin status
+/// @param axesParams Parameters for the axes
+/// @param motionPipeline Motion pipeline to add the block to
+/// @return AxesValues<AxisStepsDataType> containing the destination actuator coordinates
+AxesValues<AxisStepsDataType> MotionPlanner::moveToNonRamped(const MotionArgs &args,
                     AxesState& axesState,
                     const AxesParams &axesParams, 
                     MotionPipelineIF& motionPipeline)
@@ -356,18 +354,21 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Recalculate Pipeline
-// The last block in the pipe (most recently added) will have zero exit speed
-// For each block, walking backwards in the queue :
-//    We know the desired exit speed so calculate the entry speed using v^2 = u^2 + 2*a*s
-//    Set the exit speed for the previous block from this entry speed
-// Then walk forward in the queue starting with the first block that can be changed:
-//    Set the entry speed from the previous block (or to 0 if none)
-//    Calculate the max possible exit speed for the block using the same formula as above
-//    Set the entry speed for the next block using this exit speed
-// Finally prepare the block for stepper motor actuation
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Recalculate the pipeline
+/// @param motionPipeline Pipeline to recalculate
+/// @param axesParams Parameters for the axes
+/// @note This function is called after a block has been added to the pipeline
+///       and recalculates the pipeline to ensure that the blocks are correctly
+///       set up for the ramp generator to execute.
+///       The last block in the pipe (most recently added) will have zero exit speed
+///       For each block, walking backwards in the queue :
+///         (a) We know the desired exit speed so calculate the entry speed using v^2 = u^2 + 2*a*s
+///         (b) Set the exit speed for the previous block from this entry speed
+///       Then walk forward in the queue starting with the first block that can be changed:
+///         (1) Set the entry speed from the previous block (or to 0 if none)
+///         (2) Calculate the max possible exit speed for the block using the same formula as above
+///         (3) Set the entry speed for the next block using this exit speed
+///       Finally prepare the block for stepper motor actuation
 void MotionPlanner::recalculatePipeline(MotionPipelineIF& motionPipeline, const AxesParams &axesParams)
 {
 #ifdef DEBUG_MOTIONPLANNER_BEFORE
@@ -506,9 +507,9 @@ void MotionPlanner::recalculatePipeline(MotionPipelineIF& motionPipeline, const 
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Debug
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
+/// @brief Debug show pipeline
+/// @param motionPipeline Motion pipeline to show
+/// @param minQLen Minimum queue length to show
 void MotionPlanner::debugShowPipeline(MotionPipelineIF& motionPipeline, unsigned int minQLen)
 {
     if (minQLen != -1 && motionPipeline.count() != minQLen)

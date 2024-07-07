@@ -18,8 +18,8 @@ public:
     // Setup
     virtual bool setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR) override final;
     
-    // Service - called frequently
-    virtual void service() override final;
+    // Loop - called frequently
+    virtual void loop() override final;
 
     // Microsteps
     virtual void setMicrosteps(uint32_t microsteps) override final;

@@ -26,8 +26,8 @@ public:
     // Called after bus has been connected
     virtual void setupSerialBus(RaftBus* pBus, bool useBusForDirectionReversal);
 
-    // Service - called frequently
-    virtual void service();
+    // Loop - called frequently
+    virtual void loop();
 
     // Microsteps
     virtual void setMicrosteps(uint32_t microsteps)
@@ -105,7 +105,7 @@ protected:
     }
 
     // Driver busy
-    bool driverBusy();
+    bool isBusy();
 
     // Is read in progress
     bool isReadInProgress()
