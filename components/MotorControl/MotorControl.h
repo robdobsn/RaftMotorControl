@@ -43,8 +43,8 @@ public:
     /// @return double value
     virtual double getNamedValue(const char* pParam, bool& isFresh) const override final;
 
-    // Send binary command
-    virtual RaftRetCode sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen) override final;
+    // // Send binary command
+    // virtual RaftRetCode sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen) override final;
 
     // Send JSON command
     virtual RaftRetCode sendCmdJSON(const char* jsonCmd) override final;
