@@ -4,6 +4,7 @@ idf_component_register(
   NAME
     RaftMotorControl
   SRCS
+    "components/MotorControl/Axes/AxisEndstopChecks.cpp"
     "components/MotorControl/Controller/MotionArgs.cpp"
     "components/MotorControl/Controller/MotionBlockManager.cpp"
     "components/MotorControl/Controller/MotionController.cpp"
