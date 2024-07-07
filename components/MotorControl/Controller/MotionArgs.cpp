@@ -8,7 +8,7 @@
 
 #include "MotionArgs.h"
 
-// #define DEBUG_MOTION_ARGS
+#define DEBUG_MOTION_ARGS
 
 #if defined(DEBUG_MOTION_ARGS)
 static const char* MODULE_PREFIX = "MotionArgs";
@@ -122,9 +122,9 @@ String MotionArgs::toJSON()
         if (!firstAxis)
         {
             jsonStr += ",";
-            firstAxis = false;
         }
-        jsonStr += "{\"a\":" + String(axisIdx) + ",\"pp\":" + String(_targetPosMaybePartial.getVal(axisIdx).getVal()) + "}";
+        firstAxis = false;
+        jsonStr += "{\"a\":" + String(axisIdx) + ",\"p\":" + String(_targetPosMaybePartial.getVal(axisIdx).getVal()) + "}";
     }
     jsonStr += "]";
     return "{" + jsonStr + "}";
