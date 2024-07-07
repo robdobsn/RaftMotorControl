@@ -86,6 +86,7 @@ void MotionArgs::fromJSON(const char* jsonStr)
         LOG_I(MODULE_PREFIX, "fromJSON %s pos %s axisIdx: %d, axisPos: %.2f", cmdJson.getJsonDoc(), pos.getJsonDoc(), axisIdx, axisPos);
 #endif
         _axesPos.setVal(axisIdx, axisPos);
+        _axesSpecified.setVal(axisIdx, true);
     }
 }
 

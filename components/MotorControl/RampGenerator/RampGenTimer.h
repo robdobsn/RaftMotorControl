@@ -13,17 +13,9 @@
 #include "RaftArduino.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
+#include "driver/gptimer.h"
 
 // #define RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
-
-// General purpose timer used for ramp generation
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-#define RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
-#include "driver/gptimer.h"
-#else
-#include "driver/timer.h"
-#endif
-
 
 // This is intended to be used statically in the RampGenerator class
 // setup() must be called to initialise and the timer will be started by the
@@ -61,19 +53,8 @@ private:
     // Configured timer period
     uint32_t _timerPeriodUs = RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT;
 
-#ifndef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
-
-    // ESP32 timer
-    timer_isr_handle_t _rampTimerHandle = nullptr;
-    static constexpr uint32_t RAMP_TIMER_DIVIDER = 80;
-    timer_group_t _timerGroup = TIMER_GROUP_0;
-    timer_idx_t _timerIdx = TIMER_0;
-
-#else
     // Timer handle
     gptimer_handle_t _timerHandle = nullptr;
-
-#endif
 
     // Debug timer count
     volatile uint32_t _timerISRCount = 0;
@@ -94,13 +75,52 @@ private:
 #endif
 
     // ISR
-#ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
-    static bool _staticGPTimerCB(gptimer_t* timer, const gptimer_alarm_event_data_t* eventData, void* arg);
-    void _nonStaticGPTimerCB();
-#else
-    static void _staticLegacyISR(void* arg);
-    void _nonStaticLegacyISR();
+    static IRAM_ATTR bool _staticGPTimerCB(gptimer_t* timer, const gptimer_alarm_event_data_t* eventData, void* arg)
+    {
+        // Check the arg is valid
+        if (!arg)
+            return false;
+        RampGenTimer* pRampGenTimer = (RampGenTimer*)arg;
+        pRampGenTimer->_nonStaticGPTimerCB();
+        return false;
+    }
+    void IRAM_ATTR _nonStaticGPTimerCB()
+    {
+        // Bump count
+        _timerISRCount = _timerISRCount + 1;
+
+#ifdef RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
+        // Get semaphore on hooks vector
+        BaseType_t xTaskWokenBySemphoreTake = pdFALSE;
+        BaseType_t xTaskWokenBySemphoreGive = pdFALSE;
+        if (xSemaphoreTakeFromISR(_hookListMutex, &xTaskWokenBySemphoreTake) != pdTRUE)
+            return;
 #endif
+
+        // Call each function
+        for (auto& hook : _timerCBHooks)
+        {
+            if (hook.timerCB)
+            {
+                hook.timerCB(hook.pObject);
+            }
+        }
+
+#ifdef RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
+        // Release semaphore
+        xSemaphoreGiveFromISR(_hookListMutex, &xTaskWokenBySemphoreGive);
+
+        // Check if a task was woken
+        // See notes on this here: https://www.freertos.org/xSemaphoreTakeFromISR.html
+        if ((xTaskWokenBySemphoreTake != pdFALSE) || ((xTaskWokenBySemphoreGive != pdFALSE)))
+        {
+            taskYIELD ();
+        }
+#endif    
+
+    }
+
+    // Timer control
     void disableTimerInterrupts();
     void reenableTimerInterrupts();
     void timerReset();

@@ -157,8 +157,13 @@ private:
     bool handleStepMotion(MotionBlock *pBlock);
     void endMotion(MotionBlock *pBlock);
 
-    // Timer callback
-    static void rampGenTimerCallback(void* pObject);
+    /// @brief Timer callback
+    /// @param pObject Object to call (this class instance)
+    static IRAM_ATTR void rampGenTimerCallback(void* pObject)
+    {
+        if (pObject)
+            ((RampGenerator*)pObject)->generateMotionPulses();
+    }
 
     // ISR count
     volatile uint32_t _isrCount = 0;

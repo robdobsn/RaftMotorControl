@@ -626,15 +626,6 @@ void IRAM_ATTR RampGenerator::generateMotionPulses()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Timer callback
-/// @param pObject Object to call (this class instance)
-void IRAM_ATTR RampGenerator::rampGenTimerCallback(void* pObject)
-{
-    if (pObject)
-        ((RampGenerator*)pObject)->generateMotionPulses();
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Debug show stats
 void RampGenerator::debugShowStats()
 {

@@ -55,13 +55,11 @@ bool RampGenTimer::setup(uint32_t timerPeriodUs)
     _hookListMutex = xSemaphoreCreateMutex();
 #endif
 
-#ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
-
     // Config gptimer
     gptimer_config_t gptimerConfig = {
         .clk_src = GPTIMER_CLK_SRC_DEFAULT,
         .direction = GPTIMER_COUNT_UP,
-        .resolution_hz = 10000000,
+        .resolution_hz = 1000000,
         .intr_priority = 0,
         .flags = 0,
     };
@@ -104,37 +102,6 @@ bool RampGenTimer::setup(uint32_t timerPeriodUs)
     // Debug
     LOG_I(MODULE_PREFIX, "Configured timer ok");
     return true;
-
-#else
-    // Setup timer
-    timer_config_t timerConfig = {
-        .alarm_en = TIMER_ALARM_EN,
-        .counter_en = TIMER_PAUSE,
-        .intr_type = TIMER_INTR_LEVEL,
-        .counter_dir = TIMER_COUNT_UP,
-        .auto_reload = TIMER_AUTORELOAD_EN,
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
-        .clk_src = TIMER_SRC_CLK_APB,
-#endif
-        .divider = 80,   /* 1 us per tick */
-    };
-    if (timer_init(_timerGroup, _timerIdx, &timerConfig) == ESP_OK)
-    {
-        timer_set_counter_value(_timerGroup, _timerIdx, 0);
-        timer_set_alarm_value(_timerGroup, _timerIdx, timerPeriodUs);
-        timer_enable_intr(_timerGroup, _timerIdx);
-        timer_isr_register(_timerGroup, _timerIdx, &_staticLegacyISR, 
-                    (void*)this, 0, &_rampTimerHandle);
-        _timerIsSetup = true;
-        LOG_I(MODULE_PREFIX, "Started ISR timer for direct stepping");
-        return true;
-    }
-    else
-    {
-        LOG_E(MODULE_PREFIX, "Failed to start ISR timer for direct stepping");            
-        return false;
-    }
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -146,7 +113,6 @@ void RampGenTimer::shutdown()
     if (!_timerIsSetup)
         return;
     enable(false);
-#ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
     gptimer_event_callbacks_t alarmEventCBs = {
         .on_alarm = nullptr,
     };
@@ -161,11 +127,6 @@ void RampGenTimer::shutdown()
     };
     gptimer_set_alarm_action(_timerHandle, &alarmConfig);
     gptimer_del_timer(_timerHandle);
-#else
-    timer_disable_intr(_timerGroup, _timerIdx);
-    if (_rampTimerHandle)
-        esp_intr_free(_rampTimerHandle);
-#endif
 #ifdef RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
     if (_hookListMutex)
 		vSemaphoreDelete(_hookListMutex);
@@ -184,21 +145,13 @@ void RampGenTimer::enable(bool en)
 
     if (en && !_timerIsEnabled)
     {
-#ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
         gptimer_enable(_timerHandle);
         gptimer_start(_timerHandle);
-#else
-        timer_start(_timerGroup, _timerIdx);
-#endif
     }
     else if (!en && _timerIsEnabled)
     {
-#ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
         gptimer_stop(_timerHandle);
         gptimer_disable(_timerHandle);
-#else
-        timer_pause(_timerGroup, _timerIdx);
-#endif
     }
     _timerIsEnabled = en;
 }
@@ -284,146 +237,6 @@ void RampGenTimer::unhookTimer(void* pObject)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Legacy ISR
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#ifndef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
-
-void IRAM_ATTR RampGenTimer::_staticLegacyISR(void* arg)
-{
-    // Check the arg is valid
-    if (!arg)
-        return;
-    RampGenTimer* pTimer = (RampGenTimer*)arg;
-    pTimer->_nonStaticLegacyISR();
-}
-
-void IRAM_ATTR RampGenTimer::_nonStaticLegacyISR()
-{
-
-    // Bump count
-    _timerISRCount = _timerISRCount + 1;
-    
-#ifdef RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
-    // Get semaphore on hooks vector
-    BaseType_t xTaskWokenBySemphoreTake = pdFALSE;
-    BaseType_t xTaskWokenBySemphoreGive = pdFALSE;
-	if (xSemaphoreTakeFromISR(_hookListMutex, &xTaskWokenBySemphoreTake) != pdTRUE)
-		return;
-#endif
-
-    // Call each function
-    for (auto& hook : _timerCBHooks)
-    {
-        if (hook.timerCB)
-        {
-            hook.timerCB(hook.pObject);
-        }
-    }
-
-#ifdef RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
-    // Release semaphore
-	xSemaphoreGiveFromISR(_hookListMutex, &xTaskWokenBySemphoreGive);
-
-    // Check if a task was woken
-    // See notes on this here: https://www.freertos.org/xSemaphoreTakeFromISR.html
-    if ((xTaskWokenBySemphoreTake != pdFALSE) || ((xTaskWokenBySemphoreGive != pdFALSE)))
-    {
-        taskYIELD ();
-    }
-#endif
-
-#ifndef USE_ESP_IDF_NEW_TIMER_FUNCTIONS
-    if (_timerGroup == 0)
-    {
-        if (_timerIdx == 0)
-        {
-            TIMERG0.int_clr_timers.t0 = 1;
-            TIMERG0.hw_timer[0].config.alarm_en = 1;
-        }
-        else
-        {
-            TIMERG0.int_clr_timers.t1 = 1;
-            TIMERG0.hw_timer[1].config.alarm_en = 1;
-        }
-    }
-    else
-    {
-        if (_timerIdx == 0)
-        {
-            TIMERG1.int_clr_timers.t0 = 1;
-            TIMERG1.hw_timer[0].config.alarm_en = 1;
-        }
-        else
-        {
-            TIMERG1.int_clr_timers.t1 = 1;
-            TIMERG1.hw_timer[1].config.alarm_en = 1;
-        }
-    }    
-#else
-    timer_spinlock_take(_timerGroup);
-    timer_group_clr_intr_status_in_isr(_timerGroup, _timerIdx);    
-    timer_group_enable_alarm_in_isr(_timerGroup, _timerIdx);
-    timer_spinlock_give(_timerGroup);
-#endif
-}
-
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// GPTimer Alarm Callback
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
-
-bool IRAM_ATTR RampGenTimer::_staticGPTimerCB(gptimer_handle_t timer, const gptimer_alarm_event_data_t* eventData, void* arg)
-{
-    // Check the arg is valid
-    if (!arg)
-        return false;
-    RampGenTimer* pRampGenTimer = (RampGenTimer*)arg;
-    pRampGenTimer->_nonStaticGPTimerCB();
-    return false;
-}
-
-void IRAM_ATTR RampGenTimer::_nonStaticGPTimerCB()
-{
-    // Bump count
-    _timerISRCount = _timerISRCount + 1;
-
-#ifdef RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
-    // Get semaphore on hooks vector
-    BaseType_t xTaskWokenBySemphoreTake = pdFALSE;
-    BaseType_t xTaskWokenBySemphoreGive = pdFALSE;
-	if (xSemaphoreTakeFromISR(_hookListMutex, &xTaskWokenBySemphoreTake) != pdTRUE)
-		return;
-#endif
-
-    // Call each function
-    for (auto& hook : _timerCBHooks)
-    {
-        if (hook.timerCB)
-        {
-            hook.timerCB(hook.pObject);
-        }
-    }
-
-#ifdef RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
-    // Release semaphore
-	xSemaphoreGiveFromISR(_hookListMutex, &xTaskWokenBySemphoreGive);
-
-    // Check if a task was woken
-    // See notes on this here: https://www.freertos.org/xSemaphoreTakeFromISR.html
-    if ((xTaskWokenBySemphoreTake != pdFALSE) || ((xTaskWokenBySemphoreGive != pdFALSE)))
-    {
-        taskYIELD ();
-    }
-#endif    
-}
-
-#endif
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Debug
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -444,17 +257,12 @@ void RampGenTimer::disableTimerInterrupts()
     // Check valid
     if (!_timerIsSetup)
         return;
-#ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
     // Stop timer ISR
     if (_timerIsEnabled)
     {
         gptimer_stop(_timerHandle);
         gptimer_disable(_timerHandle);
     }
-#else
-    // Stop timer ISR
-    timer_disable_intr(_timerGroup, _timerIdx);
-#endif
 }
 
 void RampGenTimer::reenableTimerInterrupts()
@@ -464,15 +272,11 @@ void RampGenTimer::reenableTimerInterrupts()
         return;
 
     // Re-enable ISR
-#ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
     if (_timerIsEnabled)
     {
         gptimer_enable(_timerHandle);
         gptimer_start(_timerHandle);
     }
-#else
-    timer_enable_intr(_timerGroup, _timerIdx);
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -486,11 +290,7 @@ void RampGenTimer::timerReset()
         return;
 
     // Reset timer
-#ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
     gptimer_set_raw_count(_timerHandle, 0);
-#else
-    _timerISRCount = 0;
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -508,11 +308,7 @@ uint64_t RampGenTimer::getDebugRawCount()
     if (!_timerIsSetup)
         return 0;
 
-#ifdef RAMP_GEN_USE_ESP_IDF_GPTIMER_FUNCTIONS
     uint64_t timerCount = 0;
     gptimer_get_raw_count(_timerHandle, &timerCount);
     return timerCount;
-#else
-    return _timerISRCount;
-#endif
 }

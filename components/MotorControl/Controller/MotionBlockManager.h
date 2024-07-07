@@ -88,16 +88,11 @@ public:
     }
 
     /// @brief Pre-process coordinates
-    /// @param axisPositions Axis positions (may be modified)
-    /// @param axesSpecified Axes specified (may be modified)
-    /// @param relativeMotion true if relative motion
+    /// @param args Motion arguments (may be modified) including target position
     /// @return Distance to move in MM
     /// @note This is used to manage unspecified axes and for coordinate systems like Theta-Rho 
     ///       which are curret-position dependent
-    AxisDistDataType preProcessCoords(AxesValues<AxisPosDataType>& axisPositions, 
-                AxesValues<AxisSpecifiedDataType>& axesSpecified,
-                bool relativeMotion
-                ) const
+    AxisDistDataType preProcessCoords(MotionArgs& args) const
     {
         // Get kinematics
         if (!_pRaftKinematics)
@@ -105,7 +100,7 @@ public:
             LOG_W(MODULE_PREFIX, "preProcessCoords no kinematics set");
             return 0;
         }    
-        return _pRaftKinematics->preProcessCoords(axisPositions, axesSpecified, _axesState, _axesParams, relativeMotion);
+        return _pRaftKinematics->preProcessCoords(args, _axesState, _axesParams);
     }
 
     /// @brief Set current position as origin

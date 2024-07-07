@@ -56,7 +56,7 @@ void MotionController::setup(const RaftJsonIF& config)
 
     // Setup ramp generator and pipeline
     RaftJsonPrefixed rampConfig(config, "ramp");
-    _rampGenerator.setup(config, _stepperDrivers, _axisEndStops);
+    _rampGenerator.setup(rampConfig, _stepperDrivers, _axisEndStops);
     _rampGenerator.start();
 
     // Setup motor enabler
@@ -174,6 +174,10 @@ bool MotionController::isBusy() const
 /// @note The args may be modified so cannot be const
 bool MotionController::moveTo(MotionArgs &args)
 {
+    LOG_I(MODULE_PREFIX, "moveTo %s args %s", 
+            args.getAxesPos().getDebugStr().c_str(),
+            args.toJSON().c_str());
+
     // Handle stop
     if (args.isStopMotion())
     {
@@ -193,9 +197,14 @@ bool MotionController::moveTo(MotionArgs &args)
         return true;
     }
 
-    // Handle flat motion (no ramp) - motion is defined in terms of steps (not mm)
+    // Check motion type
     if (args.isRamped())
+    {
+        // Ramped (variable speed) motion
         return moveToRamped(args);
+    }
+
+    // Handle flat motion (no ramp) - motion is defined in terms of steps (not mm)
     return _blockManager.addNonRampedBlock(args, _rampGenerator.getMotionPipeline());
 }
 
@@ -235,7 +244,7 @@ bool MotionController::moveToRamped(MotionArgs& args)
     }
 
     // Pre-process coordinates - this fills in unspecified values for axes and handles relative motion
-    AxisPosDataType moveDistanceMM = _blockManager.preProcessCoords(args.getAxesPos(), args.getAxesSpecified(), args.isRelative());
+    AxisPosDataType moveDistanceMM = _blockManager.preProcessCoords(args);
 
     // Ensure at least one block
     uint32_t numBlocks = 1;

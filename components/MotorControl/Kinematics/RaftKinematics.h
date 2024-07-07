@@ -52,43 +52,41 @@ public:
     }
 
     /// @brief Pre-process coordinates
-    /// @param axisPositions Axis positions (may be modified)
-    /// @param axesSpecified Axes specified (may be modified)
-    /// @param axesState Axes state (current position and origin status)
+    /// @param args Motion arguments (may be modified) including target position
     /// @param axesParams Axes parameters
-    /// @param relativeMotion true if relative motion
     /// @return Distance to move in MM
     /// @note This is used to manage unspecified axes and for coordinate systems like Theta-Rho 
     ///       which are curret-position dependent
-    virtual AxisDistDataType preProcessCoords(AxesValues<AxisPosDataType>& axisPositions, 
-                AxesValues<AxisSpecifiedDataType>& axesSpecified,
+    virtual AxisDistDataType preProcessCoords(MotionArgs& args,
                 const AxesState& axesState,
-                const AxesParams& axesParams,
-                bool relativeMotion) const
+                const AxesParams& axesParams) const
     {
         // Check for any axes not specified and/or require relative motion
         double movementDistSumSq = 0;
+        AxesValues<AxisPosDataType> axisPositions;
         for (int i = 0; i < AXIS_VALUES_MAX_AXES; i++)
         {
             // Get target axis position
             AxisPosDataType targetAxisPos = 0;
-            if (!axesSpecified.getVal(i))
+            if (!args.getAxesSpecified().getVal(i))
                 targetAxisPos = axesState.getUnitsFromOrigin(i);
-            else if (relativeMotion)
-                targetAxisPos = axesState.getUnitsFromOrigin(i) + axisPositions.getVal(i);
+            else if (args.isRelative())
+                targetAxisPos = axesState.getUnitsFromOrigin(i) + args.getAxesPosConst().getVal(i);
             else
-                targetAxisPos = axisPositions.getVal(i);
+                targetAxisPos = args.getAxesPosConst().getVal(i);
 
             // Set the target axis position
             axisPositions.setVal(i, targetAxisPos);
-            axesSpecified.setVal(i, true);
 
             // Handle distance calculation
             if (axesParams.isPrimaryAxis(i))
                 movementDistSumSq += pow(targetAxisPos - axesState.getUnitsFromOrigin(i), 2);
-    }
+        }
 
-    // Return block distance (for splitting up into blocks if required)
-    return sqrt(movementDistSumSq);
+        // Set back into args
+        args.setAxesPositions(axisPositions);
+
+        // Return block distance (for splitting up into blocks if required)
+        return sqrt(movementDistSumSq);
     }
 };

@@ -151,6 +151,8 @@ public:
     void setAxesPositions(const AxesValues<AxisPosDataType>& axisPositions)
     {
         _axesPos = axisPositions;
+        for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+            _axesSpecified.setVal(axisIdx, true);
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
