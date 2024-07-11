@@ -11,6 +11,7 @@
 #include "AxesValues.h"
 #include "AxesState.h"
 #include "AxesParams.h"
+#include "MotionArgs.h"
 
 /// @brief Kinematics
 /// This class is responsible for converting between cartesian coordinates and actuator values

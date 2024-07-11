@@ -21,6 +21,7 @@ static const char* MODULE_PREFIX = "StepDrvBase";
 // #define DEBUG_REGISTER_READ_VALUE
 // #define DEBUG_REGISTER_WRITE
 // #define DEBUG_READ_TIMEOUT
+// #define DEBUG_READ_DETAIL
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -229,7 +230,7 @@ void StepDriverBase::startReadTrinamicsRegister(uint32_t readRegisterIdx)
     _readStartTimeMs = millis();
     _driverRegisters[readRegisterIdx].readInProgress = true;
 
-#ifdef DEBUG_READ
+#ifdef DEBUG_READ_DETAIL
         LOG_I(MODULE_PREFIX, "startReadTrinamicsRegister name %s regIdx %d regAddr %d", 
                     _name.c_str(),
                     _readRegisterIdx, 
