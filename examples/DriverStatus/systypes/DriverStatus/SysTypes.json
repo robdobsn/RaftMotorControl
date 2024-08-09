@@ -1,0 +1,227 @@
+{
+    "SysTypeName": "DriverStatus",
+    "CmdsAtStart": "",
+    "WebUI": "",
+    "SysManager": {
+        "monitorPeriodMs":10000,
+        "reportList":[
+            "NetMan",
+            "SysMan"
+        ],
+        "slowSysModMs": 50
+    },
+    "ProtExchg": {
+        "RICSerial":{
+            "FrameBound":"0xE7",
+            "CtrlEscape":"0xD7"
+        }
+    },
+    "NetMan": {
+        "wifiSTAEn": 1,
+        "wifiAPEn": 1,
+        "ethEn": 0,
+        "wifiSSID": "",
+        "wifiPW": "",
+        "wifiSTAScanThreshold": "OPEN",
+        "wifiAPSSID": "RaftAP",
+        "wifiAPPW": "raftpassword",
+        "wifiAPChannel": 1,
+        "wifiAPMaxConn": 4,
+        "wifiAPAuthMode": "WPA2_PSK",
+        "NTPServer": "pool.ntp.org",
+        "timezone": "UTC",
+        "logLevel": "D"
+    },
+    "ESPOTAUpdate": {
+        "enable": 1,
+        "OTADirect": 1
+    },
+    "MQTTMan": {
+        "enable": 0,
+        "brokerHostname": "mqttbroker",
+        "brokerPort": 1883,
+        "clientID": "",
+        "topics": [
+            {
+                "name": "examplein",
+                "inbound": 1,
+                "path": "example/in",
+                "qos": 1
+            },
+            {
+                "name": "exampleout",
+                "inbound": 0,
+                "path": "example/out",
+                "qos": 1
+            }
+        ]
+    },
+    "LogManager": {
+        "enable": 0,
+        "logDests": [
+            {
+                "enable": false,
+                "type": "Papertrail",
+                "host": "xxxxx.papertrailapp.com",
+                "port": 12345
+            }
+        ]
+    },    
+    "SerialConsole": {
+        "enable": 1,
+        "uartNum": 0,
+        "rxBuf": 5000,
+        "txBuf": 1500,
+        "crlfOnTx": 1,
+        "protocol": "RICSerial",
+        "logLevel": "D"
+    },
+    "WebServer": {
+        "enable": 1,
+        "webServerPort": 80,
+        "stdRespHeaders": [
+            "Access-Control-Allow-Origin: *"
+        ],
+        "apiPrefix": "api/",
+        "fileServer": 1,
+        "staticFilePaths": "",
+        "numConnSlots": 12,
+        "websockets": [
+            {
+                "pfix": "ws",
+                "pcol": "RICSerial",
+                "maxConn": 4,
+                "txQueueMax": 20,
+                "pingMs": 30000
+            }
+        ],
+        "logLevel": "D",
+        "sendMax": 5000,
+        "taskCore": 0,
+        "taskStack": 5000,
+        "taskPriority": 9
+    },
+    "FileManager": {
+        "LocalFsDefault": "littlefs",
+        "LocalFSFormatIfCorrupt": 1,
+        "CacheFileSysInfo": 0,
+        "SDEnabled": 0,
+        "DefaultSD": 1,
+        "SDMOSI": 15,
+        "SDMISO": 4,
+        "SDCLK": 14,
+        "SDCS": 13
+    },
+    "Publish": {
+        "enable": 1,
+        "pubList": []
+    },
+    "DevMan": {
+        "enable": 1,
+        "Buses": {
+            "buslist":
+            [
+                {
+                    "name": "SERA",
+                    "type": "serial",
+                    "uartNum": 2,
+                    "rxPin": 5,
+                    "txPin": 47,
+                    "baudRate": 115200,
+                    "minAfterSendMs": 5
+                }
+            ]
+        },
+        "Devices":
+        [
+            {
+                "class": "Motors",
+                "name": "Motors",
+                "bus": "SERA",
+                "motion": {
+                    "geom": "SingleArmSCARA",
+                    "blockDistMM": 10,
+                    "homeBeforeMove": 0,
+                    "maxJunctionDeviationMM": 0.05,
+                    "arm1LenMM": 100,
+                    "arm2LenMM": 100,
+                    "maxRadiusMM": 180,
+                    "originTheta2OffsetDegrees": 180
+                },
+                "ramp": {
+                    "rampTimerEn": false,
+                    "rampTimerUs": 20,
+                    "pipelineLen": 100
+                },
+                "motorEn": {
+                    "stepEnablePin": "4",
+                    "stepEnLev": 0,
+                    "stepDisableSecs": 10
+                },
+                "axes": [
+                    {
+                        "name": "shoulder",
+                        "params": {
+                            "unitsPerRot": 360,
+                            "stepsPerRot": 9600,
+                            "maxSpeedUps": 100,
+                            "maxAccUps2": 100
+                        },
+                        "driver": {
+                            "driver": "TMC2209",
+                            "hw": "local",
+                            "addr": 0,
+                            "stepPin": "15",
+                            "dirnPin": "16",
+                            "invDirn": 1,
+                            "writeOnly": 0,
+                            "extSenseOhms": 0.15,
+                            "extVRef": 0,
+                            "extMStep": 0,
+                            "intpol": 1,
+                            "microsteps": 16,
+                            "rmsAmps": 0.1,
+                            "holdModeOrFactor": 0.5,
+                            "holdDelay": 1,
+                            "pwmFreqKHz": 35,
+                            "statusFreqHz": 2
+                        }
+                    },
+                    {
+                        "name": "elbow",
+                        "params": {
+                            "unitsPerRot": 360,
+                            "stepsPerRot": 9600,
+                            "maxSpeedUps": 100,
+                            "maxAccUps2": 100
+                        },
+                        "driver": {
+                            "driver": "TMC2209",
+                            "hw": "local",
+                            "addr": 1,
+                            "stepPin": "17",
+                            "dirnPin": "18",
+                            "invDirn": 0,
+                            "writeOnly": 0,
+                            "extSenseOhms": 0.15,
+                            "extVRef": 0,
+                            "extMStep": 0,
+                            "intpol": 1,
+                            "microsteps": 16,
+                            "rmsAmps": 0.1,
+                            "holdModeOrFactor": 0.5,
+                            "holdDelay": 1,
+                            "pwmFreqKHz": 35,
+                            "statusFreqHz": 2
+                        }
+                    }
+                ]
+            }
+        ]
+    },
+    "DriverStatus": {
+        "exampleGroup": {
+            "exampleKey": "Welcome to Raft!"
+        }
+    }
+}

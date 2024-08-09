@@ -12,15 +12,17 @@
 #include "MotionArgs.h"
 #include "AxesParams.h"
 #include "AxesState.h"
+#include "RampGenTimer.h"
 
 class MotionPlanner
 {
 public:
-    MotionPlanner();
+    MotionPlanner(const AxesParams& axesParams);
 
-    void setup(double maxJunctionDeviationMM, uint32_t );
+    /// @brief Setup
+    /// @param stepGenPeriodUs Step generation period in microseconds
+    void setup(uint32_t stepGenPeriodUs);
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Add a non-ramped motion block (used for homing, etc)
     /// @param args MotionArgs define the parameters for motion
     /// @param axesState Current state of the axes including position and origin status
@@ -34,7 +36,6 @@ public:
                     const AxesParams& axesParams, 
                     MotionPipelineIF& motionPipeline);
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Add a ramped (variable acceleration) motion block
     /// @param args MotionArgs define the parameters for motion
     /// @param destActuatorCoords Destination actuator coordinates
@@ -48,7 +49,6 @@ public:
                     const AxesParams& axesParams,
                     MotionPipelineIF& motionPipeline);
 
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Debug show pipeline contents
     /// @param motionPipeline Motion pipeline to show
     /// @param minQLen Minimum queue length to show
@@ -61,10 +61,11 @@ private:
 
     // Minimum planner speed mm/s
     float _minimumPlannerSpeedMMps = 0.0f;
-    // Max junction deviation (mm)
-    float _maxJunctionDeviationMM = 0.0f;
     // Step generation timer period ns
-    uint32_t _stepGenPeriodNs = 0;
+    uint32_t _stepGenPeriodNs = RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT * 1000;
+
+    // Axes parameters
+    const AxesParams& _axesParams;
 
     // Structure to store details on last processed block
     struct MotionBlockSequentialData

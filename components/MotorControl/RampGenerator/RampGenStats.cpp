@@ -32,6 +32,30 @@ String RampGenStats::getStatsStr() const
 #endif
 }
 
+String RampGenStats::getJSON(bool includeBraces, bool detailed) const
+{
+    String jsonStr = "{";
+    jsonStr += "\"isrAvUs\":" + String(_isrAvgUs, 2) + ",";
+    jsonStr += "\"isrMxUs\":" + String(_isrMaxUs) + ",";
+    jsonStr += "\"isrAvOk\":" + String(_isrAvgValid ? "1" : "0");
+#ifdef RAMP_GEN_DETAILED_STATS
+    if (detailed)
+    {
+        jsonStr += ",";
+        jsonStr += "\"accStp\":" + String(_curAccumulatorStep) + ",";
+        jsonStr += "\"stpsPTTk\":" + String(_curStepRatePerTTicks) + ",";
+        jsonStr += "\"accNs\":" + String(_curAccumulatorNS) + ",";
+        jsonStr += "\"axMax\":" + String(_axisIdxWithMaxSteps) + ",";
+        jsonStr += "\"accStpPTTkPms\":" + String(_accStepsPerTTicksPerMS) + ",";
+        jsonStr += "\"stpCtMaj\":" + String(_curStepCountMajorAxis) + ",";
+        jsonStr += "\"stpPreDec\":" + String(_stepsBeforeDecel) + ",";
+        jsonStr += "\"maxStpPTTk\":" + String(_maxStepRatePerTTicks);
+    }
+#endif
+    jsonStr += "}";
+    return jsonStr;
+}
+
 RampGenStats::RampGenStats()
 {
     clear();

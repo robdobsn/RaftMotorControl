@@ -32,7 +32,8 @@ public:
     void stepDirn(uint32_t axisIdx, bool dirnPositive);
     void stepStart(uint32_t axisIdx);
     String getStatsStr() const;
-
+    String getJSON(bool includeBraces = true, bool detailed = false) const;
+    
 private:
     // Stats
     uint64_t _isrStartUs = 0;

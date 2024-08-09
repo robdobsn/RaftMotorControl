@@ -96,6 +96,11 @@ public:
         return _axisParams[axisIdx]._maxAccelUps2;
     }
 
+    double getMaxBlockDistMM() const
+    {
+        return _maxBlockDistMM;
+    }
+
     String getGeometry() const
     {
         return _geometry;

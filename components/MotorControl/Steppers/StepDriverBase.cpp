@@ -45,7 +45,7 @@ bool StepDriverBase::setup(const String& stepperName, const StepDriverParams& st
 {
     // Store config
     _name = stepperName;
-    _stepperParams = stepperParams;
+    _requestedParams = stepperParams;
     _usingISR = usingISR;
     return true;
 }
@@ -68,7 +68,7 @@ void StepDriverBase::loop()
     if (isReadInProgress())
     {
 #ifdef DEBUG_REGISTER_READ_PROCESS
-            LOG_I(MODULE_PREFIX, "loop read axis %s rxAvail %d rdBytesToIgnore %d rdBytesReqd %d", 
+            LOG_I(MODULE_PREFIX, "loop read %s rxAvail %d rdBytesToIgnore %d rdBytesReqd %d", 
                         _name.c_str(), _pSerialBus ? _pSerialBus->rxDataBytesAvailable() : 0, _readBytesToIgnore, _readBytesRequired);
 #endif
         // Check for enough data to fulfill read
@@ -80,16 +80,16 @@ void StepDriverBase::loop()
             if (_pSerialBus->rxDataGet(readData, reqLen) == reqLen)
             {
                 // Clear read in progress
-                clearReadInProgress();
-
+                _readInProgress = false;
+  
 #ifdef DEBUG_REGISTER_READ_PROCESS
                 String debugStr;
                 Raft::getHexStrFromBytes(readData, reqLen, debugStr);
-                LOG_I(MODULE_PREFIX, "loop read axis %s regIdx %d rawread 0x%s", 
+                LOG_I(MODULE_PREFIX, "loop read %s regIdx %d rawread 0x%s", 
                                 _name.c_str(), _readRegisterIdx, debugStr.c_str());
 #endif
 
-                // Chec register index is valid
+                // Check register index is valid
                 if (_readRegisterIdx < _driverRegisters.size())
                 {
                     // Check the CRC
@@ -98,14 +98,16 @@ void StepDriverBase::loop()
                     if (replyCRC != calculatedCRC)
                     {
 #ifdef WARN_ON_CRC_ERROR
-                        LOG_W(MODULE_PREFIX, "loop read CRC error 0x%02x 0x%02x axis %s stepperAddr 0x%02x regIdx %d regAddr 0x%02x", 
+                        LOG_W(MODULE_PREFIX, "loop read CRC error 0x%02x 0x%02x %s stepperAddr 0x%02x regIdx %d regAddr 0x%02x", 
                                     replyCRC, 
                                     calculatedCRC,
                                     _name.c_str(),
-                                    _stepperParams.address,
+                                    _requestedParams.address,
                                     _readRegisterIdx, 
                                     _driverRegisters[_readRegisterIdx].regAddr);
 #endif
+                        _lastReadResult = READ_RESULT_CRC_ERROR;
+                        _driverRegisters[_readRegisterIdx].readValid = false;
                     }
                     else
                     {
@@ -114,12 +116,14 @@ void StepDriverBase::loop()
                         _driverRegisters[_readRegisterIdx].regValCur = Raft::getBEUint32AndInc(pData);
 
 #ifdef DEBUG_REGISTER_READ_VALUE
-                        LOG_I(MODULE_PREFIX, "loop read axis %s reg %s(0x%02x) data 0x%08x", 
+                        LOG_I(MODULE_PREFIX, "loop read %s reg %s(0x%02x) data 0x%08x", 
                                     _name.c_str(),
                                     _driverRegisters[_readRegisterIdx].regName.c_str(),
                                     _driverRegisters[_readRegisterIdx].regAddr,
                                     _driverRegisters[_readRegisterIdx].regValCur);
 #endif
+                        _lastReadResult = READ_RESULT_OK;
+                        _driverRegisters[_readRegisterIdx].readValid = true;
                     }
                 }
             }
@@ -132,14 +136,15 @@ void StepDriverBase::loop()
 #ifdef DEBUG_READ_TIMEOUT
         LOG_I(MODULE_PREFIX, "loop name %s read timed out", _name.c_str());
 #endif
-        clearReadInProgress();
+        _lastReadResult = READ_RESULT_TIMEOUT;
+        _readInProgress = false;
     }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Check if the driver is busy
 /// @return true if busy
-bool StepDriverBase::isBusy()
+bool StepDriverBase::isBusy() const
 {
     if (isReadInProgress())
         return true;
@@ -162,7 +167,7 @@ void StepDriverBase::writeTrinamicsRegister(const char* pRegName, uint8_t regAdd
     // Form datagram
     uint8_t datagram[] = {
         _tmcSyncByte,
-        _stepperParams.address,
+        _requestedParams.address,
         uint8_t(regAddr | 0x80u),
         uint8_t((data >> 24) & 0xff),
         uint8_t((data >> 16) & 0xff),
@@ -173,16 +178,18 @@ void StepDriverBase::writeTrinamicsRegister(const char* pRegName, uint8_t regAdd
     datagram[sizeof(datagram)-1] = calcTrinamicsCRC(datagram, sizeof(datagram)-1);
 
     // Form the command
-    BusRequestInfo reqInfo(_name, _stepperParams.address, datagram, sizeof(datagram));
+    BusRequestInfo reqInfo(_name, _requestedParams.address, datagram, sizeof(datagram));
 
     // Send request
-    _pSerialBus->addRequest(reqInfo);
+    bool resultOk = _pSerialBus->addRequest(reqInfo);
+    _lastWriteResultOk = resultOk;
 
 #ifdef DEBUG_REGISTER_WRITE
     String datagramStr;
     Raft::getHexStrFromBytes(datagram, sizeof(datagram), datagramStr);
-    LOG_I(MODULE_PREFIX, "writeTrinamicsRegister axis %s reg %s(0x%02x) value 0x%08x datagram %s", 
-                    _name.c_str(), pRegName, regAddr, data, datagramStr.c_str());
+    LOG_I(MODULE_PREFIX, "writeTrinamicsRegister %s axis %s reg %s(0x%02x) value 0x%08x datagram %s", 
+                    resultOk ? "OK" : "FAILED", _name.c_str(), 
+                    pRegName, regAddr, data, datagramStr.c_str());
 #endif
 }
 
@@ -208,14 +215,14 @@ void StepDriverBase::startReadTrinamicsRegister(uint32_t readRegisterIdx)
     // Form datagram
     uint8_t datagram[] = {
         _tmcSyncByte,
-        _stepperParams.address,
+        _requestedParams.address,
         _driverRegisters[readRegisterIdx].regAddr,
         0   // This is where the CRC will go
     };
     datagram[sizeof(datagram)-1] = calcTrinamicsCRC(datagram, sizeof(datagram)-1);
 
     // Form the command
-    BusRequestInfo reqInfo(_name, _stepperParams.address, datagram, sizeof(datagram));
+    BusRequestInfo reqInfo(_name, _requestedParams.address, datagram, sizeof(datagram));
 
     // Clear any currently read data
     _pSerialBus->rxDataClear();
@@ -228,7 +235,7 @@ void StepDriverBase::startReadTrinamicsRegister(uint32_t readRegisterIdx)
     _readBytesRequired = TMC_REPLY_DATAGRAM_LEN;
     _readRegisterIdx = readRegisterIdx;
     _readStartTimeMs = millis();
-    _driverRegisters[readRegisterIdx].readInProgress = true;
+    _readInProgress = true;
 
 #ifdef DEBUG_READ_DETAIL
         LOG_I(MODULE_PREFIX, "startReadTrinamicsRegister name %s regIdx %d regAddr %d", 
@@ -243,7 +250,7 @@ void StepDriverBase::startReadTrinamicsRegister(uint32_t readRegisterIdx)
 /// @param pData - pointer to data
 /// @param len - length of data
 /// @return CRC
-uint8_t StepDriverBase::calcTrinamicsCRC(const uint8_t* pData, uint32_t len)
+uint8_t StepDriverBase::calcTrinamicsCRC(const uint8_t* pData, uint32_t len) const
 {
     uint8_t crc = 0;
     for (uint32_t i = 0; i < len; i++)

@@ -43,4 +43,9 @@ public:
 
     // Remaining
     virtual unsigned int remaining() const = 0;
+
+    // Debug
+    virtual void debugShowBlocks(const AxesParams &axesParams) const
+    {
+    }
 };

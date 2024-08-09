@@ -18,7 +18,8 @@
 /// @param motorEnabler object to enable/disable motors
 /// @param axesParams parameters for the axes
 MotionBlockManager::MotionBlockManager(MotorEnabler& motorEnabler, AxesParams& axesParams)
-                :   _motorEnabler(motorEnabler), 
+                :   _motionPlanner(axesParams),
+                    _motorEnabler(motorEnabler), 
                     _axesParams(axesParams)
 {
     clear();
@@ -47,7 +48,7 @@ void MotionBlockManager::clear()
 void MotionBlockManager::setup(uint32_t stepGenPeriodUs, const RaftJsonIF& motionConfig)
 {
     // Motion Pipeline and Planner
-    _motionPlanner.setup(_axesParams.getMaxJunctionDeviationMM(), stepGenPeriodUs);
+    _motionPlanner.setup(stepGenPeriodUs);
 
     // Set geometry
     if (_pRaftKinematics)
@@ -88,7 +89,7 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args, uint32_t numBloc
     _blockMotionVector = (_finalTargetPos - _axesState.getUnitsFromOrigin()) / double(numBlocks);
 
 #ifdef DEBUG_RAMPED_BLOCK
-    LOG_I(MODULE_PREFIX, "moveTo curUnits %s curSteps %s targetPosUnits %s numBlocks %d blockMotionVector %s)",
+    LOG_I(MODULE_PREFIX, "addRampedBlock curUnits %s curSteps %s targetPosUnits %s numBlocks %d blockMotionVector %s)",
                 _axesState.getUnitsFromOrigin().getDebugStr().c_str(),
                 _axesState.getStepsFromOrigin().getDebugStr().c_str(),
                 _finalTargetPos.getDebugStr().c_str(),

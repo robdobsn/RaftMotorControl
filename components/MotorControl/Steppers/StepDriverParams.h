@@ -20,6 +20,7 @@ public:
     static const uint32_t IHOLD_DELAY_DEFAULT = 0;
     static constexpr uint32_t TOFF_VALUE_DEFAULT = 5;
     static const uint32_t PWM_FREQ_KHZ_DEFAULT = 35;
+    static const uint32_t STATUS_INTERVAL_MS_DEFAULT = 100;
 
     enum HoldModeEnum
     {
@@ -28,41 +29,24 @@ public:
         HOLD_MODE_PASSIVE_BREAKING
     };
     static const HoldModeEnum HOLD_MODE_DEFAULT = HOLD_MODE_FACTOR;
-    
-    StepDriverParams()
-    {
-        invDirn = false;
-        extSenseOhms = EXT_SENSE_OHMS_DEFAULT;
-        writeOnly = false;
-        extVRef = false;
-        extMStep = false;
-        intpol = false;
-        microsteps = MICROSTEPS_DEFAULT;
-        minPulseWidthUs = 1;
-        stepPin = -1;
-        dirnPin = -1;
-        rmsAmps = RMS_AMPS_DEFAULT;
-        holdFactor = 1.0;
-        holdDelay = 0;
-        holdMode = HOLD_MODE_DEFAULT;
-        pwmFreqKHz = PWM_FREQ_KHZ_DEFAULT;
-        address = 0;
-    }
-    bool invDirn : 1;
-    bool writeOnly : 1;
-    bool extVRef : 1;
-    bool extMStep : 1;
-    bool intpol : 1;
-    float extSenseOhms;
-    uint16_t microsteps;
-    uint16_t minPulseWidthUs;
-    int stepPin;
-    int dirnPin;
-    float rmsAmps;
-    float holdFactor;
-    HoldModeEnum holdMode;
-    uint32_t holdDelay;
-    float pwmFreqKHz;
-    uint8_t address;
+   
+    bool noUART : 1 = false;
+    bool invDirn : 1 = false;
+    bool writeOnly : 1 = false;
+    bool extVRef : 1 = false;
+    bool extMStep : 1 = false;
+    bool intpol : 1 = false;
+    float extSenseOhms = EXT_SENSE_OHMS_DEFAULT;
+    uint16_t microsteps = MICROSTEPS_DEFAULT;
+    uint16_t minPulseWidthUs = 1;
+    int stepPin = -1;
+    int dirnPin = -1;
+    float rmsAmps = RMS_AMPS_DEFAULT;
+    float holdFactor = HOLD_MULT_DEFAULT;
+    HoldModeEnum holdMode = HOLD_MODE_DEFAULT;
+    uint32_t holdDelay = IHOLD_DELAY_DEFAULT;
+    float pwmFreqKHz = PWM_FREQ_KHZ_DEFAULT;
+    uint8_t address = 0;
+    uint32_t statusIntvMs = STATUS_INTERVAL_MS_DEFAULT;
 };
 

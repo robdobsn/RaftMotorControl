@@ -20,24 +20,18 @@
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
-MotionPlanner::MotionPlanner()
+MotionPlanner::MotionPlanner(const AxesParams& axesParams) : 
+        _axesParams(axesParams)
 {
-    _prevMotionBlockValid = false;
-    _minimumPlannerSpeedMMps = 0;
-    // Configure the motion pipeline - these values will be changed in config
-    _maxJunctionDeviationMM = 0;
-    _stepGenPeriodNs = RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT * 1000;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Setup
-/// @param maxJunctionDeviationMM Maximum junction deviation in mm
 /// @param stepGenPeriodUs Step generation period in microseconds
-void MotionPlanner::setup(double maxJunctionDeviationMM, uint32_t stepGenPeriodUs)
+void MotionPlanner::setup(uint32_t stepGenPeriodUs)
 {
-    _maxJunctionDeviationMM = maxJunctionDeviationMM;
     _stepGenPeriodNs = stepGenPeriodUs * 1000;
-    LOG_I(MODULE_PREFIX, "setup maxJunctionDeviationMM %0.2f stepGenPeriodNs %d", maxJunctionDeviationMM, _stepGenPeriodNs);
+    LOG_I(MODULE_PREFIX, "setup maxJunctionDeviationMM %0.2f stepGenPeriodNs %d", _axesParams.getMaxJunctionDeviationMM(), _stepGenPeriodNs);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -281,7 +275,7 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
 
     // If there is a prior block then compute the maximum speed at exit of the second block to keep
     // the max junction deviation (mm) within bounds - there are more comments in the Smoothieware (and GRBL) code
-    float maxJunctionDeviationMM = _maxJunctionDeviationMM;
+    float maxJunctionDeviationMM = axesParams.getMaxJunctionDeviationMM();
     float vmaxJunctionMMps = _minimumPlannerSpeedMMps;
 
     // Invalidate the data stored for the prev element if the pipeline becomes empty

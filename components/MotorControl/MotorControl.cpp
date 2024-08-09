@@ -42,10 +42,12 @@ void MotorControl::setup()
     // Setup serial bus
     String serialBusName = deviceConfig.getString("bus", "");
     _pMotorSerialBus = raftBusSystem.getBusByName(serialBusName);
-    _motionController.setupSerialBus(_pMotorSerialBus, true); 
+    _motionController.setupSerialBus(_pMotorSerialBus, false); 
 
     // Debug
-    LOG_I(MODULE_PREFIX, "setup type %s", deviceClassName.c_str());
+    LOG_I(MODULE_PREFIX, "setup type %s serialBusName %s%s", 
+            deviceClassName.c_str(), serialBusName.c_str(),
+            _pMotorSerialBus ? "" : " (BUS INVALID)");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

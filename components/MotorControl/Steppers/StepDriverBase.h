@@ -32,11 +32,6 @@ public:
     // Microsteps
     virtual void setMicrosteps(uint32_t microsteps)
     {
-        _microsteps = microsteps;
-    }
-    virtual uint32_t getMicrosteps()
-    {
-        return _microsteps;
     }
 
     // Direction
@@ -46,12 +41,12 @@ public:
     virtual void stepStart() = 0;
     virtual bool stepEnd() = 0;
 
-    virtual uint32_t getSerialAddress()
+    virtual uint32_t getSerialAddress() const
     {
         return _serialBusAddress;
     }
 
-    virtual String getDriverType()
+    virtual String getDriverType() const
     {
         return "None";
     }
@@ -60,34 +55,38 @@ public:
     {
     }
 
+    virtual String getStatusJSON(bool includeBraces, bool detailed) const
+    {
+        return includeBraces ? "{}" : "";
+    }
+
+    virtual bool isOperatingOk() const
+    {
+        return true;
+    }
+
 protected:
     class DriverRegisterMap
     {
     public:
-        DriverRegisterMap(const char* pRegName, uint8_t addr, uint32_t initVal)
+        DriverRegisterMap(const char* pRegName, uint8_t addr, uint32_t initVal, uint32_t writeMask, bool isConfig)
         {
             regName = pRegName;
             regAddr = addr;
-            regValCur = initVal;
             regWriteVal = initVal;
-            writeBitsMask = 0;
-            writeOrValue = 0;
-            writeRequired = false;
-            readPending = false;
-            readInProgress = false;
-            writePending = false;
+            writeBitMask = writeMask;
+            isConfigReg = isConfig;
         }
         String regName;
-        uint8_t regAddr;
-        uint32_t regValCur;
-        uint32_t regWriteVal;
-        uint32_t writeBitsMask;
-        uint32_t writeOrValue;
-        bool writeRequired : 1;
-        bool readPending : 1;
-        bool readInProgress : 1;
-        bool writePending : 1;
-    };    
+        uint8_t regAddr = 0;
+        uint32_t regValCur = 0;
+        uint32_t regWriteVal = 0;
+        uint32_t writeBitMask = 0xffffffff;
+        bool isConfigReg : 1 = false;
+        bool writePending : 1 = false;
+        bool readPending : 1 = false;
+        bool readValid : 1 = false;
+    };
 
     // Write register in Trinamics driver
     void writeTrinamicsRegister(const char* pRegName, uint8_t regAddr, uint32_t data);
@@ -96,55 +95,65 @@ protected:
     void startReadTrinamicsRegister(uint32_t readRegisterIdx);
 
     // Calculate Trinamics CRC
-    uint8_t calcTrinamicsCRC(const uint8_t* pData, uint32_t len);
+    uint8_t calcTrinamicsCRC(const uint8_t* pData, uint32_t len) const;
 
     // Bus valid
-    bool busValid()
+    bool busValid() const
     {
         return _pSerialBus != nullptr;
     }
 
     // Driver busy
-    bool isBusy();
+    bool isBusy() const;
 
     // Is read in progress
-    bool isReadInProgress()
+    bool isReadInProgress() const
     {
         if (!busValid())
             return false;
-        if (_readRegisterIdx >= _driverRegisters.size())
-            return false;
-        return _driverRegisters[_readRegisterIdx].readInProgress;
+        return _readInProgress;
     }
 
-    // Clear read in progress
-    void clearReadInProgress()
+    // Write pending register index
+    uint32_t _lastPendWriteRegIdx = 0;
+    int writePendingRegIdx()
     {
-        if (_readRegisterIdx >= _driverRegisters.size())
-            return;
-        _driverRegisters[_readRegisterIdx].readInProgress = false;
-    }
-
-    // Set bits in a register
-    void setRegBits(uint32_t regCode, uint32_t bitMaskForChanges, uint32_t bitMaskToSet)
-    {
-        // Check valid
-        if (regCode >= _driverRegisters.size())
-            return;
-
-        // Clear bit masks if no write pending
-        if (!_driverRegisters[regCode].writePending)
+        for (uint32_t i = 0; i < _driverRegisters.size(); i++)
         {
-            _driverRegisters[regCode].writeBitsMask = 0;
-            _driverRegisters[regCode].writeOrValue = 0;
+            uint32_t idx = (i + _lastPendWriteRegIdx) % _driverRegisters.size();
+            if (_driverRegisters[idx].writePending)
+            {
+                _lastPendWriteRegIdx = idx;
+                return idx;
+            }
         }
+        return -1;
+    }
 
-        // Merge any previous bit changes
-        // The ORED values need to combine the previous values (where not overridden) with new
-        uint32_t orValue = _driverRegisters[regCode].writeOrValue & ~bitMaskForChanges;
-        _driverRegisters[regCode].writeOrValue = orValue | bitMaskToSet;
-        _driverRegisters[regCode].writeBitsMask |= bitMaskForChanges;
-        _driverRegisters[regCode].writePending = true;
+    // Read pending register index
+    uint32_t _lastPendReadRegIdx = 0;
+    int readPendingRegIdx()
+    {
+        for (uint32_t i = 0; i < _driverRegisters.size(); i++)
+        {
+            uint32_t idx = (i + _lastPendReadRegIdx) % _driverRegisters.size();
+            if (_driverRegisters[idx].readPending)
+            {
+                _lastPendReadRegIdx = idx;
+                return idx;
+            }
+        }
+        return -1;
+    }
+
+    // Get register value in hex
+    String getRegValHex(uint32_t regIdx) const
+    {
+        if (regIdx >= _driverRegisters.size())
+            return "";
+        return Raft::getHexStr(_driverRegisters[regIdx].readValid ? 
+                    _driverRegisters[regIdx].regValCur :
+                    _driverRegisters[regIdx].regWriteVal, true);
     }
 
     // Bus used for communication with driver
@@ -154,7 +163,7 @@ protected:
     bool _useBusForDirectionReversal = false;
 
     // Stepping parameters
-    StepDriverParams _stepperParams;
+    StepDriverParams _requestedParams;
 
     // Hardware has been initialised
     bool _hwIsSetup = false;
@@ -171,13 +180,11 @@ protected:
     // Read operation info
     uint32_t _readBytesRequired = 0;
     uint32_t _readStartTimeMs = 0;
+    bool _readInProgress = false;
     uint32_t _readRegisterIdx = 0;
 
     // Sync byte for specific chip
     uint8_t _tmcSyncByte = 0;
-
-    // Microsteps
-    uint32_t _microsteps = 0;
 
     // Using ISR - so avoid logging, etc
     bool _usingISR = false;
@@ -188,4 +195,34 @@ protected:
     static const uint32_t TMC_REPLY_DATA_POS = 3;
     static const uint32_t TMC_REPLY_DATA_LEN = 4;
     static const uint32_t TMC_REPLY_CRC_POS = 7;
+
+    // Read and write results
+    bool _lastWriteResultOk = false;
+    String getWriteResultStr(bool writeResult) const
+    {
+        return writeResult ? "OK" : "Error";
+    }
+    enum READ_RESULT_ENUM
+    {
+        READ_RESULT_NONE,
+        READ_RESULT_OK,
+        READ_RESULT_CRC_ERROR,
+        READ_RESULT_TIMEOUT
+    };
+    READ_RESULT_ENUM _lastReadResult = READ_RESULT_NONE;
+    String getReadResultStr(READ_RESULT_ENUM readResult) const
+    {
+        switch (readResult)
+        {
+            case READ_RESULT_NONE:
+                return "None";
+            case READ_RESULT_OK:
+                return "OK";
+            case READ_RESULT_CRC_ERROR:
+                return "CRC Fail";
+            case READ_RESULT_TIMEOUT:
+                return "Timeout";
+        }
+        return "Unknown";
+    }
 };

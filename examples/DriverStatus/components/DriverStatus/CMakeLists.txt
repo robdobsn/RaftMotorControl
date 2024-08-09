@@ -1,0 +1,9 @@
+idf_component_register(
+    SRCS 
+        "DriverStatus.cpp"
+    INCLUDE_DIRS
+        "."
+    REQUIRES
+        RaftCore
+        RaftMotorControl
+)

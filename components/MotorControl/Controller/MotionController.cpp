@@ -248,10 +248,16 @@ bool MotionController::moveToRamped(MotionArgs& args)
 
     // Ensure at least one block
     uint32_t numBlocks = 1;
-    if (_maxBlockDistMM > 0.01f && !args.dontSplitMove())
-        numBlocks = int(ceil(moveDistanceMM / _maxBlockDistMM));
+    double maxBlockDistMM = _axesParams.getMaxBlockDistMM();
+    if (maxBlockDistMM > 0.01f && !args.dontSplitMove())
+        numBlocks = int(ceil(moveDistanceMM / maxBlockDistMM));
     if (numBlocks == 0)
         numBlocks = 1;
+
+#ifdef DEBUG_MOTION_CONTROLLER
+    LOG_I(MODULE_PREFIX, "moveToRamped %s moveDistanceMM %.2f maxBlockDist %.2f numBlocks %d",
+                args.getAxesPos().getDebugStr().c_str(), moveDistanceMM, maxBlockDistMM, numBlocks);
+#endif
 
     // Add to the block splitter
     _blockManager.addRampedBlock(args, numBlocks);
@@ -292,9 +298,22 @@ void MotionController::goToOrigin(const MotionArgs &args)
 /// @return JSON string
 String MotionController::getDataJSON(RaftDeviceJSONLevel level) const
 {
+    String jsonBody;
     if (level >= DEVICE_JSON_LEVEL_MIN)
     {
-        return _rampGenerator.getStats().getStatsStr();
+        jsonBody += "\"ramp\":" + _rampGenerator.getStats().getJSON();
+        String driverJson;
+        for (StepDriverBase* pStepDriver : _stepperDrivers)
+        {
+            if (pStepDriver)
+            {
+                driverJson += driverJson.length() > 0 ? "," : "";
+                driverJson += pStepDriver->getStatusJSON(true, level == DEVICE_JSON_LEVEL_FULL);
+            }
+        }
+        if (driverJson.length() > 0)
+            jsonBody += ",\"drivers\":[" + driverJson + "]";
+        return "{" + jsonBody + "}";
     }
     return "{}";
 }
@@ -378,6 +397,7 @@ void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName,
     stepperParams.stepPin = ConfigPinMap::getPinFromName(stepPinName.c_str());
     String dirnPinName = config.getString("dirnPin", "-1");
     stepperParams.dirnPin = ConfigPinMap::getPinFromName(dirnPinName.c_str());
+    stepperParams.noUART = config.getBool("noUART", 0);
     stepperParams.invDirn = config.getBool("invDirn", 0);
     stepperParams.extSenseOhms = config.getDouble("extSenseOhms", StepDriverParams::EXT_SENSE_OHMS_DEFAULT);
     stepperParams.extVRef = config.getBool("extVRef", false);
@@ -388,6 +408,10 @@ void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName,
     stepperParams.holdDelay = config.getLong("holdDelay", StepDriverParams::IHOLD_DELAY_DEFAULT);
     stepperParams.pwmFreqKHz = config.getDouble("pwmFreqKHz", StepDriverParams::PWM_FREQ_KHZ_DEFAULT);
     stepperParams.address = config.getLong("addr", 0);
+
+    // Get status read frequency
+    double statusFreqHz = config.getDouble("statusFreqHz", 0);
+    stepperParams.statusIntvMs = statusFreqHz > 0 ? 1000.0 / statusFreqHz : 0;
 
     // Hold mode
     String holdModeStr = config.getString("holdModeOrFactor", "1.0");

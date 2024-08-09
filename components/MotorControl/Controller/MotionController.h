@@ -119,9 +119,6 @@ private:
     // Homing needed
     bool _homingNeededBeforeAnyMove = true;
 
-    // Block distance
-    double _maxBlockDistMM = 0.0f;
-
     // Pause status
     bool _isPaused = false;
 

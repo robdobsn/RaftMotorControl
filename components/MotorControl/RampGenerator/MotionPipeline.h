@@ -140,7 +140,7 @@ public:
     }
 
     // Debug
-    void debugShowBlocks(const AxesParams &axesParams) const
+    void debugShowBlocks(const AxesParams &axesParams) const override final
     {
         int elIdx = 0;
         bool headShown = false;
