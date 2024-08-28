@@ -275,4 +275,7 @@ private:
     static const uint32_t TMC_2209_DRV_STATUS_CS_ACTUAL_MASK = 0x001F0000;
     static const uint32_t TMC_2209_DRV_STATUS_STCHOP_BIT = 30;
     static const uint32_t TMC_2209_DRV_STATUS_STST_BIT = 31;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "StepDriverTMC2209";    
 };

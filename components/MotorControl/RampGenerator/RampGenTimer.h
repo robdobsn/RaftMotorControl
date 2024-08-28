@@ -124,4 +124,7 @@ private:
     void disableTimerInterrupts();
     void reenableTimerInterrupts();
     void timerReset();
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "RampGenTimer";    
 };

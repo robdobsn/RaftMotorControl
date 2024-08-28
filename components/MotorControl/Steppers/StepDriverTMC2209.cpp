@@ -10,8 +10,6 @@
 #include "RaftArduino.h"
 #include <math.h>
 
-static const char* MODULE_PREFIX = "StepDrv2209";
-
 #define WARN_ON_DRIVER_BUSY
 
 // #define DEBUG_IHOLD_IRUN_CALCS

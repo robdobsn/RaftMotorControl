@@ -225,4 +225,7 @@ protected:
         }
         return "Unknown";
     }
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "StepDriverBase";    
 };

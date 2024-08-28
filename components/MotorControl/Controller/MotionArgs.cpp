@@ -10,10 +10,6 @@
 
 #define DEBUG_MOTION_ARGS
 
-#if defined(DEBUG_MOTION_ARGS)
-static const char* MODULE_PREFIX = "MotionArgs";
-#endif
-
 /// @brief Get field definitions for JSON serialization
 /// @return std::vector<MotionArgs::FieldDefType>
 std::vector<MotionArgs::FieldDefType> MotionArgs::getFieldDefs()

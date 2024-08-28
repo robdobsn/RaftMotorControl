@@ -150,4 +150,7 @@ private:
     // Helpers
     template<typename T>
     void forceInBounds(T &val, T lowBound, T highBound);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "MotionBlock";    
 };

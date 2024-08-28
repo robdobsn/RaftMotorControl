@@ -11,8 +11,6 @@
 #include "RaftBus.h"
 #include "BusRequestInfo.h"
 
-static const char* MODULE_PREFIX = "StepDrvBase";
-
 // Warning on CRC error
 #define WARN_ON_CRC_ERROR
 

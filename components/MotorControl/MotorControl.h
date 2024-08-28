@@ -90,4 +90,7 @@ private:
 
     // // Command handlers
     // void handleCmdBinary_MoveTo(const uint8_t* pData, uint32_t dataLen);
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "MotorControl";    
 };

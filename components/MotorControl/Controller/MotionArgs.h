@@ -344,6 +344,9 @@ private:
 
     // When used as a command argument some axes may not be specified
     AxesValues<AxisSpecifiedDataType> _axesSpecified;
+
+    // Debug
+    static constexpr const char* MODULE_PREFIX = "MotionArgs";
 };
 
 #pragma pack(pop)
