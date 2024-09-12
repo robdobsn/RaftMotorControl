@@ -54,6 +54,8 @@ bool RampGenTimer::setup(uint32_t timerPeriodUs)
 #endif
 
     // Config gptimer
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wmissing-field-initializers"
     gptimer_config_t gptimerConfig = {
         .clk_src = GPTIMER_CLK_SRC_DEFAULT,
         .direction = GPTIMER_COUNT_UP,
@@ -61,6 +63,7 @@ bool RampGenTimer::setup(uint32_t timerPeriodUs)
         .intr_priority = 0,
         .flags = 0,
     };
+#pragma GCC diagnostic pop
 
     // Create gptimer
     if (gptimer_new_timer(&gptimerConfig, &_timerHandle) != ESP_OK)
