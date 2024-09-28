@@ -106,6 +106,11 @@ public:
         return _geometry;
     }
 
+    bool allowOutOfBounds() const
+    {
+        return _allowOutOfBounds;
+    }
+
     AxisPosDataType getMaxJunctionDeviationMM() const
     {
         return _maxJunctionDeviationMM;
@@ -126,6 +131,12 @@ public:
         return isValid;
     }
 
+    void constrainPtToBounds(AxesValues<AxisPosDataType>& pt) const
+    {
+        for (uint32_t axisIdx = 0; (axisIdx < _axisParams.size()) && (axisIdx < pt.numAxes()); axisIdx++)
+            pt.setVal(axisIdx, _axisParams[axisIdx].getNearestInBoundsValue(pt[axisIdx]));
+    }
+
     bool setupAxes(const RaftJsonIF& config)
     {
         // Clear existing
@@ -136,13 +147,15 @@ public:
         _maxBlockDistMM = config.getDouble("motion/blockDistMM", _maxBlockDistanceMM_default);
         _maxJunctionDeviationMM = config.getDouble("motion/maxJunctionDeviationMM", maxJunctionDeviationMM_default);
         _homingNeededBeforeAnyMove = config.getBool("motion/homeBeforeMove", true);
+        _allowOutOfBounds = config.getBool("motion/allowOutOfBounds", false);
 
 #ifdef DEBUG_AXES_PARAMS
         // Debug
-        LOG_I(MODULE_PREFIX, "setupAxes geom %s blockDistMM %0.2f (0=no-max) homeBefMove %s jnDev %0.2fmm",
+        LOG_I(MODULE_PREFIX, "setupAxes geom %s blockDistMM %0.2f (0=no-max) homeBefMove %s jnDev %0.2fmm allowOOB %s",
                _geometry.c_str(), _maxBlockDistMM,
                _homingNeededBeforeAnyMove ? "Y" : "N",
-               _maxJunctionDeviationMM);
+               _maxJunctionDeviationMM,
+                _allowOutOfBounds ? "Y" : "N");
 #endif
         
         // Extract sub-system elements
@@ -241,6 +254,7 @@ private:
     double _maxBlockDistMM = _maxBlockDistanceMM_default;
     bool _homingNeededBeforeAnyMove = true;
     double _maxJunctionDeviationMM = maxJunctionDeviationMM_default;
+    bool _allowOutOfBounds = false;
 
     // Axis parameters
     std::vector<AxisParams> _axisParams;

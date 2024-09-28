@@ -78,8 +78,9 @@ public:
         _motionController.setMaxMotorCurrentAmps(axisIdx, maxMotorCurrent);
     }
 
-    // Get debug str
-    String getDebugStr();
+    // @brief Get device debug info JSON
+    // @return JSON string
+    virtual String getDebugJSON(bool includeBraces) const override final;
 
 private:
     // Motion controller

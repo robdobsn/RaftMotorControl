@@ -44,7 +44,8 @@ public:
         _feedrateUnitsPerMin = false;
         _enableMotors = true;
         _preClearMotionQueue = false;
-        _stopMotion = false;     
+        _stopMotion = false; 
+        _constrainToBounds = false;    
 
         // Reset values to sensible levels
         _targetSpeed = 0;
@@ -117,6 +118,10 @@ public:
     bool isStopMotion() const
     {
         return _stopMotion;
+    }
+    bool constrainToBounds() const
+    {
+        return _constrainToBounds;
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -303,6 +308,7 @@ private:
     bool _enableMotors = false;
     bool _preClearMotionQueue = false;
     bool _stopMotion = false;
+    bool _constrainToBounds = false;
 
     // Boolean flags
     class FieldDefType {

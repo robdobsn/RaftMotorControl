@@ -9,6 +9,7 @@
 #pragma once
 
 #include <stdint.h>
+#include "ConfigPinMap.h"
 
 class StepDriverParams
 {
@@ -48,5 +49,76 @@ public:
     float pwmFreqKHz = PWM_FREQ_KHZ_DEFAULT;
     uint8_t address = 0;
     uint32_t statusIntvMs = STATUS_INTERVAL_MS_DEFAULT;
+
+    StepDriverParams()
+    {
+    }
+
+    StepDriverParams(RaftJsonIF& config)
+    {
+        // Get step controller settings
+        microsteps = config.getLong("microsteps", StepDriverParams::MICROSTEPS_DEFAULT);
+        writeOnly = config.getBool("writeOnly", 0);
+
+        // Get hardware stepper params
+        String stepPinName = config.getString("stepPin", "-1");
+        stepPin = ConfigPinMap::getPinFromName(stepPinName.c_str());
+        String dirnPinName = config.getString("dirnPin", "-1");
+        dirnPin = ConfigPinMap::getPinFromName(dirnPinName.c_str());
+        noUART = config.getBool("noUART", 0);
+        invDirn = config.getBool("invDirn", 0);
+        extSenseOhms = config.getDouble("extSenseOhms", StepDriverParams::EXT_SENSE_OHMS_DEFAULT);
+        extVRef = config.getBool("extVRef", false);
+        extMStep = config.getBool("extMStep", false);
+        intpol = config.getBool("intpol", false);
+        minPulseWidthUs = config.getLong("minPulseWidthUs", 1);
+        rmsAmps = config.getDouble("rmsAmps", StepDriverParams::RMS_AMPS_DEFAULT);
+        holdDelay = config.getLong("holdDelay", StepDriverParams::IHOLD_DELAY_DEFAULT);
+        pwmFreqKHz = config.getDouble("pwmFreqKHz", StepDriverParams::PWM_FREQ_KHZ_DEFAULT);
+        address = config.getLong("addr", 0);
+
+        // Get status read frequency
+        double statusFreqHz = config.getDouble("statusFreqHz", 0);
+        statusIntvMs = statusFreqHz > 0 ? 1000.0 / statusFreqHz : 0;
+
+        // Hold mode
+        String holdModeStr = config.getString("holdModeOrFactor", "1.0");
+        if (holdModeStr.equalsIgnoreCase("freewheel"))
+        {
+            holdMode = StepDriverParams::HOLD_MODE_FREEWHEEL;
+            holdFactor = 0;
+        }
+        else if (holdModeStr.equalsIgnoreCase("passive"))
+        {
+            holdMode = StepDriverParams::HOLD_MODE_PASSIVE_BREAKING;
+            holdFactor = 0;
+        }
+        else
+        {
+            holdMode = StepDriverParams::HOLD_MODE_FACTOR;
+            holdFactor = strtof(holdModeStr.c_str(), NULL);
+        }
+    }
+
+    String getDebugJSON(bool includeBraces = true) const
+    {
+        String jsonStr;
+        jsonStr += "\"ad\":" + String(address);
+        jsonStr += ",\"sP\":" + String(stepPin);
+        jsonStr += ",\"dP\":" + String(dirnPin);
+        jsonStr += ",\"iD\":" + String(invDirn);
+        jsonStr += ",\"mS\":" + String(microsteps);
+        jsonStr += ",\"wO\":" + String(writeOnly ? 1 : 0);
+        jsonStr += ",\"eSO\":" + String(extSenseOhms);
+        jsonStr += ",\"exV\":" + String(extVRef ? 1 : 0);
+        jsonStr += ",\"exM\":" + String(extMStep ? 1 : 0);
+        jsonStr += ",\"int\":" + String(intpol ? 1 : 0);
+        jsonStr += ",\"rms\":" + String(rmsAmps, 2);
+        jsonStr += ",\"hldM\":" + String(holdMode);
+        jsonStr += ",\"hldF\":" + String(holdFactor, 2);
+        jsonStr += ",\"hldD\":" + String(holdDelay);
+        jsonStr += ",\"pwm\":" + String(pwmFreqKHz, 2);
+        return includeBraces ? "{" + jsonStr + "}" : jsonStr;
+    }
 };
 

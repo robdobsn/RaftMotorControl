@@ -52,12 +52,13 @@ public:
     /// @param outActuator Output actuator in absolute steps from origin
     /// @param curAxesState Current position (in both units and steps from origin)
     /// @param axesParams Axes parameters
-    /// @param constrainOutOfBoundsOtherwiseIgnorePt Constrain out of bounds (if not constrained then return false if the point is out of bounds)
+    /// @param constrainToBounds Constrain out of bounds (if not constrained then return false if the point is out of bounds)
     /// @return false if out of bounds or invalid
     virtual bool ptToActuator(const AxesValues<AxisPosDataType>& targetPt,
                               AxesValues<AxisStepsDataType>& outActuator,
                               const AxesState& curAxesState,
-                              const AxesParams& axesParams) const override final
+                              const AxesParams& axesParams,
+                              bool constrainToBounds) const override final
     {
         // Convert the current position to angles wrapped 0..360 degrees
         AxesValues<AxisCalcDataType> curAngles;

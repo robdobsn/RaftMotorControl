@@ -510,6 +510,20 @@ void StepDriverTMC2209::setMainRegs()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get debug JSON
+/// @param includeBraces - include braces
+/// @param detailed - detailed
+/// @return JSON string
+virtual String getDebugJSON(bool includeBraces, bool detailed) const
+{
+    return getStatusJSON(includeBraces, detailed
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// @brief Get status JSON
+// @param includeBraces - include braces
+// @param detailed - detailed
+// @return JSON string
 String StepDriverTMC2209::getStatusJSON(bool includeBraces, bool detailed) const
 {
     bool anyWritePending = false;

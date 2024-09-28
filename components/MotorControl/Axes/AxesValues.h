@@ -177,14 +177,10 @@ public:
         return result;
     }
     // Debug
-    String getDebugStr() const
+    String getDebugJSON(const char* elemName, bool includeBraces = false) const
     {
-        char debugStr[40];
-        snprintf(debugStr, sizeof(debugStr), "X%0.2f Y%0.2f Z%0.2f", 
-                (double)_vals[0],
-                (double)_vals[1],
-                (double)_vals[2]);
-        return debugStr;
+        String jsonStr = "\"" + String(elemName) + "\":" + toJSON();
+        return includeBraces ? "{" + jsonStr + "}" : jsonStr;
     }    
     String toJSON() const
     {

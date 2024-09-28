@@ -55,6 +55,11 @@ public:
     {
     }
 
+    virtual String getDebugJSON(bool includeBraces, bool detailed) const
+    {
+        return includeBraces ? "{}" : "";
+    }
+
     virtual String getStatusJSON(bool includeBraces, bool detailed) const
     {
         return includeBraces ? "{}" : "";

@@ -143,3 +143,23 @@ bool IRAM_ATTR EndStops::getPinAndLevel(bool max, int& pin, bool& actvLevel)
         return _minEndStopPin >= 0;
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// @brief Get debug JSON
+String EndStops::getDebugJSON(bool includeBraces, bool detailed) const
+{
+    String retStr;
+    if (includeBraces)
+        retStr = "{";
+    retStr += "\"maxName\":\"" + _maxName + "\",";
+    retStr += "\"maxPin\":" + String(_maxEndStopPin) + ",";
+    retStr += "\"maxActLevel\":" + String(_maxActLevel) + ",";
+    retStr += "\"maxInputType\":" + String(_maxInputType) + ",";
+    retStr += "\"minName\":\"" + _minName + "\",";
+    retStr += "\"minPin\":" + String(_minEndStopPin) + ",";
+    retStr += "\"minActLevel\":" + String(_minActLevel) + ",";
+    retStr += "\"minInputType\":" + String(_minInputType);
+    if (includeBraces)
+        retStr += "}";
+    return retStr;
+}

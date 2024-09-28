@@ -90,11 +90,11 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args, uint32_t numBloc
 
 #ifdef DEBUG_RAMPED_BLOCK
     LOG_I(MODULE_PREFIX, "addRampedBlock curUnits %s curSteps %s targetPosUnits %s numBlocks %d blockMotionVector %s)",
-                _axesState.getUnitsFromOrigin().getDebugStr().c_str(),
-                _axesState.getStepsFromOrigin().getDebugStr().c_str(),
-                _finalTargetPos.getDebugStr().c_str(),
+                _axesState.getUnitsFromOrigin().getDebugJSON("unFrOr").c_str(),
+                _axesState.getStepsFromOrigin().getDebugJSON("stFrOr").c_str(),
+                _finalTargetPos.getDebugJSON("targ").c_str(),
                 _numBlocks, 
-                _blockMotionVector.getDebugStr().c_str());
+                _blockMotionVector.getDebugJSON("vec").c_str());
 #endif
 
     return true;
@@ -133,10 +133,10 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
 
 #ifdef DEBUG_BLOCK_SPLITTER
         LOG_I(MODULE_PREFIX, "pumpBlockSplitter last %s + delta %s => dest %s (%s) nextBlockIdx %d, numBlocks %d", 
-                    _axesState.getUnitsFromOrigin().getDebugStr().c_str(),
-                    _blockMotionVector.getDebugStr().c_str(),
-                    nextBlockDest.getDebugStr().c_str(),
-                    _blockMotionArgs.getAxesPos().getDebugStr().c_str(), 
+                    _axesState.getUnitsFromOrigin().getDebugJSON("unFrOr").c_str(),
+                    _blockMotionVector.getDebugJSON("vec").c_str(),
+                    nextBlockDest.getDebugJSON("dst").c_str(),
+                    _blockMotionArgs.getAxesPos().getDebugJSON("cur").c_str(), 
                     _nextBlockIdx,
                     _numBlocks);
 #endif
@@ -170,7 +170,8 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
     _pRaftKinematics->ptToActuator(args.getAxesPosConst(), 
             actuatorCoords, 
             _axesState, 
-            _axesParams);
+            _axesParams,
+            args.constrainToBounds());
 
     // Plan the move
     bool moveOk = _motionPlanner.moveToRamped(args, actuatorCoords, 
@@ -178,7 +179,7 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
 #ifdef DEBUG_COORD_UPDATES
     LOG_I(MODULE_PREFIX, "addToPlanner moveOk %d pt %s actuator %s", 
             moveOk,
-            args.getAxesPosConst().getDebugStr().c_str(),
+            args.getAxesPosConst().getDebugJSON("cur").c_str(),
             actuatorCoords.toJSON().c_str());
 #endif
 
@@ -197,7 +198,7 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
         // }            
 #ifdef DEBUG_COORD_UPDATES
         LOG_I(MODULE_PREFIX, "addToPlanner updatedAxisPos %s",
-            _axesState.getUnitsFromOrigin().getDebugStr().c_str());
+            _axesState.getUnitsFromOrigin().getDebugJSON("unFrOr").c_str());
 #endif
     }
     else

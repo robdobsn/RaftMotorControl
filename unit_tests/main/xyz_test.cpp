@@ -39,7 +39,7 @@ void testPtToActuator(RaftKinematics* pKinematics, AxesParams& axesParams, TestG
 
         // Convert point to actuator
         AxesValues<AxisStepsDataType> actuator;
-        bool success = pKinematics->ptToActuator(testPt.pt, actuator, testPt.curPos, axesParams);
+        bool success = pKinematics->ptToActuator(testPt.pt, actuator, testPt.curPos, axesParams, false);
         TEST_ASSERT_MESSAGE(success, "ptToActuator failed");
 
         // Check actuator values

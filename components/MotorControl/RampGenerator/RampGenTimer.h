@@ -41,7 +41,7 @@ public:
     // Debug
     uint32_t getDebugISRCount();
     uint64_t getDebugRawCount();
-    String getDebugStr() const;
+    String getDebugJSON(bool includeBraces) const;
     
     // Default ramp generation timer period us
     static constexpr uint32_t RAMP_GEN_PERIOD_US_DEFAULT = 20;

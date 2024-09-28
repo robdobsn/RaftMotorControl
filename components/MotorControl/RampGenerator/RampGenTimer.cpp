@@ -241,12 +241,10 @@ void RampGenTimer::unhookTimer(void* pObject)
 // Debug
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String RampGenTimer::getDebugStr() const
+String RampGenTimer::getDebugJSON(bool includeBraces) const
 {
-    uint32_t timerCount = _timerISRCount;
-    char tmpStr[50];
-    snprintf(tmpStr, sizeof(tmpStr), "ISRCount %lu", (unsigned long)timerCount);
-    return tmpStr;
+    String json = "\"ISRCount\":" + String(_timerISRCount);
+    return includeBraces ? "{" + json + "}" : json;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

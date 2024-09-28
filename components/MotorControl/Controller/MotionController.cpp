@@ -175,7 +175,7 @@ bool MotionController::isBusy() const
 bool MotionController::moveTo(MotionArgs &args)
 {
     LOG_I(MODULE_PREFIX, "moveTo %s args %s", 
-            args.getAxesPos().getDebugStr().c_str(),
+            args.getAxesPos().getDebugJSON("axes").c_str(),
             args.toJSON().c_str());
 
     // Handle stop
@@ -256,7 +256,7 @@ bool MotionController::moveToRamped(MotionArgs& args)
 
 #ifdef DEBUG_MOTION_CONTROLLER
     LOG_I(MODULE_PREFIX, "moveToRamped %s moveDistanceMM %.2f maxBlockDist %.2f numBlocks %d",
-                args.getAxesPos().getDebugStr().c_str(), moveDistanceMM, maxBlockDistMM, numBlocks);
+                args.getAxesPos().getDebugJSON("pos").c_str(), moveDistanceMM, maxBlockDistMM, numBlocks);
 #endif
 
     // Add to the block splitter
@@ -386,50 +386,7 @@ void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName,
     String driverType = config.getString("driver", DEFAULT_DRIVER_CHIP);
 
     // Stepper parameters
-    StepDriverParams stepperParams;
-
-    // Get step controller settings
-    stepperParams.microsteps = config.getLong("microsteps", StepDriverParams::MICROSTEPS_DEFAULT);
-    stepperParams.writeOnly = config.getBool("writeOnly", 0);
-
-    // Get hardware stepper params
-    String stepPinName = config.getString("stepPin", "-1");
-    stepperParams.stepPin = ConfigPinMap::getPinFromName(stepPinName.c_str());
-    String dirnPinName = config.getString("dirnPin", "-1");
-    stepperParams.dirnPin = ConfigPinMap::getPinFromName(dirnPinName.c_str());
-    stepperParams.noUART = config.getBool("noUART", 0);
-    stepperParams.invDirn = config.getBool("invDirn", 0);
-    stepperParams.extSenseOhms = config.getDouble("extSenseOhms", StepDriverParams::EXT_SENSE_OHMS_DEFAULT);
-    stepperParams.extVRef = config.getBool("extVRef", false);
-    stepperParams.extMStep = config.getBool("extMStep", false);
-    stepperParams.intpol = config.getBool("intpol", false);
-    stepperParams.minPulseWidthUs = config.getLong("minPulseWidthUs", 1);
-    stepperParams.rmsAmps = config.getDouble("rmsAmps", StepDriverParams::RMS_AMPS_DEFAULT);
-    stepperParams.holdDelay = config.getLong("holdDelay", StepDriverParams::IHOLD_DELAY_DEFAULT);
-    stepperParams.pwmFreqKHz = config.getDouble("pwmFreqKHz", StepDriverParams::PWM_FREQ_KHZ_DEFAULT);
-    stepperParams.address = config.getLong("addr", 0);
-
-    // Get status read frequency
-    double statusFreqHz = config.getDouble("statusFreqHz", 0);
-    stepperParams.statusIntvMs = statusFreqHz > 0 ? 1000.0 / statusFreqHz : 0;
-
-    // Hold mode
-    String holdModeStr = config.getString("holdModeOrFactor", "1.0");
-    if (holdModeStr.equalsIgnoreCase("freewheel"))
-    {
-        stepperParams.holdMode = StepDriverParams::HOLD_MODE_FREEWHEEL;
-        stepperParams.holdFactor = 0;
-    }
-    else if (holdModeStr.equalsIgnoreCase("passive"))
-    {
-        stepperParams.holdMode = StepDriverParams::HOLD_MODE_PASSIVE_BREAKING;
-        stepperParams.holdFactor = 0;
-    }
-    else
-    {
-        stepperParams.holdMode = StepDriverParams::HOLD_MODE_FACTOR;
-        stepperParams.holdFactor = strtof(holdModeStr.c_str(), NULL);
-    }
+    StepDriverParams stepperParams(config);
 
     // Handle location
     StepDriverBase* pStepDriver = nullptr; 
@@ -446,25 +403,11 @@ void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName,
         }
         // Debug
 #ifdef DEBUG_STEPPER_SETUP_CONFIG
-        LOG_I(MODULE_PREFIX, "setupStepDriver %s axisName %s address %02x driver %s stepPin %d(%s) dirnPin %d(%s) invDirn %s microsteps %d writeOnly %s extSenseOhms %.2f extVRef %s extMStep %s intpol %s rmsAmps %0.2f holdMode %d holdFactor %0.2f holdDelay %d pwmFreqKHz %0.2f",
+        LOG_I(MODULE_PREFIX, "setupStepDriver %s axisName %s driver %s %s",
                 pStepDriver ? "local" : "FAILED",
                 axisName.c_str(), 
-                stepperParams.address,
                 driverType.c_str(),
-                stepperParams.stepPin, stepPinName.c_str(), 
-                stepperParams.dirnPin, dirnPinName.c_str(), 
-                stepperParams.invDirn ? "Y" : "N",
-                stepperParams.microsteps,
-                stepperParams.writeOnly ? "Y" : "N",
-                stepperParams.extSenseOhms,
-                stepperParams.extVRef ? "Y" : "N",
-                stepperParams.extMStep ? "Y" : "N",
-                stepperParams.intpol ? "Y" : "N",
-                stepperParams.rmsAmps,
-                uint32_t(stepperParams.holdMode),
-                stepperParams.holdFactor,
-                stepperParams.holdDelay,
-                stepperParams.pwmFreqKHz);
+                stepperParams.getDebugJSON().c_str());
     #endif
     }
 
@@ -554,10 +497,25 @@ AxesValues<AxisPosDataType> MotionController::getLastMonitoredPos() const
 // Get debug string
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-String MotionController::getDebugStr() const
+String MotionController::getDebugJSON(bool includeBraces) const
 {
-    String str;
-    str += _rampGenerator.getDebugStr() + ", ";
-    str += getLastMonitoredPos().getDebugStr();
-    return str;
+    String jsonStr = _rampGenerator.getDebugJSON(false) + ", ";
+    jsonStr += getLastMonitoredPos().getDebugJSON("pos", false);
+    for (StepDriverBase* pStepDriver : _stepperDrivers)
+    {
+        if (pStepDriver)
+        {
+            jsonStr += ", ";
+            jsonStr += pStepDriver->getStatusJSON(false, false);
+        }
+    }
+    for (EndStops* pEndStops : _axisEndStops)
+    {
+        if (pEndStops)
+        {
+            jsonStr += ", ";
+            jsonStr += pEndStops->getDebugJSON("endstops", false);
+        }
+    }
+    return includeBraces ? "{" + jsonStr + "}" : jsonStr;
 }

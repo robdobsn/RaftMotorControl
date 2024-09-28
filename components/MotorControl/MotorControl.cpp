@@ -174,6 +174,17 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 #endif
         _motionController.moveTo(motionArgs);
     }
+    else if (cmd.equalsIgnoreCase("maxCurrent"))
+    {
+        float maxCurrentA = jsonInfo.getDouble("maxCurrentA", 0);
+        uint32_t axisIdx = jsonInfo.getInt("axisIdx", 0);
+        _motionController.setMaxMotorCurrentAmps(axisIdx, maxCurrentA);
+    }
+    else if (cmd.equalsIgnoreCase("offAfter"))
+    {
+        float motorOnTimeAfterMoveSecs = jsonInfo.getDouble("offAfterS", 0);
+        _motionController.setMotorOnTimeAfterMoveSecs(motorOnTimeAfterMoveSecs);
+    }
     return RAFT_OK;
 }
 
@@ -202,7 +213,7 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get debug string
 /// @return Debug string
-String MotorControl::getDebugStr()
+String MotorControl::getDebugJSON(bool includeBraces) const
 {
-    return _motionController.getDebugStr();
+    return _motionController.getDebugJSON(includeBraces);
 }

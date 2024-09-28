@@ -36,25 +36,36 @@ public:
     /// @param outActuator Output actuator in absolute steps from origin
     /// @param curAxesState Current position (in both units and steps from origin)
     /// @param axesParams Axes parameters
+    /// @param constrainToBounds Constrain out of bounds (if not constrained then return false if the point is OOB and OOB is not allowed)
     /// @return false if out of bounds or invalid
     virtual bool ptToActuator(const AxesValues<AxisPosDataType>& targetPt,
                               AxesValues<AxisStepsDataType>& outActuator,
                               const AxesState& curAxesState,
-                              const AxesParams& axesParams) const override final
+                              const AxesParams& axesParams,
+                              bool constrainToBounds) const override final
     {
         // Check machine bounds
+        AxesValues<AxisPosDataType> targetPtCopy = targetPt;
         bool pointIsValid = axesParams.ptInBounds(targetPt);
         if (!pointIsValid)
         {
-            LOG_I(MODULE_PREFIX, "ptToActuator FAIL out of bounds");
-            return false;
+            if (constrainToBounds)
+            {
+                // Constrain to bounds
+                axesParams.constrainPtToBounds(targetPtCopy);
+            }
+            else if (!axesParams.allowOutOfBounds())
+            {
+                LOG_I(MODULE_PREFIX, "ptToActuator FAIL out of bounds");
+                return false;
+            }
         }
 
         // Perform conversion
         for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
         {
             // Axis val from home point
-            float axisValFromHome = targetPt.getVal(axisIdx);
+            float axisValFromHome = targetPtCopy.getVal(axisIdx);
 
             // Convert to steps
             outActuator.setVal(axisIdx, round(axisValFromHome * axesParams.getStepsPerUnit(axisIdx)));
@@ -63,8 +74,9 @@ public:
             // outActuator.setVal(axisIdx, round(axisValFromHome * axesParams.getStepsPerUnit(axisIdx) + axesParams.gethomeOffsetSteps(axisIdx)));
 
 #ifdef DEBUG_KINEMATICS_XYZ
-            LOG_I(MODULE_PREFIX, "ptToActuator axis%d %.2f-> %d",
+            LOG_I(MODULE_PREFIX, "ptToActuator axis%d %.2f(%.2f)-> %d",
                   axisIdx,
+                  targetPtCopy.getVal(axisIdx),
                   targetPt.getVal(axisIdx),
                   outActuator.getVal(axisIdx));
 #endif

@@ -36,6 +36,9 @@ public:
     // Get pin and level
     bool getPinAndLevel(bool max, int& pin, bool& actvLevel);
 
+    // Get debug JSON
+    String getDebugJSON(bool includeBraces, bool detailed) const;
+    
 private:
 
     // Debug

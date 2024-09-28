@@ -111,7 +111,7 @@ TEST_CASE("test_MotorControl", "[MotorControl]")
         }
         if ((progressCount % 100 == 0) || (progressCount == MAX_COUNT - 1))
         {
-            String motorInfo = motorControl.getDebugStr();
+            String motorInfo = motorControl.getDebugJSON(true);
             LOG_I(MODULE_PREFIX, "MotorInfo: %s", motorInfo.c_str());
         }
     }

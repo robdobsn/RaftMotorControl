@@ -91,8 +91,8 @@ public:
     // Set max motor current (amps)
     void setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrent);
 
-    // Get debug str
-    String getDebugStr() const;
+    // Get debug JSON
+    String getDebugJSON(bool includeBraces) const;
 
 private:
     // Debug

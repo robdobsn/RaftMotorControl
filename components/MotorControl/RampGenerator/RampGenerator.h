@@ -79,9 +79,9 @@ public:
         return _stats;
     }
     void debugShowStats();
-    String getDebugStr() const
+    String getDebugJSON(bool includeBraces) const
     {
-        return _rampGenTimer.getDebugStr();
+        return _rampGenTimer.getDebugJSON(includeBraces);
     }
 
 private:

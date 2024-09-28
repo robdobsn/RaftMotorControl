@@ -74,7 +74,7 @@ int main()
         // RaftKinematics
         AxesValues<AxisPosDataType> inputValues = {testPoints[i][0], testPoints[i][1]};
         AxesValues<AxisStepsDataType> outputValues;
-        bool rslt = kinematics.ptToActuator(inputValues, outputValues, axesState, axesParams);
+        bool rslt = kinematics.ptToActuator(inputValues, outputValues, axesState, axesParams, false);
         if (!rslt)
         {
             printf("Inverse kinematics failed for point %d at %.2f, %.2f\n", i, testPoints[i][0], testPoints[i][1]);
