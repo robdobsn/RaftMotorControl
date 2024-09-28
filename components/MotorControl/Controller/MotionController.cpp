@@ -499,22 +499,22 @@ AxesValues<AxisPosDataType> MotionController::getLastMonitoredPos() const
 
 String MotionController::getDebugJSON(bool includeBraces) const
 {
-    String jsonStr = _rampGenerator.getDebugJSON(false) + ", ";
+    String jsonStr = _rampGenerator.getDebugJSON(false) + ",";
     jsonStr += getLastMonitoredPos().getDebugJSON("pos", false);
     for (StepDriverBase* pStepDriver : _stepperDrivers)
     {
         if (pStepDriver)
         {
-            jsonStr += ", ";
-            jsonStr += pStepDriver->getStatusJSON(false, false);
+            jsonStr += ",";
+            jsonStr += pStepDriver->getStatusJSON(true, true);
         }
     }
     for (EndStops* pEndStops : _axisEndStops)
     {
         if (pEndStops)
         {
-            jsonStr += ", ";
-            jsonStr += pEndStops->getDebugJSON("endstops", false);
+            jsonStr += ",";
+            jsonStr += pEndStops->getDebugJSON(true, true);
         }
     }
     return includeBraces ? "{" + jsonStr + "}" : jsonStr;

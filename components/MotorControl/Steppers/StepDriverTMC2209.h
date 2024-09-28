@@ -36,6 +36,8 @@ public:
         return "TMC2209";
     }
 
+    String getDebugJSON(bool includeBraces, bool detailed) const override final;
+
     virtual String getStatusJSON(bool includeBraces, bool detailed) const override final;
 
     virtual void setMaxMotorCurrentAmps(float maxMotorCurrentAmps) override final;
@@ -51,6 +53,7 @@ private:
     // in the base class
     enum DriverRegisterCodes {
         DRIVER_REGISTER_CODE_GCONF,
+        DRIVER_REGISTER_CODE_IFCNT,
         DRIVER_REGISTER_CODE_GSTAT,
         DRIVER_REGISTER_CODE_CHOPCONF,
         DRIVER_REGISTER_CODE_IHOLD_IRUN,
@@ -80,28 +83,10 @@ private:
     bool _warnOnDriverBusyDone;
     static const uint32_t WARN_ON_DRIVER_BUSY_AFTER_MS = 100;
 
-    // Vfs value calculated when setting current
+    // VRef sense value
     static const constexpr double VREF_LOW_SENSE = 0.325;
     static const constexpr double VREF_HIGH_SENSE = 0.180;
-    double _vfsValue = VREF_LOW_SENSE;
-    double _maxSenseVoltage = 0.0;
 
-    // Calculate Vfs
-    void calculateVfsAndMaxSenseV(double reqCurrentAmps, double &vfsValue, double &maxSenseVoltage)
-    {
-        // Total resistance
-        double totalResOhms = _requestedParams.extSenseOhms + 0.02;
-
-        // IRUN value calculation
-        maxSenseVoltage = reqCurrentAmps * totalResOhms * 1.41;
-
-        // Calculate a vsense value
-        bool vsenseOut = maxSenseVoltage < VREF_HIGH_SENSE;
-
-        // Vfs
-        vfsValue = vsenseOut ? VREF_HIGH_SENSE : VREF_LOW_SENSE;
-    }
- 
     // Get microsteps (either from request, default or from read value)
     uint32_t getMicrosteps() const
     {
@@ -111,28 +96,45 @@ private:
         switch(microstepsCode)
         {
             case 0: return 256;
-            case 1: return 2;
-            case 2: return 4;
-            case 3: return 8;
+            case 1: return 128;
+            case 2: return 64;
+            case 3: return 32;
             case 4: return 16;
-            case 5: return 32;
-            case 6: return 64;
-            case 7: return 128;
-            case 8: return 256;
-            case 9: return 512;
-            case 10: return 1024;
+            case 5: return 8;
+            case 6: return 4;
+            case 7: return 2;
+            case 8: return 1;
             default: return 256;
         }
     }
 
-    // Get RMS amps
-    double getRMSAmps() const
+    // Get max RMS amps
+    double getMaxRMSAmps() const
     {
-        if (!_driverRegisters[DRIVER_REGISTER_CODE_IHOLD_IRUN].readValid)
+        // Check if the IHOLD_IRUN and CHOPCONF registers have valid values
+        if ((_driverRegisters[DRIVER_REGISTER_CODE_IHOLD_IRUN].writePending) || 
+            (!_driverRegisters[DRIVER_REGISTER_CODE_CHOPCONF].readValid))
+        {
+            // Return the requested RMS current if registers have not been read
             return _requestedParams.rmsAmps;
-        uint32_t irun = (_driverRegisters[DRIVER_REGISTER_CODE_IHOLD_IRUN].regValCur & TMC_2209_IRUN_MASK) >> TMC_2209_IRUN_BIT;
-        double rmsAmps = ((irun + 1) / 32.0) * _vfsValue / (_requestedParams.extSenseOhms + 0.02) / 1.414;
-        return rmsAmps;
+        }
+
+        // Read the IRUN value from the IHOLD_IRUN register write value (this is a read-only register)
+        uint32_t irun = (_driverRegisters[DRIVER_REGISTER_CODE_IHOLD_IRUN].regWriteVal & TMC_2209_IRUN_MASK) >> TMC_2209_IRUN_BIT;
+
+        // Read the vsense bit value from the CHOPCONF register
+        bool vsense = (_driverRegisters[DRIVER_REGISTER_CODE_CHOPCONF].regValCur & TMC_2209_CHOPCONF_VSENSE_MASK) >> TMC_2209_CHOPCONF_VSENSE_BIT;
+
+        // Determine the sense voltage (Vref) based on the vsense bit
+        double Vref = vsense ? VREF_HIGH_SENSE : VREF_LOW_SENSE;
+
+        // Use the external sense resistor value specified in the parameters
+        double Rsense = _requestedParams.extSenseOhms;
+
+        // Calculate the RMS current using the formula: I_RMS = ((IRUN + 1) / 32) * (Vref / (R_sense * 1.414))
+        double rmsAmps = ((irun + 1) / 32.0) * Vref / (Rsense * 1.414);
+
+        return rmsAmps;        
     }
 
     // GSTAT Json
@@ -233,6 +235,7 @@ private:
     // CHOPCONF register consts
     static const uint32_t TMC_2209_CHOPCONF_TOFF_BIT = 0;
     static const uint32_t TMC_2209_CHOPCONF_VSENSE_BIT = 17;
+    static const uint32_t TMC_2209_CHOPCONF_VSENSE_MASK = 1 << TMC_2209_CHOPCONF_VSENSE_BIT;
     static const uint32_t TMC_2209_CHOPCONF_MRES_BIT = 24;
     static const uint32_t TMC_2209_CHOPCONF_MRES_MASK = 0x0F000000;
     static const uint32_t TMC_2209_CHOPCONF_MRES_DEFAULT = 8;

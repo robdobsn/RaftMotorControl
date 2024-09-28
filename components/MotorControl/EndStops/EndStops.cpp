@@ -151,14 +151,22 @@ String EndStops::getDebugJSON(bool includeBraces, bool detailed) const
     String retStr;
     if (includeBraces)
         retStr = "{";
-    retStr += "\"maxName\":\"" + _maxName + "\",";
-    retStr += "\"maxPin\":" + String(_maxEndStopPin) + ",";
-    retStr += "\"maxActLevel\":" + String(_maxActLevel) + ",";
-    retStr += "\"maxInputType\":" + String(_maxInputType) + ",";
-    retStr += "\"minName\":\"" + _minName + "\",";
-    retStr += "\"minPin\":" + String(_minEndStopPin) + ",";
-    retStr += "\"minActLevel\":" + String(_minActLevel) + ",";
-    retStr += "\"minInputType\":" + String(_minInputType);
+    if (_maxEndStopPin >= 0)
+    {
+        retStr += "\"max\":{";
+        retStr += "\"n\":\"" + _maxName + "\",";
+        retStr += "\"p\":" + String(_maxEndStopPin) + ",";
+        retStr += "\"lev\":" + String(_maxActLevel) + ",";
+        retStr += "\"type\":" + String(_maxInputType) + "},";
+    }
+    if (_minEndStopPin >= 0)
+    {
+        retStr += "\"min\":{";
+        retStr += "\"n\":\"" + _minName + "\",";
+        retStr += "\"p\":" + String(_minEndStopPin) + ",";
+        retStr += "\"lev\":" + String(_minActLevel) + ",";
+        retStr += "\"type\":" + String(_minInputType) + "},";
+    }
     if (includeBraces)
         retStr += "}";
     return retStr;

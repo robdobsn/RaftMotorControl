@@ -74,13 +74,14 @@ protected:
     class DriverRegisterMap
     {
     public:
-        DriverRegisterMap(const char* pRegName, uint8_t addr, uint32_t initVal, uint32_t writeMask, bool isConfig)
+        DriverRegisterMap(const char* pRegName, uint8_t addr, uint32_t initVal, uint32_t writeMask, bool isConfig, bool isReadable)
         {
             regName = pRegName;
             regAddr = addr;
             regWriteVal = initVal;
             writeBitMask = writeMask;
             isConfigReg = isConfig;
+            isReadableReg = isReadable;
         }
         String regName;
         uint8_t regAddr = 0;
@@ -88,6 +89,7 @@ protected:
         uint32_t regWriteVal = 0;
         uint32_t writeBitMask = 0xffffffff;
         bool isConfigReg : 1 = false;
+        bool isReadableReg : 1 = false;
         bool writePending : 1 = false;
         bool readPending : 1 = false;
         bool readValid : 1 = false;

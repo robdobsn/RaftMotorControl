@@ -12,7 +12,7 @@
 
 #define WARN_ON_DRIVER_BUSY
 
-// #define DEBUG_IHOLD_IRUN_CALCS
+#define DEBUG_IHOLD_IRUN_CALCS
 // #define DEBUG_REGISTER_WRITE_PROCESS
 // #define DEBUG_IHOLD_IRUN
 // #define DEBUG_REGISTER_READ_PROCESS
@@ -36,17 +36,19 @@ StepDriverTMC2209::StepDriverTMC2209()
     // DriverRegisterCodes enumeration as that is used for indexing
 
     // Add GCONF register
-    _driverRegisters.push_back({"GCONF", 0, 0x000001C0, 0x000003ff, true});
+    _driverRegisters.push_back({"GCONF", 0, 0x000001C0, 0x000003ff, true, true});
     // Add GSTAT register
-    _driverRegisters.push_back({"GSTAT", 1, 0x00000000, 0x00000007, false});
+    _driverRegisters.push_back({"GSTAT", 1, 0x00000000, 0x00000007, false, true});
+    // Add IFCNT register
+    _driverRegisters.push_back({"IFCNT", 2, 0x00000000, 0x000000ff, false, true});
     // Add CHOPCONF register
-    _driverRegisters.push_back({"CHOPCONF", 0x6c, 0x10000053, 0xff0387f, true});
+    _driverRegisters.push_back({"CHOPCONF", 0x6c, 0x10000053, 0xff0387f, true, true});
     // Add IHOLD_IRUN register
-    _driverRegisters.push_back({"IHOLD_RUN", 0x10, 0x00001f00, 0x000f1f1f, true});
+    _driverRegisters.push_back({"IHOLD_RUN", 0x10, 0x00001f00, 0x000f1f1f, true, false});
     // Add PWMCONF register
-    _driverRegisters.push_back({"PWMCONF", 0x70, 0xC10D0024, 0xc001f0ff, true});
+    _driverRegisters.push_back({"PWMCONF", 0x70, 0xC10D0024, 0xc001f0ff, true, false});
     // Add DRV_STATUS register
-    _driverRegisters.push_back({"DRV_STATUS", 0x6F, 0x00000000, 0xff3fffff, false});
+    _driverRegisters.push_back({"DRV_STATUS", 0x6F, 0x00000000, 0xff3fffff, false, true});
 
     // Vars
     _dirnCurValue = false;
@@ -105,6 +107,10 @@ bool StepDriverTMC2209::setup(const String& stepperName, const StepDriverParams&
     // Set initial direction arbitrarily
     setDirection(false, true);
 
+    // Debug
+    LOG_I(MODULE_PREFIX, "setup %s stepPin %d dirnPin %d readInterval %dms", 
+                stepperName.c_str(), stepperParams.stepPin, stepperParams.dirnPin, _statusReadIntervalMs);
+
     return true;
 }
 
@@ -135,11 +141,10 @@ void StepDriverTMC2209::loop()
 #endif
         return;
     }
-    else
-    {
-        _warnOnDriverBusyStartTimeMs = 0;
-        _warnOnDriverBusyDone = false;
-    }
+
+    // Reset warning
+    _warnOnDriverBusyStartTimeMs = 0;
+    _warnOnDriverBusyDone = false;
 
     // Check if ready for loop checks
     if (!Raft::isTimeout(millis(), _loopLastTimeMs, LOOP_INTERVAL_MS))
@@ -204,6 +209,9 @@ void StepDriverTMC2209::loop()
             }
         }
         // Request read
+        // TODO
+        LOG_I(MODULE_PREFIX, "%s loop read status registers", _name.c_str());
+        _driverRegisters[DRIVER_REGISTER_CODE_IFCNT].readPending = true;
         _driverRegisters[DRIVER_REGISTER_CODE_DRV_STATUS].readPending = true;
         _driverRegisters[DRIVER_REGISTER_CODE_GSTAT].readPending = true;
         _statusReadLastTimeMs = millis();
@@ -259,7 +267,7 @@ uint32_t StepDriverTMC2209::getMRESFieldValue(uint32_t microsteps) const
         case   8: mres = 5; break;
         case   4: mres = 6; break;
         case   2: mres = 7; break;
-        case   0: mres = 8; break;
+        case   1: mres = 8; break;
         default: mres = TMC_2209_CHOPCONF_MRES_DEFAULT; break;
     }
     return mres;
@@ -276,19 +284,39 @@ uint32_t StepDriverTMC2209::getMRESFieldValue(uint32_t microsteps) const
 void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double holdFactor, 
             StepDriverParams::HoldModeEnum holdMode, bool& vsenseOut, uint32_t& irunOut, uint32_t& iholdOut) const
 {
-    // Calculate IRUN
-    double irunDouble = _maxSenseVoltage / _vfsValue;
-    irunOut = uint32_t(ceil(irunDouble * 32)-1);
-    if (irunOut < 8)
-        irunOut = 8;
-    else if (irunOut > 31)
-        irunOut = 31;
+    // External sense resistor value in ohms
+    const double R_sense = _requestedParams.extSenseOhms;
+    if (R_sense <= 0)
+    {
+        LOG_E(MODULE_PREFIX, "convertRMSCurrentToRegs %s invalid sense resistor value %.2f", _name.c_str(), R_sense);
+        return;
+    }
 
-    // IHOLD value
+    // Determine the best vsense value based on the required current
+    double Vref = VREF_LOW_SENSE;
+    vsenseOut = false;
+    if (reqCurrentAmps <= (VREF_HIGH_SENSE / (32 * R_sense))) {
+        Vref = VREF_HIGH_SENSE;
+        // Use vsense = 1 if the required current is achievable with lower Vref
+        vsenseOut = true;
+    }
+
+    // Calculate IRUN using the formula I_RMS = (Vref * (IRUN + 1)) / (32 * R_sense)
+    uint32_t irunVal = static_cast<uint32_t>(ceil((reqCurrentAmps * 32 * R_sense) / Vref)) - 1;
+
+    // Clamp IRUN value between 8 and 31 (TMC2209 valid range)
+    if (irunVal < 8)
+        irunVal = 8;
+    else if (irunVal > 31)
+        irunVal = 31;
+    irunOut = irunVal;
+
+    // Calculate IHOLD based on the hold mode
     iholdOut = 0;
     if (holdMode == StepDriverParams::HOLD_MODE_FACTOR)
     {
-        uint32_t iholdVal = irunOut * holdFactor;
+        // Calculate and clamp IHOLD value between 1 and 31 (TMC2209 valid range)
+        uint32_t iholdVal = static_cast<uint32_t>(irunOut * holdFactor);
         if (iholdVal < 1)
             iholdOut = 1;
         else if (iholdVal > 31)
@@ -296,10 +324,30 @@ void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double ho
         else
             iholdOut = iholdVal;
     }
+    else if (holdMode == StepDriverParams::HOLD_MODE_FREEWHEEL)
+    {
+        // In Freewheel mode, no hold current is applied
+        iholdOut = 0;
+    }
+    else if (holdMode == StepDriverParams::HOLD_MODE_PASSIVE_BREAKING)
+    {
+        // Implement specific IHOLD behavior for Passive Braking if needed
+        iholdOut = static_cast<uint32_t>(irunOut * holdFactor);
+        if (iholdOut > 31) iholdOut = 31;
+    }
 
 #ifdef DEBUG_IHOLD_IRUN_CALCS
-    LOG_I(MODULE_PREFIX, "convertRMSCurrentToRegs %s reqCurAmps %0.2f holdMode %d holdFactor %0.2f vsenseOut %d irunOut %d iholdOut %d maxSenseVoltage %.2f Vfs %.2f",
-            _name.c_str(), reqCurrentAmps, holdMode, holdFactor, vsenseOut, irunOut, iholdOut, _maxSenseVoltage, _vfsValue);
+    LOG_I(MODULE_PREFIX, "convertRMSCurrentToRegs %s reqCurAmps %0.2f RSense %.2f holdMode=%s => IRUN %d (actual %.2fA) IHOLD %d (actual %.2fA) vsense %d",
+            _name.c_str(), 
+            reqCurrentAmps, 
+            R_sense,
+            holdMode == StepDriverParams::HOLD_MODE_FACTOR ? ("FactorBy" + String(holdFactor,2)).c_str() : 
+                (holdMode == StepDriverParams::HOLD_MODE_FREEWHEEL ? "Freewheel" : "PassiveBraking"),
+            irunOut, 
+            (Vref * (irunOut + 1)) / (32 * R_sense),
+            iholdOut, 
+            (Vref * (iholdOut + 1)) / (32 * R_sense),
+            vsenseOut);
 #endif
 }
 
@@ -426,9 +474,6 @@ void StepDriverTMC2209::setMainRegs()
     // Set time of config setting
     _configSetLastTimeMs = millis();
 
-    // Calculate Vfs and VMaxSense
-    calculateVfsAndMaxSenseV(_requestedParams.rmsAmps, _vfsValue, _maxSenseVoltage);
-    
     // Get CHOPCONF vsense value and IRUN, IHOLD values from required RMS current
     bool vsenseValue = false;
     uint32_t irunValue = 0;
@@ -503,6 +548,7 @@ void StepDriverTMC2209::setMainRegs()
                 (TMC_2209_PWMCONF_PWM_OFS << TMC_2209_PWMCONF_PWM_OFS_BIT);
 
     // Set flags to indicate that registers should be read back to confirm
+    _driverRegisters[DRIVER_REGISTER_CODE_IFCNT].readPending = true;
     _driverRegisters[DRIVER_REGISTER_CODE_GCONF].readPending = true;
     _driverRegisters[DRIVER_REGISTER_CODE_CHOPCONF].readPending = true;
     // Note that IHOLD_IRUN is not read back as it is read only
@@ -514,9 +560,9 @@ void StepDriverTMC2209::setMainRegs()
 /// @param includeBraces - include braces
 /// @param detailed - detailed
 /// @return JSON string
-virtual String getDebugJSON(bool includeBraces, bool detailed) const
+String StepDriverTMC2209::getDebugJSON(bool includeBraces, bool detailed) const
 {
-    return getStatusJSON(includeBraces, detailed
+    return getStatusJSON(includeBraces, detailed);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -539,7 +585,8 @@ String StepDriverTMC2209::getStatusJSON(bool includeBraces, bool detailed) const
     retStr += "\"n\":\"" + _name + "\",";
     retStr += "\"t\":\"TMC2209\",";
     retStr += "\"uSt\":" + String(getMicrosteps()) + ",";
-    retStr += "\"rms\":" + String(getRMSAmps(), 2) + ",";
+    retStr += "\"intpol\":" + String(_requestedParams.intpol) + ",";
+    retStr += "\"rmsMax\":" + String(getMaxRMSAmps(), 2) + ",";
     retStr += "\"gStat\":" + getGSTATJson() + ",";
     retStr += "\"drvSt\":" + getDriverStatusJson();
     if (detailed)
@@ -548,7 +595,6 @@ String StepDriverTMC2209::getStatusJSON(bool includeBraces, bool detailed) const
         retStr += "\"hldM\":" + String(_requestedParams.holdMode) + ",";
         retStr += "\"dly\":" + String(_requestedParams.holdDelay) + ",";
         retStr += "\"inv\":" + String(_requestedParams.invDirn) + ",";
-        retStr += "\"int\":" + String(_requestedParams.intpol) + ",";
         retStr += "\"ohms\":" + String(_requestedParams.extSenseOhms, 2) + ",";
         retStr += "\"xVRf\":" + String(_requestedParams.extVRef) + ",";
         retStr += "\"xuSt\":" + String(_requestedParams.extMStep) + ",";
@@ -556,7 +602,20 @@ String StepDriverTMC2209::getStatusJSON(bool includeBraces, bool detailed) const
         retStr += "\"dPin\":" + String(_requestedParams.dirnPin) + ",";
         retStr += "\"wrPnd\":" + String(anyWritePending) + ",";
         retStr += "\"rdPnd\":" + String(anyReadPending) + ",";
+        retStr += "\"regRdFail\":[";
+        String regRdFailStr;
+        for (uint32_t i = 0; i < _driverRegisters.size(); i++)
+        {
+            if (_driverRegisters[i].isReadableReg && !_driverRegisters[i].readValid)
+            {
+                if (regRdFailStr.length() > 0)
+                    regRdFailStr += ",";
+                regRdFailStr += "\"" + _driverRegisters[i].regName + "\"";
+            }
+        }
+        retStr += regRdFailStr + "],";
         retStr += "\"GS\":\"" + getRegValHex(DRIVER_REGISTER_CODE_GSTAT) + "\",";
+        retStr += "\"IF\":\"" + getRegValHex(DRIVER_REGISTER_CODE_IFCNT) + "\",";
         retStr += "\"DV\":\"" + getRegValHex(DRIVER_REGISTER_CODE_DRV_STATUS) + "\",";
         retStr += "\"GC\":\"" + getRegValHex(DRIVER_REGISTER_CODE_GCONF) + "\",";
         retStr += "\"CH\":\"" + getRegValHex(DRIVER_REGISTER_CODE_CHOPCONF) + "\",";

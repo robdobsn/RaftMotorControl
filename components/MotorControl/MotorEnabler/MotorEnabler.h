@@ -76,7 +76,9 @@ public:
             if (_stepEnablePin >= 0)
             {
                 if (_motorsAreEnabled)
-                    LOG_I(MODULE_PREFIX, "MotorEnabler: motors disabled by %s", timeout ? "timeout" : "command");
+                {
+                    LOG_I(MODULE_PREFIX, "MotorEnabler: motors disabled by %s", timeout ? ("timeout(" + String(_stepDisableSecs) + "s)").c_str() : "command");
+                }
                 digitalWrite(_stepEnablePin, !_stepEnLev);
             }
             _motorsAreEnabled = false;

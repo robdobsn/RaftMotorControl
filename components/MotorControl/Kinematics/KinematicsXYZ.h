@@ -11,7 +11,7 @@
 #include "RaftKinematics.h"
 #include "AxesParams.h"
 
-#define DEBUG_KINEMATICS_XYZ
+// #define DEBUG_KINEMATICS_XYZ
 
 class KinematicsXYZ : public RaftKinematics
 {

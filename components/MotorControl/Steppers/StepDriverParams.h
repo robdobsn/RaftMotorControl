@@ -78,7 +78,7 @@ public:
         address = config.getLong("addr", 0);
 
         // Get status read frequency
-        double statusFreqHz = config.getDouble("statusFreqHz", 0);
+        double statusFreqHz = config.getDouble("statusFreqHz", 1);
         statusIntvMs = statusFreqHz > 0 ? 1000.0 / statusFreqHz : 0;
 
         // Hold mode
