@@ -19,8 +19,8 @@
 
 #define DEBUG_STEPPER_SETUP_CONFIG
 #define DEBUG_RAMP_SETUP_CONFIG
-#define DEBUG_MOTION_CONTROLLER
-#define INFO_LOG_AXES_PARAMS
+// #define DEBUG_MOTION_CONTROLLER
+// #define INFO_LOG_AXES_PARAMS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor

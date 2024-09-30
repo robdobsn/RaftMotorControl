@@ -8,7 +8,7 @@
 
 #include "MotionArgs.h"
 
-#define DEBUG_MOTION_ARGS
+// #define DEBUG_MOTION_ARGS
 
 /// @brief Get field definitions for JSON serialization
 /// @return std::vector<MotionArgs::FieldDefType>

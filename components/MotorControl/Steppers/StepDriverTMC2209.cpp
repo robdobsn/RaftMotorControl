@@ -209,8 +209,6 @@ void StepDriverTMC2209::loop()
             }
         }
         // Request read
-        // TODO
-        LOG_I(MODULE_PREFIX, "%s loop read status registers", _name.c_str());
         _driverRegisters[DRIVER_REGISTER_CODE_IFCNT].readPending = true;
         _driverRegisters[DRIVER_REGISTER_CODE_DRV_STATUS].readPending = true;
         _driverRegisters[DRIVER_REGISTER_CODE_GSTAT].readPending = true;
