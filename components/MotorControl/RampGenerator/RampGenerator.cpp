@@ -275,7 +275,7 @@ void IRAM_ATTR RampGenerator::setupNewBlock(MotionBlock *pBlock)
         if (!_useRampGenTimer)
         {
             LOG_I(MODULE_PREFIX, "setupNewBlock setDirection %d stepsTotal %d numSteppers %d stepType %s", 
-                        stepsTotal >= 0, stepsTotal, _stepperDrivers.size(), stepperDriver->getDriverType().c_str());
+                        stepsTotal >= 0, stepsTotal, _stepperDrivers.size(), _stepperDrivers[axisIdx]->getDriverType().c_str());
         }
 #endif
 
