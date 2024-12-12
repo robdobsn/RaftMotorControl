@@ -83,7 +83,7 @@ int main()
         // printf("Raft inverse kinematics ok %d at %.2f, %.2f actuator %d, %d\n", i, testPoints[i][0], testPoints[i][1], outputValues.getVal(0), outputValues.getVal(1));
 
         // Store the current position in both cartesian and actuator coordinates
-        axesState.setPosition(inputValues, outputValues);
+        axesState.setPosition(inputValues, outputValues, false);
 
         // Compute forward kinematics to test
         std::tuple<double, double> fwdKinematics = forwardKinematics(outputValues.getVal(0), outputValues.getVal(1), l1, l2, kinematics.getOriginTheta2OffsetDegrees());

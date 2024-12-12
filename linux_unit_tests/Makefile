@@ -8,8 +8,10 @@ CXXFLAGS = -Wall -std=c++20 -g
 
 # Include paths
 INCLUDES = -I. -I./RaftCore/components/core/Utils -I./RaftCore/components/core/ArduinoUtils -I./RaftCore/components/core/RaftJson
+INCLUDES += $(shell find ../components/MotorControl -type d -exec echo -I{} \;) 
 INCLUDES += $(shell find ../components/MotorControl/Axes -type d -exec echo -I{} \;) 
 INCLUDES += $(shell find ../components/MotorControl/Kinematics -type d -exec echo -I{} \;)
+INCLUDES += $(shell find ../components/MotorControl/Controller -type d -exec echo -I{} \;)
 INCLUDES += -I/usr/include/eigen3 -I/usr/include/python3.10
 
 MATPLOTLIB_CPP_DEST_DIR=./matplotlib-cpp

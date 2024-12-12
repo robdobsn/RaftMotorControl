@@ -10,6 +10,7 @@
 
 #include "RaftKinematics.h"
 #include "AxesParams.h"
+#include <math.h>
 
 // #define DEBUG_KINEMATICS_XYZ
 

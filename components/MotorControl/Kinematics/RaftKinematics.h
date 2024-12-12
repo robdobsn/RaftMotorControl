@@ -67,7 +67,7 @@ public:
         // Check for any axes not specified and/or require relative motion
         double movementDistSumSq = 0;
         AxesValues<AxisPosDataType> axisPositions;
-        for (int i = 0; i < AXIS_VALUES_MAX_AXES; i++)
+        for (uint32_t i = 0; i < AXIS_VALUES_MAX_AXES; i++)
         {
             // Get target axis position
             AxisPosDataType targetAxisPos = 0;
