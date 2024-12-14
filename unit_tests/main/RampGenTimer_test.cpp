@@ -7,15 +7,14 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <limits.h>
-#include "Logger.h"
+#include "RaftCore.h"
 #include "RampGenTimer.h"
-#include "RaftArduino.h"
 #include "unity.h"
 
 static const char* MODULE_PREFIX = "RampGenTimerTest";
 
 static volatile int localTimerCount = 0;
-void IRAM_ATTR rampGenTimerCallback(void* pObject)
+void FUNCTION_DECORATOR_IRAM_ATTR rampGenTimerCallback(void* pObject)
 {
     localTimerCount = localTimerCount + 1;
 }

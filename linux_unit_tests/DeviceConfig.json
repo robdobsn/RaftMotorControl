@@ -1,0 +1,84 @@
+"Devices":
+[
+    {
+        "class": "Motors",
+        "name": "Motors",
+        "bus": "SERA",
+        "motion": {
+            "geom": "SingleArmSCARA",
+            "blockDistMM": 10,
+            "homeBeforeMove": 0,
+            "maxJunctionDeviationMM": 0.05,
+            "arm1LenMM": 100,
+            "arm2LenMM": 100,
+            "maxRadiusMM": 190,
+            "originTheta2OffsetDegrees": 180
+        },
+        "ramp": {
+            "rampTimerEn": true,
+            "rampTimerUs": 20,
+            "pipelineLen": 100
+        },
+        "motorEn": {
+            "stepEnablePin": "4",
+            "stepEnLev": 0,
+            "stepDisableSecs": 10
+        },
+        "axes": [
+            {
+                "name": "shoulder",
+                "params": {
+                    "unitsPerRot": 360,
+                    "stepsPerRot": 9600,
+                    "maxSpeedUps": 100,
+                    "maxAccUps2": 100
+                },
+                "driver": {
+                    "driver": "TMC2209",
+                    "hw": "local",
+                    "addr": 0,
+                    "stepPin": "15",
+                    "dirnPin": "16",
+                    "invDirn": 0,
+                    "writeOnly": 0,
+                    "extSenseOhms": 0.15,
+                    "extVRef": 0,
+                    "extMStep": 0,
+                    "intpol": 1,
+                    "microsteps": 16,
+                    "rmsAmps": 0.1,
+                    "holdModeOrFactor": 0.5,
+                    "holdDelay": 1,
+                    "pwmFreqKHz": 35
+                }
+            },
+            {
+                "name": "elbow",
+                "params": {
+                    "unitsPerRot": 360,
+                    "stepsPerRot": 9600,
+                    "maxSpeedUps": 100,
+                    "maxAccUps2": 100
+                },
+                "driver": {
+                    "driver": "TMC2209",
+                    "hw": "local",
+                    "addr": 1,
+                    "stepPin": "17",
+                    "dirnPin": "18",
+                    "invDirn": 0,
+                    "writeOnly": 0,
+                    "extSenseOhms": 0.15,
+                    "extVRef": 0,
+                    "extMStep": 0,
+                    "intpol": 1,
+                    "microsteps": 16,
+                    "rmsAmps": 0.1,
+                    "holdModeOrFactor": 0.5,
+                    "holdDelay": 1,
+                    "pwmFreqKHz": 35
+                }
+            }
+        ]
+    }
+]

@@ -6,10 +6,8 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "RaftCore.h"
 #include "StepDriverBase.h"
-#include "RaftArduino.h"
-#include "RaftBus.h"
-#include "BusRequestInfo.h"
 
 // Warning on CRC error
 #define WARN_ON_CRC_ERROR

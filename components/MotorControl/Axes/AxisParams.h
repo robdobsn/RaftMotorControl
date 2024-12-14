@@ -8,9 +8,7 @@
 
 #pragma once
 
-#include "RaftJson.h"
-#include "Logger.h"
-#include "RaftUtils.h"
+#include "RaftCore.h"
 #include "AxesValues.h"
 
 // This class holds the parameters for a single axis of a machine which may be driven by a stepper or servo

@@ -8,10 +8,8 @@
 
 #pragma once
 
-#include "RaftUtils.h"
+#include "RaftCore.h"
 #include "time.h"
-#include "RaftArduino.h"
-#include "ConfigPinMap.h"
 
 class MotorEnabler
 {
@@ -27,9 +25,11 @@ public:
     }
     void deinit()
     {
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         // disable
         if (_stepEnablePin >= 0)
             pinMode(_stepEnablePin, INPUT);
+#endif
     }
 
     bool setup(const RaftJsonIF& config)
@@ -44,12 +44,14 @@ public:
         LOG_I(MODULE_PREFIX, "setup pin %d, actLvl %d, disableAfter %fs", 
                     _stepEnablePin, _stepEnLev, _stepDisableSecs);
 
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         // Enable pin - initially disable
         if (_stepEnablePin >= 0)
         {
             pinMode(_stepEnablePin, OUTPUT);
             digitalWrite(_stepEnablePin, !_stepEnLev);
         }
+#endif
         return true;
     }
 
@@ -65,7 +67,9 @@ public:
                 if (!_motorsAreEnabled)
                     LOG_I(MODULE_PREFIX, "MotorEnabler: enabled, disable after idle %fs (enPin %d level %d)", 
                                 _stepDisableSecs, _stepEnablePin, _stepEnLev);
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
                 digitalWrite(_stepEnablePin, _stepEnLev);
+#endif
             }
             _motorsAreEnabled = true;
             _motorEnLastMillis = millis();
@@ -79,7 +83,9 @@ public:
                 {
                     LOG_I(MODULE_PREFIX, "MotorEnabler: motors disabled by %s", timeout ? ("timeout(" + String(_stepDisableSecs) + "s)").c_str() : "command");
                 }
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
                 digitalWrite(_stepEnablePin, !_stepEnLev);
+#endif
             }
             _motorsAreEnabled = false;
         }

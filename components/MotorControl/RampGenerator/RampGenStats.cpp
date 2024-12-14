@@ -6,7 +6,6 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "esp_attr.h"
 #include "RampGenStats.h"
 
 String RampGenStats::getStatsStr() const
@@ -81,12 +80,12 @@ void RampGenStats::clear()
 #endif
 }
 
-void IRAM_ATTR RampGenStats::startMotionProcessing()
+void FUNCTION_DECORATOR_IRAM_ATTR RampGenStats::startMotionProcessing()
 {
     _isrStartUs = micros();
 }
 
-void IRAM_ATTR RampGenStats::endMotionProcessing()
+void FUNCTION_DECORATOR_IRAM_ATTR RampGenStats::endMotionProcessing()
 {
     uint32_t elapsedUs = micros() - _isrStartUs;
     // LOG_I(MODULE_PREFIX, "Elapsed uS %d", elapsedUs);
@@ -103,7 +102,7 @@ void IRAM_ATTR RampGenStats::endMotionProcessing()
         _isrMaxUs = elapsedUs;
 }
 
-void IRAM_ATTR RampGenStats::update(uint32_t curAccumulatorStep, 
+void FUNCTION_DECORATOR_IRAM_ATTR RampGenStats::update(uint32_t curAccumulatorStep, 
         uint32_t curStepRatePerTTicks,
         uint32_t curAccumulatorNS,
         int axisIdxWithMaxSteps,
@@ -123,13 +122,13 @@ void IRAM_ATTR RampGenStats::update(uint32_t curAccumulatorStep,
 #endif
 }
 
-void IRAM_ATTR RampGenStats::stepDirn(uint32_t axisIdx, bool dirnPositive)
+void FUNCTION_DECORATOR_IRAM_ATTR RampGenStats::stepDirn(uint32_t axisIdx, bool dirnPositive)
 {
 #ifdef RAMP_GEN_DETAILED_STATS
 #endif
 }
 
-void IRAM_ATTR RampGenStats::stepStart(uint32_t axisIdx)
+void FUNCTION_DECORATOR_IRAM_ATTR RampGenStats::stepStart(uint32_t axisIdx)
 {
 #ifdef RAMP_GEN_DETAILED_STATS
 #endif

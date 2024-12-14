@@ -8,8 +8,7 @@
 
 #pragma once
 
-#include <stdint.h>
-#include "RaftArduino.h"
+#include "RaftCore.h"
 
 #define RAMP_GEN_DETAILED_STATS
 

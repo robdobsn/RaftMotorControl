@@ -6,9 +6,9 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "StepDriverTMC2209.h"
-#include "RaftArduino.h"
 #include <math.h>
+#include "RaftCore.h"
+#include "StepDriverTMC2209.h"
 
 #define WARN_ON_DRIVER_BUSY
 
@@ -90,16 +90,20 @@ bool StepDriverTMC2209::setup(const String& stepperName, const StepDriverParams&
     // Setup step pin
     if (stepperParams.stepPin >= 0)
     {
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         // Setup the pin
         pinMode(stepperParams.stepPin, OUTPUT);
         digitalWrite(stepperParams.stepPin, false);
+#endif
     }
 
     // Setup dirn pin
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
     if (stepperParams.dirnPin >= 0)
     {
         pinMode(stepperParams.dirnPin, OUTPUT);
     }
+#endif
     
     // Hardware is not initialised
     _hwIsSetup = true;
@@ -353,7 +357,7 @@ void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double ho
 /// @brief Set direction
 /// @param dirn - direction
 /// @param forceSet - force set
-void IRAM_ATTR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
+void FUNCTION_DECORATOR_IRAM_ATTR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
 {
     // Check valid
     if (!_hwIsSetup)
@@ -382,7 +386,9 @@ void IRAM_ATTR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
         // Set the pin value if valid and direction is not done via serial bus
         if ((_requestedParams.dirnPin >= 0) && !_useBusForDirectionReversal)
         {
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
             digitalWrite(_requestedParams.dirnPin, hwDirn);
+#endif
         }
     }
     else
@@ -404,7 +410,7 @@ void IRAM_ATTR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Start a step
-void IRAM_ATTR StepDriverTMC2209::stepStart()
+void FUNCTION_DECORATOR_IRAM_ATTR StepDriverTMC2209::stepStart()
 {
     // Check hardware pin
     if (_hwIsSetup && (_requestedParams.stepPin >= 0))
@@ -416,7 +422,9 @@ void IRAM_ATTR StepDriverTMC2209::stepStart()
         }
 #endif
         // Set the pin value
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         digitalWrite(_requestedParams.stepPin, true);
+#endif
         _stepCurActive = true;
     }
     else
@@ -433,12 +441,14 @@ void IRAM_ATTR StepDriverTMC2209::stepStart()
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief End a step
-bool IRAM_ATTR StepDriverTMC2209::stepEnd()
+bool FUNCTION_DECORATOR_IRAM_ATTR StepDriverTMC2209::stepEnd()
 {
     if (_stepCurActive && (_requestedParams.stepPin >= 0))
     {
         _stepCurActive = false;
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         digitalWrite(_requestedParams.stepPin, false);
+#endif
 #ifdef DEBUG_STEPPING_ONLY_IF_NOT_ISR
         if (!_usingISR)
         {

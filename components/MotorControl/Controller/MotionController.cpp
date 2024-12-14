@@ -7,15 +7,12 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <math.h>
+#include "RaftCore.h"
 #include "MotionController.h"
-#include "ConfigPinMap.h"
-#include "RaftUtils.h"
 #include "AxesValues.h"
 #include "StepDriverBase.h"
 #include "StepDriverTMC2209.h"
 #include "EndStops.h"
-#include "RaftArduino.h"
-#include "RaftJsonPrefixed.h"
 
 #define DEBUG_STEPPER_SETUP_CONFIG
 #define DEBUG_RAMP_SETUP_CONFIG

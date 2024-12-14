@@ -8,13 +8,11 @@
 
 #pragma once
 
-#include "Logger.h"
+#include "RaftCore.h"
 #include "MotionBlock.h"
 #include "RampGenStats.h"
-#include "RampGenTimer.h"
 #include "MotionPipeline.h"
 
-class RampGenTimer;
 class StepDriverBase;
 class EndStops;
 
@@ -68,7 +66,11 @@ public:
     // Check if using timer ISR
     bool isUsingTimerISR() const
     {
+#if defined(ESP_PLATFORM)
         return _useRampGenTimer;
+#else
+        return false;
+#endif
     }
 
     // Progress
@@ -81,7 +83,11 @@ public:
     void debugShowStats();
     String getDebugJSON(bool includeBraces) const
     {
+#if defined(ESP_PLATFORM)
         return _rampGenTimer.getDebugJSON(includeBraces);
+#else
+        return includeBraces ? "{}" : "";
+#endif
     }
 
 private:
@@ -107,8 +113,10 @@ private:
     MotionPipeline _motionPipeline;
 
     // Ramp generation timer
+#if defined(ESP_PLATFORM)
     RampGenTimer _rampGenTimer;
     bool _useRampGenTimer = false;
+#endif
     uint32_t _stepGenPeriodNs = 0;
     uint32_t _minStepRatePerTTicks = 0;
 
@@ -159,7 +167,7 @@ private:
 
     /// @brief Timer callback
     /// @param pObject Object to call (this class instance)
-    static IRAM_ATTR void rampGenTimerCallback(void* pObject)
+    static FUNCTION_DECORATOR_IRAM_ATTR void rampGenTimerCallback(void* pObject)
     {
         if (pObject)
             ((RampGenerator*)pObject)->generateMotionPulses();

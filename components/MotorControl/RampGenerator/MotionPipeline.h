@@ -62,13 +62,13 @@ public:
     }
 
     // Can get from queue (i.e. not empty)
-    virtual bool IRAM_ATTR canGet() override final
+    virtual bool FUNCTION_DECORATOR_IRAM_ATTR canGet() override final
     {
         return _pipelinePosn.canGet();
     }
 
     // Get from queue
-    inline bool IRAM_ATTR get(MotionBlock &block)
+    inline bool FUNCTION_DECORATOR_IRAM_ATTR get(MotionBlock &block)
     {
         // Check if queue is empty
         if (!_pipelinePosn.canGet())
@@ -81,7 +81,7 @@ public:
     }
 
     // Remove last element from queue
-    virtual bool IRAM_ATTR remove() override final
+    virtual bool FUNCTION_DECORATOR_IRAM_ATTR remove() override final
     {
         // Check if queue is empty
         if (!_pipelinePosn.canGet())

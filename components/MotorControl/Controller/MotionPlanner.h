@@ -12,7 +12,7 @@
 #include "MotionArgs.h"
 #include "AxesParams.h"
 #include "AxesState.h"
-#include "RampGenTimer.h"
+#include "RampGenConsts.h"
 
 class MotionPlanner
 {
@@ -62,7 +62,7 @@ private:
     // Minimum planner speed mm/s
     float _minimumPlannerSpeedMMps = 0.0f;
     // Step generation timer period ns
-    uint32_t _stepGenPeriodNs = RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT * 1000;
+    uint32_t _stepGenPeriodNs = RAMP_GEN_PERIOD_US_DEFAULT * 1000;
 
     // Axes parameters
     const AxesParams& _axesParams;

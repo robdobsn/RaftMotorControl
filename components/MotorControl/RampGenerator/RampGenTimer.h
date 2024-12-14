@@ -8,12 +8,8 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <vector>
-#include "RaftArduino.h"
-#include "freertos/FreeRTOS.h"
-#include "freertos/semphr.h"
-#include "driver/gptimer.h"
+#include "RaftCore.h"
+#include "RampGenConsts.h"
 
 // #define RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
 
@@ -43,15 +39,12 @@ public:
     uint64_t getDebugRawCount();
     String getDebugJSON(bool includeBraces) const;
     
-    // Default ramp generation timer period us
-    static constexpr uint32_t RAMP_GEN_PERIOD_US_DEFAULT = 20;
-
 private:
     bool _timerIsSetup = false;
     bool _timerIsEnabled = false;
 
     // Configured timer period
-    uint32_t _timerPeriodUs = RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT;
+    uint32_t _timerPeriodUs = RAMP_GEN_PERIOD_US_DEFAULT;
 
     // Timer handle
     gptimer_handle_t _timerHandle = nullptr;
@@ -75,7 +68,7 @@ private:
 #endif
 
     // ISR
-    static IRAM_ATTR bool _staticGPTimerCB(gptimer_t* timer, const gptimer_alarm_event_data_t* eventData, void* arg)
+    static FUNCTION_DECORATOR_IRAM_ATTR bool _staticGPTimerCB(gptimer_t* timer, const gptimer_alarm_event_data_t* eventData, void* arg)
     {
         // Check the arg is valid
         if (!arg)
@@ -84,7 +77,7 @@ private:
         pRampGenTimer->_nonStaticGPTimerCB();
         return false;
     }
-    void IRAM_ATTR _nonStaticGPTimerCB()
+    void FUNCTION_DECORATOR_IRAM_ATTR _nonStaticGPTimerCB()
     {
         // Bump count
         _timerISRCount = _timerISRCount + 1;

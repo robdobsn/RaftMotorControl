@@ -4,9 +4,7 @@
 #include <fstream>
 #include <vector>
 
-#include "utils.h"
-#include "RaftUtils.h"
-#include "RaftJsonPrefixed.h"
+#include "RaftCore.h"
 #include "KinematicsSingleArmSCARA.h"
 
 /// @brief Compute the forward kinematics of a 2R planar robot
