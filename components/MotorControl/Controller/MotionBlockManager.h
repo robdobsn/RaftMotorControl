@@ -48,9 +48,9 @@ public:
     /// @brief Add non-ramped motion block (used for homing, etc)
     /// @param args MotionArgs define the parameters for motion including target position, speed, etc
     /// @param motionPipeline Motion pipeline to add the block to
-    /// @return true if the block was added
+    /// @return RaftRetCode
     /// @note args may be modified by this function
-    bool addNonRampedBlock(MotionArgs& args, MotionPipelineIF& motionPipeline);
+    RaftRetCode addNonRampedBlock(MotionArgs& args, MotionPipelineIF& motionPipeline);
 
     /// @brief Add a ramped motion block (which may be split up)
     /// @param args MotionArgs define the parameters for motion including target position, speed, etc
@@ -157,7 +157,12 @@ private:
     /// @brief Add to planner
     /// @param args MotionArgs define the parameters for motion
     /// @param motionPipeline Motion pipeline to add the block to
-    /// @return true if successful
+    /// @return RaftRetCode
+    /// - RAFT_OK if the motion was successfully added to the pipeline
+    /// - RAFT_BUSY if the pipeline is full
+    /// - RAFT_INVALID_DATA if geometry not set
+    /// - RAFT_INVALID_OPERATION if homing is needed
+    /// - RAFT_CANNOT_START if no movement
     /// @note The planner is responsible for computing suitable motion
-    bool addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline);
+    RaftRetCode addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline);
 };

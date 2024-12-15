@@ -31,7 +31,7 @@ MotorControl::~MotorControl()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// @brief Setup the device
+/// @brief Setup the device
 void MotorControl::setup()
 {
     // Setup motion controller
@@ -49,11 +49,16 @@ void MotorControl::setup()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// @brief Main loop for the device (called frequently)
+/// @brief Main loop for the device (called frequently)
 void MotorControl::loop()
 {
     // Loop motion controller
     _motionController.loop();
+
+    // Check if ready to record status
+    if (!Raft::isTimeout(millis(), _readLastMs, _recordStatusMs))
+        return;
+    _readLastMs = millis();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -95,7 +100,9 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
         {
             // Get axis position
             isFresh = true;
-            AxesValues<AxisPosDataType> pos = _motionController.getLastMonitoredPos();
+            AxesValues<AxisPosDataType> pos;
+            AxesValues<AxisStepsDataType> actuatorPos;
+            _motionController.getLastMonitoredPos(actuatorPos, pos);
             switch(tolower(param[0]))
             {
                 case 'x': return pos.getVal(0);
@@ -117,50 +124,18 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get binary data from the device
-/// @param formatCode format code for the command
-/// @param buf (out) buffer to receive the binary data
-/// @param bufMaxLen maximum length of data to return
-/// @return RaftRetCode
-RaftRetCode MotorControl::getDataBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen) const
-{
-    return RAFT_NOT_IMPLEMENTED;
-}
-
-// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// /// @brief Send a binary command to the device
-// /// @param formatCode Format code for the command
-// /// @param pData Pointer to the data
-// /// @param dataLen Length of the data
-// /// @return RaftRetCode
-// RaftRetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
-// {
-//     // Check format code
-//     if (formatCode == MULTISTEPPER_CMD_BINARY_FORMAT_1)
-//     {
-//         // Check length ok
-//         if (dataLen < MULTISTEPPER_OPCODE_POS + 1)
-//             return RAFT_INVALID_DATA;
-
-//         // Check op-code
-//         switch(pData[MULTISTEPPER_OPCODE_POS])
-//         {
-//             case MULTISTEPPER_MOVETO_OPCODE:
-//             {
-//                 handleCmdBinary_MoveTo(pData + MULTISTEPPER_OPCODE_POS + 1, dataLen - MULTISTEPPER_OPCODE_POS - 1);
-//                 break;
-//             }
-//         }
-//     }
-//     return RAFT_OK;
-// }
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Send a JSON command to the device
 /// @param jsonCmd JSON command
 /// @return RaftRetCode
+/// - RAFT_OK if the motion was successfully added to the pipeline
+/// - RAFT_BUSY if the pipeline is full
+/// - RAFT_INVALID_DATA if geometry not set
+/// - RAFT_INVALID_OPERATION if homing is needed
+/// - RAFT_CANNOT_START if no movement
+/// - RAFT_NOT_IMPLEMENTED if the command is not implemented
 RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 {
+    RaftRetCode retCode = RAFT_NOT_IMPLEMENTED;
     // Extract command from JSON
     RaftJson jsonInfo(cmdJSON);
     String cmd = jsonInfo.getString("cmd", "");
@@ -172,43 +147,21 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
         String cmdStr = motionArgs.toJSON();
         LOG_I(MODULE_PREFIX, "sendCmdJSON %s", cmdStr.c_str());
 #endif
-        _motionController.moveTo(motionArgs);
+        retCode = _motionController.moveTo(motionArgs);
     }
     else if (cmd.equalsIgnoreCase("maxCurrent"))
     {
         float maxCurrentA = jsonInfo.getDouble("maxCurrentA", 0);
         uint32_t axisIdx = jsonInfo.getInt("axisIdx", 0);
-        _motionController.setMaxMotorCurrentAmps(axisIdx, maxCurrentA);
+        retCode = _motionController.setMaxMotorCurrentAmps(axisIdx, maxCurrentA);
     }
     else if (cmd.equalsIgnoreCase("offAfter"))
     {
         float motorOnTimeAfterMoveSecs = jsonInfo.getDouble("offAfterS", 0);
-        _motionController.setMotorOnTimeAfterMoveSecs(motorOnTimeAfterMoveSecs);
+        retCode = _motionController.setMotorOnTimeAfterMoveSecs(motorOnTimeAfterMoveSecs);
     }
-    return RAFT_OK;
+    return retCode;
 }
-
-// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// /// @brief Handle binary move-to command
-// /// @param pData Pointer to the data
-// /// @param dataLen Length of the data
-// void MotorControl::handleCmdBinary_MoveTo(const uint8_t* pData, uint32_t dataLen)
-// {
-//     // Check length ok
-//     if (dataLen < MULTISTEPPER_MOVETO_BINARY_FORMAT_POS + 1)
-//         return;
-    
-//     // Check version of args
-//     if (pData[MULTISTEPPER_MOVETO_BINARY_FORMAT_POS] != MULTISTEPPER_MOTION_ARGS_BINARY_FORMAT_1)
-//         return;
-
-//     // Check args length
-//     if (dataLen < sizeof(MotionArgs))
-//         return;
-
-//     // Send the request for interpretation
-//     _motionController.moveTo((const MotionArgs&)*pData);
-// }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get debug string
@@ -217,3 +170,62 @@ String MotorControl::getDebugJSON(bool includeBraces) const
 {
     return _motionController.getDebugJSON(includeBraces);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+/// @brief Get time of last device status update
+/// @param includeElemOnlineStatusChanges Include element online status changes in the status update time
+/// @param includePollDataUpdates Include poll data updates in the status update time
+/// @return Time of last device status update in milliseconds
+uint32_t MotorControl::getDeviceInfoTimestampMs(bool includeElemOnlineStatusChanges, bool includePollDataUpdates) const
+{
+    if (includePollDataUpdates)
+        return _readLastMs;
+    return 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the device status as JSON
+/// @return JSON string
+String MotorControl::getStatusJSON() const
+{
+    // Buffer
+    std::vector<uint8_t> data;
+    formDeviceDataResponse(data);
+ 
+    // Return JSON
+    return "{\"0\":{\"x\":\"" + Raft::getHexStr(data.data(), data.size()) + "\",\"_t\":\"" + getPublishDeviceType() + "\"}}";
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/// @brief Form device data response
+/// @param data (out) Data buffer
+void MotorControl::formDeviceDataResponse(std::vector<uint8_t>& data) const
+{
+    // Get average and store in format expected by conversion function
+    uint16_t timeVal = (uint16_t)(_readLastMs & 0xFFFF);
+    data.push_back((timeVal >> 8) & 0xFF);
+    data.push_back(timeVal & 0xFF);
+
+    // Get position
+    AxesValues<AxisStepsDataType> actuatorPos;
+    AxesValues<AxisPosDataType> realWorldPos;
+    _motionController.getLastMonitoredPos(actuatorPos, realWorldPos);
+    for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+    {
+        int32_t posVal = actuatorPos.getVal(axisIdx);
+        data.push_back((posVal >> 24) & 0xFF);
+        data.push_back((posVal >> 16) & 0xFF);
+        data.push_back((posVal >> 8) & 0xFF);
+        data.push_back(posVal & 0xFF);
+    }
+    for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+    {
+        int32_t posVal = realWorldPos.getVal(axisIdx);
+        data.push_back((posVal >> 24) & 0xFF);
+        data.push_back((posVal >> 16) & 0xFF);
+        data.push_back((posVal >> 8) & 0xFF);
+        data.push_back(posVal & 0xFF);
+    }
+
+}
+

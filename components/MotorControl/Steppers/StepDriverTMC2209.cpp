@@ -285,7 +285,7 @@ uint32_t StepDriverTMC2209::getMRESFieldValue(uint32_t microsteps) const
 /// @param iholdOut - ihold value
 void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double holdFactor, 
             StepDriverParams::HoldModeEnum holdMode, bool& vsenseOut, uint32_t& irunOut, uint32_t& iholdOut) const
-{
+{            
     // External sense resistor value in ohms
     const double R_sense = _requestedParams.extSenseOhms;
     if (R_sense <= 0)
@@ -339,11 +339,13 @@ void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double ho
     }
 
 #ifdef DEBUG_IHOLD_IRUN_CALCS
+    char tmpHoldStr[30];
+    snprintf(tmpHoldStr, sizeof(tmpHoldStr), "FactorBy%0.2f", holdFactor);
     LOG_I(MODULE_PREFIX, "convertRMSCurrentToRegs %s reqCurAmps %0.2f RSense %.2f holdMode=%s => IRUN %d (actual %.2fA) IHOLD %d (actual %.2fA) vsense %d",
             _name.c_str(), 
             reqCurrentAmps, 
             R_sense,
-            holdMode == StepDriverParams::HOLD_MODE_FACTOR ? ("FactorBy" + String(holdFactor,2)).c_str() : 
+            holdMode == StepDriverParams::HOLD_MODE_FACTOR ? tmpHoldStr : 
                 (holdMode == StepDriverParams::HOLD_MODE_FREEWHEEL ? "Freewheel" : "PassiveBraking"),
             irunOut, 
             (Vref * (irunOut + 1)) / (32 * R_sense),
@@ -463,7 +465,8 @@ bool FUNCTION_DECORATOR_IRAM_ATTR StepDriverTMC2209::stepEnd()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set the max motor current
 /// @param maxMotorCurrentAmps - max motor current in Amps
-void StepDriverTMC2209::setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
+/// @return RaftRetCode
+RaftRetCode StepDriverTMC2209::setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
 {
     // Set the max motor current
     _requestedParams.rmsAmps = maxMotorCurrentAmps;
@@ -473,6 +476,8 @@ void StepDriverTMC2209::setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
 
     // Set the current
     setMainRegs();
+
+    return RaftRetCode::RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -574,10 +579,10 @@ String StepDriverTMC2209::getDebugJSON(bool includeBraces, bool detailed) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// @brief Get status JSON
-// @param includeBraces - include braces
-// @param detailed - detailed
-// @return JSON string
+/// @brief Get status JSON
+/// @param includeBraces - include braces
+/// @param detailed - detailed
+/// @return JSON string
 String StepDriverTMC2209::getStatusJSON(bool includeBraces, bool detailed) const
 {
     bool anyWritePending = false;

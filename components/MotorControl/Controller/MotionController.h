@@ -45,9 +45,14 @@ public:
 
     /// @brief Move to a specific location (flat or ramped and relative or absolute)
     /// @param args MotionArgs specify the motion to be performed
-    /// @return true if the motion was successfully added to the pipeline
+    /// @return RaftRetCode
+    /// - RAFT_OK if the motion was successfully added to the pipeline
+    /// - RAFT_BUSY if the pipeline is full
+    /// - RAFT_INVALID_DATA if geometry not set
+    /// - RAFT_INVALID_OPERATION if homing is needed
+    /// - RAFT_CANNOT_START if no movement
     /// @note The args may be modified so cannot be const
-    bool moveTo(MotionArgs &args);
+    RaftRetCode moveTo(MotionArgs &args);
 
     /// @brief Pause (or resume) all motion
     /// @param pauseIt true to pause, false to resume
@@ -73,8 +78,10 @@ public:
     // Get last commanded position
     AxesValues<AxisPosDataType> getLastCommandedPos() const;
 
-    // Get last monitored position
-    AxesValues<AxisPosDataType> getLastMonitoredPos() const;
+    /// @brief Get last monitored position
+    /// @param actuatorPos Actuator position
+    /// @param realWorldPos Real world position
+    void getLastMonitoredPos(AxesValues<AxisStepsDataType> actuatorPos, AxesValues<AxisPosDataType> realWorldPos) const;
 
     // Get data (diagnostics)
     String getDataJSON(RaftDeviceJSONLevel level) const;
@@ -83,13 +90,16 @@ public:
     uint32_t streamGetQueueSlots() const;
 
     // Motor on time after move
-    void setMotorOnTimeAfterMoveSecs(float motorOnTimeAfterMoveSecs)
+    RaftRetCode setMotorOnTimeAfterMoveSecs(float motorOnTimeAfterMoveSecs)
     {
-        _motorEnabler.setMotorOnTimeAfterMoveSecs(motorOnTimeAfterMoveSecs);
+        return _motorEnabler.setMotorOnTimeAfterMoveSecs(motorOnTimeAfterMoveSecs);
     }
 
-    // Set max motor current (amps)
-    void setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrent);
+    /// @brief Set max motor current (amps)
+    /// @param axisIdx Axis index
+    /// @param maxMotorCurrent Max motor current (amps)
+    /// @return RaftRetCode
+    RaftRetCode setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrent);
 
     // Get debug JSON
     String getDebugJSON(bool includeBraces) const;
@@ -132,9 +142,14 @@ private:
 
     /// @brief Move to a specific location (relative or absolute) using ramped motion
     /// @param args MotionArgs specify the motion to be performed
-    /// @return true if the motion was successfully added to the pipeline
+    /// @return RaftRetCode
+    /// - RAFT_OK if the motion was successfully added to the pipeline
+    /// - RAFT_BUSY if the pipeline is full
+    /// - RAFT_INVALID_DATA if geometry not set
+    /// - RAFT_INVALID_OPERATION if homing is needed
+    /// - RAFT_CANNOT_START if no movement
     /// @note The args may be modified so cannot be const
-    bool moveToRamped(MotionArgs& args);
+    RaftRetCode moveToRamped(MotionArgs& args);
 
     // Defaults
     static constexpr const char* DEFAULT_DRIVER_CHIP = "TMC2209";

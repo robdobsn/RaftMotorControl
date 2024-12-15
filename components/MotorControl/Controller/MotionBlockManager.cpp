@@ -6,6 +6,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "RaftCore.h"
 #include "MotionBlockManager.h"
 #include "RaftKinematicsSystem.h"
 
@@ -62,7 +63,7 @@ void MotionBlockManager::setup(uint32_t stepGenPeriodUs, const RaftJsonIF& motio
 /// @param motionPipeline Motion pipeline to add the block to
 /// @return true if successful
 /// @note args may be modified by this function
-bool MotionBlockManager::addNonRampedBlock(MotionArgs& args, MotionPipelineIF& motionPipeline)
+RaftRetCode MotionBlockManager::addNonRampedBlock(MotionArgs& args, MotionPipelineIF& motionPipeline)
 {
     AxesValues<AxisStepsDataType> curPosStepsFromOrigin = _motionPlanner.moveToNonRamped(args, 
                     _axesState, 
@@ -72,7 +73,7 @@ bool MotionBlockManager::addNonRampedBlock(MotionArgs& args, MotionPipelineIF& m
     // Since this was a non-ramped move units from home is now invalid
     _axesState.setStepsFromOriginAndInvalidateUnits(curPosStepsFromOrigin);
 
-    return true;
+    return RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -153,16 +154,21 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
 /// @brief Add to planner
 /// @param args MotionArgs define the parameters for motion
 /// @param motionPipeline Motion pipeline to add the block to
-/// @return true if successful
+/// @return RaftRetCode 
+/// - RAFT_OK if the motion was successfully added to the pipeline
+/// - RAFT_BUSY if the pipeline is full
+/// - RAFT_INVALID_DATA if geometry not set
+/// - RAFT_INVALID_OPERATION if homing is needed
+/// - RAFT_CANNOT_START if no movement
 /// @note The planner is responsible for computing suitable motion
 ///       and args may be modified by this function
-bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline)
+RaftRetCode MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline)
 {
     // Get kinematics
     if (!_pRaftKinematics)
     {
         LOG_W(MODULE_PREFIX, "addToPlanner no geometry set");
-        return false;
+        return RAFT_INVALID_DATA;
     }
 
     // Convert the move to actuator coordinates
@@ -174,17 +180,17 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
             args.constrainToBounds());
 
     // Plan the move
-    bool moveOk = _motionPlanner.moveToRamped(args, actuatorCoords, 
+    RaftRetCode moveResult = _motionPlanner.moveToRamped(args, actuatorCoords, 
                         _axesState, _axesParams, motionPipeline);
 #ifdef DEBUG_COORD_UPDATES
-    LOG_I(MODULE_PREFIX, "addToPlanner moveOk %d pt %s actuator %s", 
-            moveOk,
+    LOG_I(MODULE_PREFIX, "addToPlanner moveResult %s pt %s actuator %s", 
+            Raft::getRetCodeStr(moveResult),
             args.getAxesPosConst().getDebugJSON("cur").c_str(),
             actuatorCoords.toJSON().c_str());
 #endif
 
     // Correct overflows if necessary
-    if (moveOk)
+    if (moveResult == RAFT_OK)
     {
         // TODO check that this is already done in moveToRamped - it updates _lastCommandedAxisPos
         // // Update axisMotion
@@ -203,9 +209,9 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
     }
     else
     {
-        LOG_W(MODULE_PREFIX, "addToPlanner moveToRamped failed");
+        LOG_W(MODULE_PREFIX, "addToPlanner FAIL %s", Raft::getRetCodeStr(moveResult));
     }
-    return moveOk;
+    return moveResult;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

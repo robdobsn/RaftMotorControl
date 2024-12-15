@@ -51,8 +51,9 @@ public:
         return "None";
     }
 
-    virtual void setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
+    virtual RaftRetCode setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
     {
+        return RAFT_OK;
     }
 
     virtual String getDebugJSON(bool includeBraces, bool detailed) const

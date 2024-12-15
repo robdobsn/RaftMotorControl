@@ -42,8 +42,12 @@ public:
     /// @param curAxesState Current state of the axes including position and origin status
     /// @param axesParams Parameters for the axes
     /// @param motionPipeline Motion pipeline to add the block to
-    /// @return true if a block was added
-    bool moveToRamped(const MotionArgs& args,
+    /// @return RaftRetCode 
+    /// - RAFT_OK if the motion was successfully added to the pipeline
+    /// - RAFT_BUSY if the pipeline is full
+    /// - RAFT_INVALID_OPERATION if homing is needed
+    /// - RAFT_CANNOT_START if no movement
+    RaftRetCode moveToRamped(const MotionArgs& args,
                     const AxesValues<AxisStepsDataType>& destActuatorCoords,
                     AxesState& curAxesState,
                     const AxesParams& axesParams,

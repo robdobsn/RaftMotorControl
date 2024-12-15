@@ -40,7 +40,7 @@ public:
 
     virtual String getStatusJSON(bool includeBraces, bool detailed) const override final;
 
-    virtual void setMaxMotorCurrentAmps(float maxMotorCurrentAmps) override final;
+    virtual RaftRetCode setMaxMotorCurrentAmps(float maxMotorCurrentAmps) override final;
 
     virtual bool isOperatingOk() const override final
     {

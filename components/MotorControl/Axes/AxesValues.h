@@ -186,7 +186,7 @@ public:
         {
             if (axisIdx != 0)
                 jsonStr += ",";
-            jsonStr += String(_vals[axisIdx]);
+            jsonStr += std::to_string(_vals[axisIdx]).c_str();
         }
         jsonStr += "]";
         return jsonStr;

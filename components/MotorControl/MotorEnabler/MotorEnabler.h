@@ -104,11 +104,12 @@ public:
             enableMotors(false, true);
     }
 
-    void setMotorOnTimeAfterMoveSecs(float motorOnTimeAfterMoveSecs)
+    RaftRetCode setMotorOnTimeAfterMoveSecs(float motorOnTimeAfterMoveSecs)
     {
         if (motorOnTimeAfterMoveSecs <= 0)
             motorOnTimeAfterMoveSecs = 1;
         _stepDisableSecs = motorOnTimeAfterMoveSecs;
+        return RAFT_OK;
     }
 
 private:

@@ -30,7 +30,7 @@ std::vector<MotionArgs::FieldDefType> MotionArgs::getFieldDefs()
     fieldDefs.push_back(FieldDefType("speed", &_targetSpeed, "double"));
     fieldDefs.push_back(FieldDefType("exDist", &_extrudeDistance, "double"));
     fieldDefs.push_back(FieldDefType("feedrate", &_feedrate, "double"));
-    fieldDefs.push_back(FieldDefType("idx", &_motionTrackingIdx, "double"));
+    fieldDefs.push_back(FieldDefType("idx", &_motionTrackingIdx, "int"));
     fieldDefs.push_back(FieldDefType("en", &_enableMotors, "bool"));
     fieldDefs.push_back(FieldDefType("ampsPCofMax", &_ampsPercentOfMax, "double"));
     fieldDefs.push_back(FieldDefType("clearQ", &_preClearMotionQueue, "bool"));
@@ -61,7 +61,12 @@ void MotionArgs::fromJSON(const char* jsonStr)
             bool fieldVal = cmdJson.getBool(fieldDef._name.c_str(), 0);
             *((bool*)fieldDef._pValue) = fieldVal;
         }
-        else if (fieldDef._dataType.equalsIgnoreCase("double"))
+        else if (fieldDef._dataType.equalsIgnoreCase("int"))
+        {
+            int fieldVal = cmdJson.getLong(fieldDef._name.c_str(), 0);
+            *((int*)fieldDef._pValue) = fieldVal;
+        }
+        else
         {
             double fieldVal = cmdJson.getDouble(fieldDef._name.c_str(), 0);
             *((double*)fieldDef._pValue) = fieldVal;
@@ -98,15 +103,20 @@ String MotionArgs::toJSON()
     // Expand fields
     for (auto &fieldDef : fieldDefs)
     {
-        // Get value
+        char tmpStr[100];
         if (fieldDef._dataType.equalsIgnoreCase("bool"))
         {
-            jsonStr += "\"" + fieldDef._name + "\":" + String(*((bool*)fieldDef._pValue)) + ",";
+            snprintf(tmpStr, sizeof(tmpStr), "\"%s\":%d,", fieldDef._name.c_str(), (*((bool*)fieldDef._pValue)));
         }
-        else if (fieldDef._dataType.equalsIgnoreCase("double"))
+        else if (fieldDef._dataType.equalsIgnoreCase("int"))
         {
-            jsonStr += "\"" + fieldDef._name + "\":" + String(*((double*)fieldDef._pValue)) + ",";
+            snprintf(tmpStr, sizeof(tmpStr), "\"%s\":%d,", fieldDef._name.c_str(), (*((int*)fieldDef._pValue)));
         }
+        else
+        {
+            snprintf(tmpStr, sizeof(tmpStr), "\"%s\":%.2f,", fieldDef._name.c_str(), (*((double*)fieldDef._pValue)));
+        }
+        jsonStr += tmpStr;
     }
 
     // Expand endstops

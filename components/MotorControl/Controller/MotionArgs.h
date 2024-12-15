@@ -338,7 +338,7 @@ private:
     double _ampsPercentOfMax = 0;
 
     // Motion tracking index - used to track execution of motion requests
-    uint32_t _motionTrackingIdx = 0;
+    int _motionTrackingIdx = 0;
 
     // End stops
     AxisEndstopChecks _endstops;
