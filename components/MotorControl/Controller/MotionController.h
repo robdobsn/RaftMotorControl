@@ -32,7 +32,8 @@ public:
 
     /// @brief Setup the motion controller
     /// @param config JSON configuration
-    void setup(const RaftJsonIF& config);
+    /// @param timeNowMs Current system time in milliseconds
+    void setup(const RaftJsonIF& config, uint32_t timeNowMs);
 
     /// @brief Deinit the motion controller
     void deinit();
@@ -40,11 +41,16 @@ public:
     /// @brief Setup bus to use for serial comms with driver and whether to use it for direction reversal
     void setupSerialBus(RaftBus* pBus, bool useBusForDirectionReversal);
 
-    /// @brief Main loop for the device (called frequently)
-    void loop();
+    /// @brief Loop
+    /// @param timeNowMs Current system time in milliseconds (only relevant for debug or non-timer ISR)
+    /// @param nonTimerIntervalMs Interval between calls if not using timer ISR
+    /// @note Called frequently to allow the MotionController to do background work such as adding split-up blocks to the
+    /// pipeline and checking if motors should be disabled after a period of no motion
+    void loop(uint32_t timeNowMs, uint32_t nonTimerIntervalMs);
 
     /// @brief Move to a specific location (flat or ramped and relative or absolute)
     /// @param args MotionArgs specify the motion to be performed
+    /// @param timeNowMs Current system time in milliseconds
     /// @return RaftRetCode
     /// - RAFT_OK if the motion was successfully added to the pipeline
     /// - RAFT_BUSY if the pipeline is full
@@ -52,7 +58,7 @@ public:
     /// - RAFT_INVALID_OPERATION if homing is needed
     /// - RAFT_CANNOT_START if no movement
     /// @note The args may be modified so cannot be const
-    RaftRetCode moveTo(MotionArgs &args);
+    RaftRetCode moveTo(MotionArgs &args, uint32_t timeNowMs);
 
     /// @brief Pause (or resume) all motion
     /// @param pauseIt true to pause, false to resume
@@ -81,7 +87,7 @@ public:
     /// @brief Get last monitored position
     /// @param actuatorPos Actuator position
     /// @param realWorldPos Real world position
-    void getLastMonitoredPos(AxesValues<AxisStepsDataType> actuatorPos, AxesValues<AxisPosDataType> realWorldPos) const;
+    void getLastMonitoredPos(AxesValues<AxisStepsDataType>& actuatorPos, AxesValues<AxisPosDataType>& realWorldPos) const;
 
     // Get data (diagnostics)
     String getDataJSON(RaftDeviceJSONLevel level) const;
@@ -98,8 +104,9 @@ public:
     /// @brief Set max motor current (amps)
     /// @param axisIdx Axis index
     /// @param maxMotorCurrent Max motor current (amps)
+    /// @param timeNowMs Current time in milliseconds
     /// @return RaftRetCode
-    RaftRetCode setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrent);
+    RaftRetCode setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrent, uint32_t timeNowMs);
 
     // Get debug JSON
     String getDebugJSON(bool includeBraces) const;
@@ -133,9 +140,9 @@ private:
     bool _isPaused = false;
 
     // Helpers
-    void setupAxes(const RaftJsonIF& config);
-    void setupAxisHardware(uint32_t axisIdx, const RaftJsonIF& config);
-    void setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig);
+    void setupAxes(const RaftJsonIF& config, uint32_t timeNowMs);
+    void setupAxisHardware(uint32_t axisIdx, const RaftJsonIF& config, uint32_t timeNowMs);
+    void setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig, uint32_t timeNowMs);
     void setupEndStops(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig);
     void setupRampGenerator(const RaftJsonIF& config);
     bool moveToNonRamped(const MotionArgs& args);
@@ -149,7 +156,7 @@ private:
     /// - RAFT_INVALID_OPERATION if homing is needed
     /// - RAFT_CANNOT_START if no movement
     /// @note The args may be modified so cannot be const
-    RaftRetCode moveToRamped(MotionArgs& args);
+    RaftRetCode moveToRamped(MotionArgs& args, uint32_t timeNowMs);
 
     // Defaults
     static constexpr const char* DEFAULT_DRIVER_CHIP = "TMC2209";

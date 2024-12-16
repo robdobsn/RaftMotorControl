@@ -68,13 +68,14 @@ PYBIND11_MODULE(motor_control, m) {
         .def("has_capability", &MotorControl::hasCapability, py::arg("capability"))
         .def("get_data_json", &MotorControl::getDataJSON, py::arg("level") = DEVICE_JSON_LEVEL_MIN)
         .def("set_motor_on_time_after_move_secs", &MotorControl::setMotorOnTimeAfterMoveSecs, py::arg("motor_on_time_secs"))
-        .def("set_max_motor_current_amps", &MotorControl::setMaxMotorCurrentAmps, py::arg("axis_idx"), py::arg("max_motor_current"))
+        .def("set_max_motor_current_amps", &MotorControl::setMaxMotorCurrentAmps, py::arg("axis_idx"), py::arg("max_motor_current"), py::arg("time_now_ms"))
         .def("get_debug_json", &MotorControl::getDebugJSON, py::arg("include_braces"))
         .def("get_device_info_timestamp_ms", &MotorControl::getDeviceInfoTimestampMs,
             py::arg("include_elem_online_status_changes"),
             py::arg("include_poll_data_updates"),
             "Get time of the last device status update in milliseconds")
-       .def("get_status_json", [](const MotorControl& self) {
+        .def("get_status_json", [](const MotorControl& self) {
                     return std::string(self.getStatusJSON().c_str()); },
-            "Get the device status as a JSON string");        
+            "Get the device status as a JSON string")
+        .def("set_test_time_ms", &MotorControl::setTestTimeMs, py::arg("test_time_ms"), py::arg("non_timer_interval_ms"));
 }

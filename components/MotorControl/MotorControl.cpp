@@ -34,8 +34,11 @@ MotorControl::~MotorControl()
 /// @brief Setup the device
 void MotorControl::setup()
 {
+    // Check if test time set
+    uint32_t timeNowMs = _testTimeMs > 0 ? _testTimeMs : millis();
+
     // Setup motion controller
-    _motionController.setup(deviceConfig);
+    _motionController.setup(deviceConfig, timeNowMs);
 
     // Setup serial bus
     String serialBusName = deviceConfig.getString("bus", "");
@@ -52,13 +55,16 @@ void MotorControl::setup()
 /// @brief Main loop for the device (called frequently)
 void MotorControl::loop()
 {
+    // Check if test time set
+    uint32_t timeNowMs = _testTimeMs > 0 ? _testTimeMs : millis();
+
     // Loop motion controller
-    _motionController.loop();
+    _motionController.loop(timeNowMs, _testNonTimerIntervalMs);
 
     // Check if ready to record status
-    if (!Raft::isTimeout(millis(), _readLastMs, _recordStatusMs))
+    if (!Raft::isTimeout(timeNowMs, _readLastMs, _recordStatusMs))
         return;
-    _readLastMs = millis();
+    _readLastMs = timeNowMs;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -135,7 +141,10 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
 /// - RAFT_NOT_IMPLEMENTED if the command is not implemented
 RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 {
+    // Check if test time set
+    uint32_t timeNowMs = _testTimeMs > 0 ? _testTimeMs : millis();
     RaftRetCode retCode = RAFT_NOT_IMPLEMENTED;
+
     // Extract command from JSON
     RaftJson jsonInfo(cmdJSON);
     String cmd = jsonInfo.getString("cmd", "");
@@ -147,13 +156,13 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
         String cmdStr = motionArgs.toJSON();
         LOG_I(MODULE_PREFIX, "sendCmdJSON %s", cmdStr.c_str());
 #endif
-        retCode = _motionController.moveTo(motionArgs);
+        retCode = _motionController.moveTo(motionArgs, timeNowMs);
     }
     else if (cmd.equalsIgnoreCase("maxCurrent"))
     {
         float maxCurrentA = jsonInfo.getDouble("maxCurrentA", 0);
         uint32_t axisIdx = jsonInfo.getInt("axisIdx", 0);
-        retCode = _motionController.setMaxMotorCurrentAmps(axisIdx, maxCurrentA);
+        retCode = _motionController.setMaxMotorCurrentAmps(axisIdx, maxCurrentA, timeNowMs);
     }
     else if (cmd.equalsIgnoreCase("offAfter"))
     {
@@ -201,10 +210,12 @@ String MotorControl::getStatusJSON() const
 /// @param data (out) Data buffer
 void MotorControl::formDeviceDataResponse(std::vector<uint8_t>& data) const
 {
-    // Get average and store in format expected by conversion function
-    uint16_t timeVal = (uint16_t)(_readLastMs & 0xFFFF);
-    data.push_back((timeVal >> 8) & 0xFF);
-    data.push_back(timeVal & 0xFF);
+    // Resize to sufficient for new data
+    uint32_t curPos = data.size();
+    data.resize(curPos + 2 + AXIS_VALUES_MAX_AXES * 8);
+
+    // Get average and store in format expected by conversion functions
+    curPos = Raft::setBEUInt16(data.data(), curPos, _readLastMs & 0xFFFF);
 
     // Get position
     AxesValues<AxisStepsDataType> actuatorPos;
@@ -212,20 +223,8 @@ void MotorControl::formDeviceDataResponse(std::vector<uint8_t>& data) const
     _motionController.getLastMonitoredPos(actuatorPos, realWorldPos);
     for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
     {
-        int32_t posVal = actuatorPos.getVal(axisIdx);
-        data.push_back((posVal >> 24) & 0xFF);
-        data.push_back((posVal >> 16) & 0xFF);
-        data.push_back((posVal >> 8) & 0xFF);
-        data.push_back(posVal & 0xFF);
+        curPos = Raft::setBEInt32(data.data(), curPos, actuatorPos.getVal(axisIdx));
+        curPos = Raft::setBEFloat32(data.data(), curPos, realWorldPos.getVal(axisIdx));
     }
-    for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
-    {
-        int32_t posVal = realWorldPos.getVal(axisIdx);
-        data.push_back((posVal >> 24) & 0xFF);
-        data.push_back((posVal >> 16) & 0xFF);
-        data.push_back((posVal >> 8) & 0xFF);
-        data.push_back(posVal & 0xFF);
-    }
-
 }
 

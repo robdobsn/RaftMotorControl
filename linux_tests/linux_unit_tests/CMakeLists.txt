@@ -6,11 +6,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Include RaftCore
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../RaftCore/build_linux/install")
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../RaftCore/build_linux/install")
 find_package(RaftCore REQUIRED)
 
 # Include RaftMotorControl
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../build_linux/install")
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../build_linux/install")
 find_package(RaftMotorControl REQUIRED)
 
 # Dependencies
@@ -40,7 +40,8 @@ include_directories(${MATPLOTLIB_CPP_DEST_DIR})
 # Source files
 set(SOURCES
     # raftkinematicstest.cpp
-    MotorControlTest.cpp
+    # MotorControlTest.cpp
+    raftkinematicstest.cpp
 )
 
 # Create the executable

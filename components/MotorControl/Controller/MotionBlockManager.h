@@ -35,8 +35,9 @@ public:
 
     /// @brief Pump the block splitter - should be called regularly 
     /// @param motionPipeline Motion pipeline to add the block to
+    /// @param timeNowMs Current time in milliseconds
     /// @note This is used to manage splitting of a single moveTo command into multiple blocks
-    void pumpBlockSplitter(MotionPipelineIF& motionPipeline);
+    void pumpBlockSplitter(MotionPipelineIF& motionPipeline, uint32_t timeNowMs);
 
     /// @brief Check if the motion block manager is busy
     /// @return true if busy
@@ -73,9 +74,9 @@ public:
     }
 
     /// @brief Convert actuator coords to real-world coords
-    /// @param targetActuator Target actuator coordinates
+    /// @param actuatorPos actuator coordinates
     /// @param outPt Output real-world coordinates
-    void actuatorToPt(const AxesValues<AxisStepsDataType> &targetActuator, 
+    void actuatorToPt(const AxesValues<AxisStepsDataType> &actuatorPos, 
                 AxesValues<AxisPosDataType> &outPt) const
     {
         // Get kinematics
@@ -84,7 +85,7 @@ public:
             LOG_W(MODULE_PREFIX, "actuatorToPt no kinematics set");
             return;
         }
-        _pRaftKinematics->actuatorToPt(targetActuator, outPt, _axesState, _axesParams);
+        _pRaftKinematics->actuatorToPt(actuatorPos, outPt, _axesState, _axesParams);
     }
 
     /// @brief Pre-process coordinates

@@ -20,14 +20,20 @@ public:
     StepDriverBase();
     virtual ~StepDriverBase();
 
-    // Setup
-    virtual bool setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR);
+    /// @brief Setup
+    /// @param stepperName - name of stepper
+    /// @param stepperParams - parameters for the stepper
+    /// @param usingISR - true if using ISR
+    /// @param timeNowMs - current time in milliseconds
+    /// @return true if successful
+    virtual bool setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR, uint32_t timeNowMs);
 
     // Called after bus has been connected
     virtual void setupSerialBus(RaftBus* pBus, bool useBusForDirectionReversal);
 
-    // Loop - called frequently
-    virtual void loop();
+    /// @brief Loop - called frequently
+    /// @param timeNowMs - current time in milliseconds
+    virtual void loop(uint32_t timeNowMs);
 
     // Microsteps
     virtual void setMicrosteps(uint32_t microsteps)
@@ -51,7 +57,7 @@ public:
         return "None";
     }
 
-    virtual RaftRetCode setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
+    virtual RaftRetCode setMaxMotorCurrentAmps(float maxMotorCurrentAmps, uint32_t timeNowMs)
     {
         return RAFT_OK;
     }
@@ -100,7 +106,7 @@ protected:
     void writeTrinamicsRegister(const char* pRegName, uint8_t regAddr, uint32_t data);
 
     // Start a read from Trinamics register
-    void startReadTrinamicsRegister(uint32_t readRegisterIdx);
+    void startReadTrinamicsRegister(uint32_t readRegisterIdx, uint32_t timeNowMs);
 
     // Calculate Trinamics CRC
     uint8_t calcTrinamicsCRC(const uint8_t* pData, uint32_t len) const;

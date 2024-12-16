@@ -38,12 +38,14 @@ public:
     /// @param curAxesState Current position (in both units and steps from origin)
     /// @param axesParams Axes parameters
     /// @param constrainToBounds Constrain out of bounds (if not constrained then return false if the point is OOB and OOB is not allowed)
+    /// @param minimizeMotion Minimize motion to the target point
     /// @return false if out of bounds or invalid
     virtual bool ptToActuator(const AxesValues<AxisPosDataType>& targetPt,
-                              AxesValues<AxisStepsDataType>& outActuator,
-                              const AxesState& curAxesState,
-                              const AxesParams& axesParams,
-                              bool constrainToBounds) const override final
+                            AxesValues<AxisStepsDataType>& outActuator,
+                            const AxesState& curAxesState,
+                            const AxesParams& axesParams,
+                            bool constrainToBounds,
+                            bool minimizeMotion) const override final
     {
         // Check machine bounds
         AxesValues<AxisPosDataType> targetPtCopy = targetPt;
@@ -71,9 +73,6 @@ public:
             // Convert to steps
             outActuator.setVal(axisIdx, round(axisValFromHome * axesParams.getStepsPerUnit(axisIdx)));
 
-            // TODO - decide if this origin steps needed
-            // outActuator.setVal(axisIdx, round(axisValFromHome * axesParams.getStepsPerUnit(axisIdx) + axesParams.gethomeOffsetSteps(axisIdx)));
-
 #ifdef DEBUG_KINEMATICS_XYZ
             LOG_I(MODULE_PREFIX, "ptToActuator axis%d %.2f(%.2f)-> %d",
                   axisIdx,
@@ -99,8 +98,6 @@ public:
         // Perform conversion
         for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
         {
-            // TODO - decide if this origin steps needed
-            // double ptVal = targetActuator.getVal(axisIdx) - axesParams.gethomeOffsetSteps(axisIdx);
             double ptVal = targetActuator.getVal(axisIdx);
             ptVal = ptVal / axesParams.getStepsPerUnit(axisIdx);
             outPt.setVal(axisIdx, ptVal);

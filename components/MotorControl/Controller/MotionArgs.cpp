@@ -36,6 +36,7 @@ std::vector<MotionArgs::FieldDefType> MotionArgs::getFieldDefs()
     fieldDefs.push_back(FieldDefType("clearQ", &_preClearMotionQueue, "bool"));
     fieldDefs.push_back(FieldDefType("stop", &_stopMotion, "bool"));
     fieldDefs.push_back(FieldDefType("constrain", &_constrainToBounds, "bool"));
+    fieldDefs.push_back(FieldDefType("minMotion", &_minimizeMotion, "bool"));
     return fieldDefs;
 }
 

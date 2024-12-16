@@ -32,7 +32,7 @@ RaftJson testConfig = R"(
         "bus": "SERA",
         "motion": {
             "geom": "XYZ",
-            "blockDistMM": 1,
+            "blockDistMM": 10,
             "homeBeforeMove": 0,
             "maxJunctionDeviationMM": 0.05
         },

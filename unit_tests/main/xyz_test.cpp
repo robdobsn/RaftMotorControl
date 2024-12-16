@@ -93,7 +93,7 @@ TEST_CASE("XYZ test 1", "[Geometry]")
     // Create kinematics params
     RaftJson config(
         R"({"geom": "XYZ",
-            "blockDistMM": 1,
+            "blockDistMM": 10,
             "homeBeforeMove": 0,
             "maxJunctionDeviationMM": 0.05}
             )");

@@ -60,14 +60,15 @@ StepDriverTMC2209::StepDriverTMC2209()
 /// @param stepperName - name of stepper
 /// @param stepperParams - parameters for the stepper
 /// @param usingISR - true if using ISR
+/// @param timeNowMs - current time in milliseconds
 /// @return true if successful
-bool StepDriverTMC2209::setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR)
+bool StepDriverTMC2209::setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR, uint32_t timeNowMs)
 {
     // Debug
     LOG_I(MODULE_PREFIX, "setup %s", stepperName.c_str());
 
     // Configure base
-    StepDriverBase::setup(stepperName, stepperParams, usingISR);
+    StepDriverBase::setup(stepperName, stepperParams, usingISR, timeNowMs);
     _singleWireReadWrite = true;
 
     // Check if UART is used (otherwise assume that configuration is done in hardware)
@@ -84,7 +85,7 @@ bool StepDriverTMC2209::setup(const String& stepperName, const StepDriverParams&
         }
 
         // Set main registers
-        setMainRegs();
+        setMainRegs(timeNowMs);
     }
 
     // Setup step pin
@@ -120,10 +121,11 @@ bool StepDriverTMC2209::setup(const String& stepperName, const StepDriverParams&
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Loop - called frequently
-void StepDriverTMC2209::loop()
+/// @param timeNowMs - current time in milliseconds
+void StepDriverTMC2209::loop(uint32_t timeNowMs)
 {
     // Loop base
-    StepDriverBase::loop();
+    StepDriverBase::loop(timeNowMs);
 
     // Check if driver is ready
     if (isBusy())
@@ -133,9 +135,9 @@ void StepDriverTMC2209::loop()
         {
             if (_warnOnDriverBusyStartTimeMs == 0)
             {
-                _warnOnDriverBusyStartTimeMs = millis();
+                _warnOnDriverBusyStartTimeMs = timeNowMs;
             }
-            else if (Raft::isTimeout(millis(), _warnOnDriverBusyStartTimeMs, WARN_ON_DRIVER_BUSY_AFTER_MS))
+            else if (Raft::isTimeout(timeNowMs, _warnOnDriverBusyStartTimeMs, WARN_ON_DRIVER_BUSY_AFTER_MS))
             {
                 LOG_E(MODULE_PREFIX, "%s loop driver busy for too long", _name.c_str());
                 _warnOnDriverBusyStartTimeMs = 0;
@@ -151,9 +153,9 @@ void StepDriverTMC2209::loop()
     _warnOnDriverBusyDone = false;
 
     // Check if ready for loop checks
-    if (!Raft::isTimeout(millis(), _loopLastTimeMs, LOOP_INTERVAL_MS))
+    if (!Raft::isTimeout(timeNowMs, _loopLastTimeMs, LOOP_INTERVAL_MS))
         return;
-    _loopLastTimeMs = millis();
+    _loopLastTimeMs = timeNowMs;
 
     // Check read in progress
     if (isReadInProgress())
@@ -194,13 +196,13 @@ void StepDriverTMC2209::loop()
 #ifdef DEBUG_REGISTER_READ_START
         LOG_I(MODULE_PREFIX, "%s loop start read regCode %d", _name.c_str(), rdPendRegIdx);
 #endif
-        startReadTrinamicsRegister(rdPendRegIdx);
+        startReadTrinamicsRegister(rdPendRegIdx, timeNowMs);
         _driverRegisters[rdPendRegIdx].readPending = false;
         return;
     }
 
     // Check for time to read status registers
-    if ((_statusReadIntervalMs != 0) && Raft::isTimeout(millis(), _statusReadLastTimeMs, _statusReadIntervalMs))
+    if ((_statusReadIntervalMs != 0) && Raft::isTimeout(timeNowMs, _statusReadLastTimeMs, _statusReadIntervalMs))
     {
         // Check if GSTAT register has been read successfully
         if (_driverRegisters[DRIVER_REGISTER_CODE_GSTAT].readValid)
@@ -216,17 +218,17 @@ void StepDriverTMC2209::loop()
         _driverRegisters[DRIVER_REGISTER_CODE_IFCNT].readPending = true;
         _driverRegisters[DRIVER_REGISTER_CODE_DRV_STATUS].readPending = true;
         _driverRegisters[DRIVER_REGISTER_CODE_GSTAT].readPending = true;
-        _statusReadLastTimeMs = millis();
+        _statusReadLastTimeMs = timeNowMs;
     }
 
     // Check for config reset
     if (_configResetRequired)
     {
-        if (Raft::isTimeout(millis(), _configSetLastTimeMs, CONFIG_RESET_AFTER_MS))
+        if (Raft::isTimeout(timeNowMs, _configSetLastTimeMs, CONFIG_RESET_AFTER_MS))
         {
             // Reset config
             LOG_I(MODULE_PREFIX, "%s loop reset config registers", _name.c_str());
-            setMainRegs();
+            setMainRegs(timeNowMs);
             _configResetRequired = false;
         }
     }
@@ -465,8 +467,9 @@ bool FUNCTION_DECORATOR_IRAM_ATTR StepDriverTMC2209::stepEnd()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set the max motor current
 /// @param maxMotorCurrentAmps - max motor current in Amps
+/// @param timeNowMs - current time in milliseconds
 /// @return RaftRetCode
-RaftRetCode StepDriverTMC2209::setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
+RaftRetCode StepDriverTMC2209::setMaxMotorCurrentAmps(float maxMotorCurrentAmps, uint32_t timeNowMs)
 {
     // Set the max motor current
     _requestedParams.rmsAmps = maxMotorCurrentAmps;
@@ -475,17 +478,17 @@ RaftRetCode StepDriverTMC2209::setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
     LOG_I(MODULE_PREFIX, "setMaxMotorCurrentAmps %s %0.2fA", _name.c_str(), maxMotorCurrentAmps);
 
     // Set the current
-    setMainRegs();
+    setMainRegs(timeNowMs);
 
     return RaftRetCode::RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set the main registers with stored values
-void StepDriverTMC2209::setMainRegs()
+void StepDriverTMC2209::setMainRegs(uint32_t timeNowMs)
 {
     // Set time of config setting
-    _configSetLastTimeMs = millis();
+    _configSetLastTimeMs = timeNowMs;
 
     // Get CHOPCONF vsense value and IRUN, IHOLD values from required RMS current
     bool vsenseValue = false;

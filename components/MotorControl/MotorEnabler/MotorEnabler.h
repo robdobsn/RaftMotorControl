@@ -55,7 +55,11 @@ public:
         return true;
     }
 
-    void enableMotors(bool en, bool timeout)
+    /// @brief Enable/disable motors
+    /// @param en true to enable, false to disable
+    /// @param timeout true if this is a timeout causing the disable
+    /// @param timeNowMs Current time in milliseconds
+    void enableMotors(bool en, bool timeout, uint32_t timeNowMs)
     {
         static const char* MODULE_PREFIX = "MotorEnabler";
         // LOG_I(MODULE_PREFIX, "Enable %d currentlyEn %d pin %d disable level %d, disable after time %f",
@@ -72,7 +76,7 @@ public:
 #endif
             }
             _motorsAreEnabled = true;
-            _motorEnLastMillis = millis();
+            _motorEnLastMillis = timeNowMs;
             time(&_motorEnLastUnixTime);
         }
         else
@@ -96,12 +100,14 @@ public:
         return _motorEnLastUnixTime;
     }
 
-    void loop()
+    /// @brief Loop
+    /// @param timeNowMs Current system time in milliseconds
+    void loop(uint32_t timeNowMs)
     {
         // Check for motor enable timeout
-        if (_motorsAreEnabled && Raft::isTimeout(millis(), _motorEnLastMillis,
+        if (_motorsAreEnabled && Raft::isTimeout(timeNowMs, _motorEnLastMillis,
                                                     (unsigned long)(_stepDisableSecs * 1000)))
-            enableMotors(false, true);
+            enableMotors(false, true, timeNowMs);
     }
 
     RaftRetCode setMotorOnTimeAfterMoveSecs(float motorOnTimeAfterMoveSecs)

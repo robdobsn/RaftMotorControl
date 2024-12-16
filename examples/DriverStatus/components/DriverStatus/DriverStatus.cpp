@@ -72,13 +72,13 @@ void DriverStatus::setup()
 
 }
 
-void DriverStatus::loop()
+void DriverStatus::loop(uint32_t timeNowMs)
 {
     // Check for loop rate
-    if (Raft::isTimeout(millis(), _lastLoopMs, 1000))
+    if (Raft::isTimeout(timeNowMs, _lastLoopMs, 1000))
     {
         // Update last loop time
-        _lastLoopMs = millis();
+        _lastLoopMs = timeNowMs;
 
         // Check status of driver
         if (!_pMotorControl)

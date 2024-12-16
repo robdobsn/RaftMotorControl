@@ -40,7 +40,12 @@ namespace AxisUtils
     /// @return Wrapped angle in degrees
     double wrapDegrees(double angleDegrees)
     {
-        return angleDegrees - 360.0 * floor(angleDegrees / 360.0);
+        double wrapped = fmod(angleDegrees, 360.0);
+        if (std::fabs(wrapped) < 1e-2)
+            return 0.0;            
+        if (wrapped < 0.0)
+            wrapped += 360.0;
+        return wrapped;
     }
 
     /// @brief Convert angle from radians to degrees

@@ -242,7 +242,7 @@ public:
     }
 
     // Defaults
-    static constexpr double _maxBlockDistanceMM_default = 0.0f;
+    static constexpr double _maxBlockDistanceMM_default = 10.0f;
     static constexpr double maxJunctionDeviationMM_default = 0.05f;
 
 private:

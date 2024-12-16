@@ -59,10 +59,11 @@ public:
     /// Executes a motion request with the specified parameters.
     /// @code
     /// {
-    ///   "cmd": "motion",
-    ///   "axesPos": [100, 200, 300],
-    ///   "isRelative": false,
-    ///   "feedrate": 150.0
+    //    "cmd": "motion",
+    //    "pos":[{"a":0,"p":100.0},{"a":1,"p":100.0}],     // Target positions for the axes in units
+    //    "rel": false,                                    // Move to absolute positions (false) or relative (true)
+    //    "feedrate": 100.0,                               // Feedrate percentage
+    //    "ramped": true                                   // Whether the motion should be ramped or constant velocity
     /// }
     /// @endcode
     ///
@@ -110,10 +111,11 @@ public:
     /// @brief Set max motor current (amps)
     /// @param axisIdx Axis index
     /// @param maxMotorCurrent Max motor current (amps)
+    /// @param timeNowMs Current time in milliseconds
     /// @return RaftRetCode
-    RaftRetCode setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrent)
+    RaftRetCode setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrent, uint32_t timeNowMs)
     {
-        return _motionController.setMaxMotorCurrentAmps(axisIdx, maxMotorCurrent);
+        return _motionController.setMaxMotorCurrentAmps(axisIdx, maxMotorCurrent, timeNowMs);
     }
 
     /// @brief Get time of last device status update
@@ -130,6 +132,13 @@ public:
     /// @return JSON string
     virtual String getDebugJSON(bool includeBraces) const override final;
 
+    /// @brief Set test time ms
+    void setTestTimeMs(uint32_t testTimeMs, uint32_t nonTimerIntervalMs)
+    {
+        _testTimeMs = testTimeMs;
+        _testNonTimerIntervalMs = nonTimerIntervalMs;
+    }
+
 private:
     // Motion controller
     MotionController _motionController;
@@ -140,7 +149,11 @@ private:
     // Record status
     static const uint32_t RECORD_STATUS_MS_DEFAULT = 200;
     uint32_t _recordStatusMs = RECORD_STATUS_MS_DEFAULT;
-    uint32_t _readLastMs = 0;    
+    uint32_t _readLastMs = 0;
+
+    // Test time
+    uint32_t _testTimeMs = 0;
+    uint32_t _testNonTimerIntervalMs = 0;
     
     // Form device data response
     void formDeviceDataResponse(std::vector<uint8_t>& data) const;

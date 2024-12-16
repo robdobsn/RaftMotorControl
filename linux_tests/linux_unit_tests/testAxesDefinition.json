@@ -4,12 +4,12 @@
     "bus": "SERA",
     "motion": {
         "geom": "SingleArmSCARA",
-        "blockDistMM": 1,
+        "blockDistMM": 10,
         "homeBeforeMove": 0,
         "maxJunctionDeviationMM": 0.05,
         "arm1LenMM": 100,
         "arm2LenMM": 100,
-        "maxRadiusMM": 190,
+        "maxRadiusMM": 180,
         "originTheta2OffsetDegrees": 180
     },
     "ramp": {
@@ -27,7 +27,7 @@
             "name": "X",
             "params": {
                 "unitsPerRot": 360,
-                "stepsPerRot": 360,
+                "stepsPerRot": 3600,
                 "maxSpeedUps": 100,
                 "maxAccUps2": 100
             },
@@ -54,7 +54,7 @@
             "name": "Y",
             "params": {
                 "unitsPerRot": 360,
-                "stepsPerRot": 360,
+                "stepsPerRot": 3600,
                 "maxSpeedUps": 100,
                 "maxAccUps2": 100
             },

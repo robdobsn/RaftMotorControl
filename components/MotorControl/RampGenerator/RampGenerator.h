@@ -28,9 +28,10 @@ public:
             const std::vector<StepDriverBase*>& stepperDrivers,
             const std::vector<EndStops*>& axisEndStops);
 
-    // Must be called frequently - if useRampGenTimer is false (in setup) then
-    // this function generates stepping pulses
-    void loop();
+    /// @brief Loop - must be called very frequently if not using timer ISR (maybe called less frequently if using timer ISR)
+    /// @param timeNowMs Current system time in milliseconds (only relevant for debug or non-timer ISR)
+    /// @param nonTimerIntervalMs Interval between calls if not using timer ISR
+    void loop(uint32_t timeNowMs, uint32_t nonTimerIntervalMs);
 
     // Start / stop / pause
     void start();
@@ -66,11 +67,7 @@ public:
     // Check if using timer ISR
     bool isUsingTimerISR() const
     {
-#if defined(ESP_PLATFORM)
         return _useRampGenTimer;
-#else
-        return false;
-#endif
     }
 
     // Progress
@@ -97,7 +94,6 @@ private:
 
     // Consts
     static constexpr uint32_t PIPELINE_LEN_DEFAULT = 100;
-    static constexpr uint32_t NON_TIMER_SERVICE_CALL_MIN_MS = 5;
 
     // If this is true nothing will move
     volatile bool _isPaused = true;
@@ -115,8 +111,8 @@ private:
     // Ramp generation timer
 #if defined(ESP_PLATFORM)
     RampGenTimer _rampGenTimer;
-    bool _useRampGenTimer = false;
 #endif
+    bool _useRampGenTimer = false;
     uint32_t _stepGenPeriodNs = 0;
     uint32_t _minStepRatePerTTicks = 0;
 
@@ -158,7 +154,7 @@ private:
     RampGenStats _stats;
 
     // Helpers
-    void generateMotionPulses();
+    void generateMotionPulses(uint32_t timeNowMs);
     bool handleStepEnd();
     void setupNewBlock(MotionBlock *pBlock);
     void updateMSAccumulator(MotionBlock *pBlock);
@@ -170,7 +166,7 @@ private:
     static FUNCTION_DECORATOR_IRAM_ATTR void rampGenTimerCallback(void* pObject)
     {
         if (pObject)
-            ((RampGenerator*)pObject)->generateMotionPulses();
+            ((RampGenerator*)pObject)->generateMotionPulses(millis());
     }
 
     // ISR count

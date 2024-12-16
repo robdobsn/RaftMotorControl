@@ -14,11 +14,12 @@
 #include "StepDriverTMC2209.h"
 #include "EndStops.h"
 
-#define DEBUG_STEPPER_SETUP_CONFIG
-#define DEBUG_RAMP_SETUP_CONFIG
+// #define DEBUG_STEPPER_SETUP_CONFIG
+// #define DEBUG_RAMP_SETUP_CONFIG
 // #define DEBUG_MOTION_CONTROLLER
 // #define INFO_LOG_AXES_PARAMS
-#define DEBUG_MOVE_TO_COMMAND
+// #define DEBUG_MOVE_TO_COMMAND
+// #define DEBUG_LOOP_STEPPER_DRIVER
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -41,13 +42,14 @@ MotionController::~MotionController()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Setup
 /// @param config Configuration (from JSON)
-void MotionController::setup(const RaftJsonIF& config)
+/// @param timeNowMs Current system time in milliseconds
+void MotionController::setup(const RaftJsonIF& config, uint32_t timeNowMs)
 {
     // De-init first
     deinit();
 
     // Setup axes (and associated hardware)
-    setupAxes(config);
+    setupAxes(config, timeNowMs);
 #ifdef INFO_LOG_AXES_PARAMS
     _axesParams.debugLog();
 #endif
@@ -100,18 +102,20 @@ void MotionController::deinit()
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Loop
+/// @param timeNowMs Current system time in milliseconds (only relevant for debug or non-timer ISR)
+/// @param nonTimerIntervalMs Interval between calls if not using timer ISR
 /// @note Called frequently to allow the MotionController to do background work such as adding split-up blocks to the
 /// pipeline and checking if motors should be disabled after a period of no motion
-void MotionController::loop()
+void MotionController::loop(uint32_t timeNowMs, uint32_t nonTimerIntervalMs)
 {
-    // LOG_I(MODULE_PREFIX, "loop stepper drivers %d", _stepperDrivers.size());
-
     // Loop stepper drivers
     for (StepDriverBase* pStepDriver : _stepperDrivers)
     {
-        // LOG_I(MODULE_PREFIX, "loop stepper driver %d", pStepDriver->getSerialAddress());
+#ifdef DEBUG_LOOP_STEPPER_DRIVER
+        LOG_I(MODULE_PREFIX, "loop stepper driver %d", pStepDriver ? pStepDriver->getSerialAddress() : -1);
+#endif
         if (pStepDriver)
-            pStepDriver->loop();
+            pStepDriver->loop(timeNowMs);
     }
 
     // // Check if stop requested
@@ -130,18 +134,18 @@ void MotionController::loop()
     // }
 
     // Loop motor enabler
-    _motorEnabler.loop();
+    _motorEnabler.loop(timeNowMs);
     
     // Call process on motion actuator - only really used for testing as
     // motion is handled by ISR
-    _rampGenerator.loop();
+    _rampGenerator.loop(timeNowMs, nonTimerIntervalMs);
 
     // Process for trinamic devices
     // TODO
     // _trinamicsController.process();
 
     // Process any split-up blocks to be added to the pipeline
-    _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline());
+    _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline(), timeNowMs);
 
     // Loop homing
     // TODO
@@ -153,7 +157,7 @@ void MotionController::loop()
         //  || _motionHoming.isHomingInProgress()
          )
     {
-        _motorEnabler.enableMotors(true, false);
+        _motorEnabler.enableMotors(true, false, timeNowMs);
     }
 }
 
@@ -168,6 +172,7 @@ bool MotionController::isBusy() const
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Move to a specific location (flat or ramped and relative or absolute)
 /// @param args MotionArgs specify the motion to be performed
+/// @param timeNowMs Current system time in milliseconds
 /// @return RaftRetCode
 /// - RAFT_OK if the motion was successfully added to the pipeline
 /// - RAFT_BUSY if the pipeline is full
@@ -175,7 +180,7 @@ bool MotionController::isBusy() const
 /// - RAFT_INVALID_OPERATION if homing is needed
 /// - RAFT_CANNOT_START if no movement
 /// @note The args may be modified so cannot be const
-RaftRetCode MotionController::moveTo(MotionArgs &args)
+RaftRetCode MotionController::moveTo(MotionArgs &args, uint32_t timeNowMs)
 {
 #ifdef DEBUG_MOVE_TO_COMMAND
     LOG_I(MODULE_PREFIX, "moveTo %s args %s", 
@@ -198,7 +203,7 @@ RaftRetCode MotionController::moveTo(MotionArgs &args)
     // Handle disable motors
     if (!args.isEnableMotors())
     {
-        _motorEnabler.enableMotors(false, false);
+        _motorEnabler.enableMotors(false, false, timeNowMs);
         return RAFT_OK;
     }
 
@@ -206,7 +211,7 @@ RaftRetCode MotionController::moveTo(MotionArgs &args)
     if (args.isRamped())
     {
         // Ramped (variable speed) motion
-        return moveToRamped(args);
+        return moveToRamped(args, timeNowMs);
     }
 
     // Handle flat motion (no ramp) - motion is defined in terms of steps (not mm)
@@ -226,6 +231,7 @@ void MotionController::pause(bool pauseIt)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Move to a specific location (relative or absolute) using ramped motion
 /// @param args MotionArgs specify the motion to be performed
+/// @param timeNowMs Current system time in milliseconds
 /// @return RaftRetCode
 /// - RAFT_OK if the motion was successfully added to the pipeline
 /// - RAFT_BUSY if the pipeline is full
@@ -233,7 +239,7 @@ void MotionController::pause(bool pauseIt)
 /// - RAFT_INVALID_OPERATION if homing is needed
 /// - RAFT_CANNOT_START if no movement
 /// @note The args may be modified so cannot be const
-RaftRetCode MotionController::moveToRamped(MotionArgs& args)
+RaftRetCode MotionController::moveToRamped(MotionArgs& args, uint32_t timeNowMs)
 {
     // Check not busy
     if (_blockManager.isBusy())
@@ -273,7 +279,7 @@ RaftRetCode MotionController::moveToRamped(MotionArgs& args)
     _blockManager.addRampedBlock(args, numBlocks);
 
     // Pump the block splitter to prime the pipeline with blocks
-    _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline());
+    _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline(), timeNowMs);
 
     // Ok
     return RAFT_OK;
@@ -340,7 +346,7 @@ uint32_t MotionController::streamGetQueueSlots() const
 // Setup axes
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupAxes(const RaftJsonIF& config)
+void MotionController::setupAxes(const RaftJsonIF& config, uint32_t timeNowMs)
 {
     // Setup stepper driver array
     _stepperDrivers.resize(AXIS_VALUES_MAX_AXES);
@@ -358,7 +364,7 @@ void MotionController::setupAxes(const RaftJsonIF& config)
         for (RaftJson axisConfig : axesVec)
         {
             // Setup driver
-            setupAxisHardware(axisIdx, axisConfig);
+            setupAxisHardware(axisIdx, axisConfig, timeNowMs);
 
             // Next
             axisIdx++;
@@ -370,13 +376,13 @@ void MotionController::setupAxes(const RaftJsonIF& config)
 // Setup axis hardware
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupAxisHardware(uint32_t axisIdx, const RaftJsonIF& config)
+void MotionController::setupAxisHardware(uint32_t axisIdx, const RaftJsonIF& config, uint32_t timeNowMs)
 {
     // Axis name
     String axisName = config.getString("name", "");
 
     // Configure the driver
-    setupStepDriver(axisIdx, axisName, "driver", config);
+    setupStepDriver(axisIdx, axisName, "driver", config, timeNowMs);
 
     // Configure the endstops
     setupEndStops(axisIdx, axisName, "endstops", config);
@@ -386,7 +392,8 @@ void MotionController::setupAxisHardware(uint32_t axisIdx, const RaftJsonIF& con
 // Setup stepper driver
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, const RaftJsonIF& mainConfig)
+void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName, const char* jsonElem, 
+            const RaftJsonIF& mainConfig, uint32_t timeNowMs)
 {
     // Get config with prefix
     RaftJsonPrefixed config(mainConfig, jsonElem);
@@ -409,7 +416,7 @@ void MotionController::setupStepDriver(uint32_t axisIdx, const String& axisName,
         }
         if (pStepDriver)
         {
-            pStepDriver->setup(axisName, stepperParams, _rampGenerator.isUsingTimerISR());
+            pStepDriver->setup(axisName, stepperParams, _rampGenerator.isUsingTimerISR(), timeNowMs);
         }
         // Debug
 #ifdef DEBUG_STEPPER_SETUP_CONFIG
@@ -481,14 +488,15 @@ void MotionController::setupSerialBus(RaftBus* pBus, bool useBusForDirectionReve
 /// @brief Set max motor current (amps)
 /// @param axisIdx Axis index
 /// @param maxMotorCurrent Max motor current (amps)
+/// @param timeNowMs Current time in milliseconds
 /// @return RaftRetCode
 /// - RAFT_OK if the current was set
 /// - RAFT_INVALID_DATA if the axis index is invalid
-RaftRetCode MotionController::setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrentAmps)
+RaftRetCode MotionController::setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrentAmps, uint32_t timeNowMs)
 {
     // Set max motor current
     if (axisIdx < _stepperDrivers.size())
-        return _stepperDrivers[axisIdx]->setMaxMotorCurrentAmps(maxMotorCurrentAmps);
+        return _stepperDrivers[axisIdx]->setMaxMotorCurrentAmps(maxMotorCurrentAmps, timeNowMs);
     return RAFT_INVALID_DATA;
 }
 
@@ -496,7 +504,7 @@ RaftRetCode MotionController::setMaxMotorCurrentAmps(uint32_t axisIdx, float max
 /// @brief Get last monitored position
 /// @param actuatorPos Actuator position
 /// @param realWorldPos Real world position
-void MotionController::getLastMonitoredPos(AxesValues<AxisStepsDataType> actuatorPos, AxesValues<AxisPosDataType> realWorldPos) const
+void MotionController::getLastMonitoredPos(AxesValues<AxisStepsDataType>& actuatorPos, AxesValues<AxisPosDataType>& realWorldPos) const
 {
     // Get current position
     _rampGenerator.getTotalStepPosition(actuatorPos);
