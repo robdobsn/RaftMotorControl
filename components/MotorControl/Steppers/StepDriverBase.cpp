@@ -111,7 +111,7 @@ void StepDriverBase::loop()
                     {
                         // Data pointer
                         const uint8_t* pData = readData + _readBytesToIgnore + TMC_REPLY_DATA_POS;
-                        _driverRegisters[_readRegisterIdx].regValCur = Raft::getBEUint32AndInc(pData);
+                        _driverRegisters[_readRegisterIdx].regValCur = Raft::getBEUInt32AndInc(pData);
 
 #ifdef DEBUG_REGISTER_READ_VALUE
                         LOG_I(MODULE_PREFIX, "loop read %s reg %s(0x%02x) data 0x%08x", 
