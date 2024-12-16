@@ -27,7 +27,7 @@ public:
     virtual bool add(const MotionBlock &block) = 0;
 
     // Can get
-    virtual bool FUNCTION_DECORATOR_IRAM_ATTR canGet() = 0;
+    virtual bool MOTOR_TICK_FN_DECORATOR canGet() = 0;
 
     // Peek Nth element from the put position
     virtual MotionBlock *peekNthFromPut(unsigned int N) = 0;

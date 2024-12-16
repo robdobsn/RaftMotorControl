@@ -14,11 +14,11 @@
 #include "EndStops.h"
 #include "AxisEndstopChecks.h"
 
-#define RAMP_GEN_DETAILED_STATS
+// #define RAMP_GEN_DETAILED_STATS
 // #define DEBUG_MOTION_PULSE_GEN
-#define DEBUG_MOTION_PEEK_QUEUE
-#define DEBUG_SETUP_NEW_BLOCK
-#define DEBUG_RAMP_GEN_SERVICE
+// #define DEBUG_MOTION_PEEK_QUEUE
+// #define DEBUG_SETUP_NEW_BLOCK
+// #define DEBUG_RAMP_GEN_SERVICE
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -53,7 +53,7 @@ void RampGenerator::setup(const RaftJsonIF& config,
     _useRampGenTimer = config.getBool("rampTimerEn", false);
 
     // Ramp generator config
-    uint32_t rampTimerUs = config.getLong("rampTimerUs", RAMP_GEN_PERIOD_US_DEFAULT);
+    rampTimerUs = config.getLong("rampTimerUs", RAMP_GEN_PERIOD_US_DEFAULT);
 
     // Ramp generator timer
     bool timerSetupOk = false;
@@ -247,7 +247,7 @@ void RampGenerator::getEndStopStatus(AxisEndstopChecks& axisEndStopVals) const
 // Handle the end of a step for any axis
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FUNCTION_DECORATOR_IRAM_ATTR RampGenerator::handleStepEnd()
+bool MOTOR_TICK_FN_DECORATOR RampGenerator::handleStepEnd()
 {
     bool anyPinReset = false;
     for (uint32_t axisIdx = 0; axisIdx < _stepperDrivers.size(); axisIdx++)
@@ -269,7 +269,7 @@ bool FUNCTION_DECORATOR_IRAM_ATTR RampGenerator::handleStepEnd()
 /// @param pBlock Motion block defines all motion parameters
 /// @note This function is called when a new block is added to the pipeline
 ///       It sets up the block for execution recording all the info needed to process the block
-void FUNCTION_DECORATOR_IRAM_ATTR RampGenerator::setupNewBlock(MotionBlock *pBlock)
+void MOTOR_TICK_FN_DECORATOR RampGenerator::setupNewBlock(MotionBlock *pBlock)
 {
     // Setup step counts, direction and endstops for each axis
     _endStopCheckNum = 0;
@@ -345,7 +345,7 @@ void FUNCTION_DECORATOR_IRAM_ATTR RampGenerator::setupNewBlock(MotionBlock *pBlo
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Update the motion block time accumulators to handle acceleration and deceleration
 /// @param pBlock Motion block defines all motion parameters
-void FUNCTION_DECORATOR_IRAM_ATTR RampGenerator::updateMSAccumulator(MotionBlock *pBlock)
+void MOTOR_TICK_FN_DECORATOR RampGenerator::updateMSAccumulator(MotionBlock *pBlock)
 {
     // Bump the millisec accumulator
     _curAccumulatorNS = _curAccumulatorNS + _stepGenPeriodNs;
@@ -376,7 +376,7 @@ void FUNCTION_DECORATOR_IRAM_ATTR RampGenerator::updateMSAccumulator(MotionBlock
 /// @param pBlock Motion block defines all motion parameters
 /// @return true if any axis is still moving
 /// @note Handle the start of step on each axis
-bool FUNCTION_DECORATOR_IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
+bool MOTOR_TICK_FN_DECORATOR RampGenerator::handleStepMotion(MotionBlock *pBlock)
 {
     // Complete Flag
     bool anyAxisMoving = false;
@@ -455,7 +455,7 @@ bool FUNCTION_DECORATOR_IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *p
 /// @brief End motion
 /// @param pBlock Motion block defines all motion parameters
 /// @note This function is called when a block is completed and removes the block from the pipeline
-void FUNCTION_DECORATOR_IRAM_ATTR RampGenerator::endMotion(MotionBlock *pBlock)
+void MOTOR_TICK_FN_DECORATOR RampGenerator::endMotion(MotionBlock *pBlock)
 {
     _motionPipeline.remove();
     // Check if this is a numbered block - if so record its completion
@@ -467,7 +467,7 @@ void FUNCTION_DECORATOR_IRAM_ATTR RampGenerator::endMotion(MotionBlock *pBlock)
 /// @brief Generate motion pulses
 /// @param timeNowMs Current system time in milliseconds
 /// @note This function is called from the timer ISR or from the main loop if not using a timer ISR
-void FUNCTION_DECORATOR_IRAM_ATTR RampGenerator::generateMotionPulses(uint32_t timeNowMs)
+void MOTOR_TICK_FN_DECORATOR RampGenerator::generateMotionPulses(uint32_t timeNowMs)
 {
     // Instrumentation code to time ISR execution (if enabled)
     _stats.startMotionProcessing();

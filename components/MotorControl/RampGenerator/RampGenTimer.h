@@ -10,6 +10,8 @@
 
 #include "RaftCore.h"
 #include "RampGenConsts.h"
+#include "driver/gptimer.h"
+#include "MotorControlConsts.h"
 
 // #define RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
 
@@ -68,7 +70,7 @@ private:
 #endif
 
     // ISR
-    static FUNCTION_DECORATOR_IRAM_ATTR bool _staticGPTimerCB(gptimer_t* timer, const gptimer_alarm_event_data_t* eventData, void* arg)
+    static MOTOR_TICK_FN_DECORATOR bool _staticGPTimerCB(gptimer_t* timer, const gptimer_alarm_event_data_t* eventData, void* arg)
     {
         // Check the arg is valid
         if (!arg)
@@ -77,7 +79,7 @@ private:
         pRampGenTimer->_nonStaticGPTimerCB();
         return false;
     }
-    void FUNCTION_DECORATOR_IRAM_ATTR _nonStaticGPTimerCB()
+    void MOTOR_TICK_FN_DECORATOR _nonStaticGPTimerCB()
     {
         // Bump count
         _timerISRCount = _timerISRCount + 1;

@@ -13,6 +13,10 @@
 #include "RampGenStats.h"
 #include "MotionPipeline.h"
 
+#ifdef ESP_PLATFORM
+#include "RampGenTimer.h"
+#endif
+
 class StepDriverBase;
 class EndStops;
 
@@ -163,7 +167,7 @@ private:
 
     /// @brief Timer callback
     /// @param pObject Object to call (this class instance)
-    static FUNCTION_DECORATOR_IRAM_ATTR void rampGenTimerCallback(void* pObject)
+    static MOTOR_TICK_FN_DECORATOR void rampGenTimerCallback(void* pObject)
     {
         if (pObject)
             ((RampGenerator*)pObject)->generateMotionPulses(millis());

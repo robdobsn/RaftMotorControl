@@ -70,7 +70,7 @@ void MotionBlock::setMotionTrackingIndex(uint32_t motionTrackingIndex)
 {
     _motionTrackingIndex = motionTrackingIndex;
 }
-uint32_t FUNCTION_DECORATOR_IRAM_ATTR MotionBlock::getMotionTrackingIndex()
+uint32_t MOTOR_TICK_FN_DECORATOR MotionBlock::getMotionTrackingIndex()
 {
     return _motionTrackingIndex;
 }

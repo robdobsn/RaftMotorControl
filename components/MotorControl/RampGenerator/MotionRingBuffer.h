@@ -60,7 +60,7 @@ class MotionRingBufferPosn
         return false;
     }
 
-    inline bool FUNCTION_DECORATOR_IRAM_ATTR canGet() const
+    inline bool MOTOR_TICK_FN_DECORATOR canGet() const
     {
         return _putPos != _getPos;
     }
@@ -72,7 +72,7 @@ class MotionRingBufferPosn
             _putPos = 0;
     }
 
-    inline void FUNCTION_DECORATOR_IRAM_ATTR hasGot()
+    inline void MOTOR_TICK_FN_DECORATOR hasGot()
     {
         _getPos = _getPos + 1;
         if (_getPos >= _bufLen)

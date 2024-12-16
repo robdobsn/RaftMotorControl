@@ -1,0 +1,21 @@
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//
+// MotorControlConsts.h
+//
+// Rob Dobson 2016-2024
+//
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#pragma once
+
+#ifdef ESP_PLATFORM
+#include "sdkconfig.h"
+#endif
+
+#if CONFIG_GPTIMER_ISR_IRAM_SAFE
+#define MOTOR_TICK_FN_DECORATOR FUNCTION_DECORATOR_IRAM_ATTR
+// #pragma message "Motor tick fns must be in IRAM"
+#else
+#define MOTOR_TICK_FN_DECORATOR
+// #pragma message "Motor tick fns NOT in IRAM"
+#endif

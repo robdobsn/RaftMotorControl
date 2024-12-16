@@ -8,6 +8,7 @@
 
 #include "RaftCore.h"
 #include "EndStops.h"
+#include "MotorControlConsts.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -96,7 +97,7 @@ void EndStops::loop()
 /// @brief Check if at end stop
 /// @param max True if checking max endstop (false for min)
 /// @return true if at endstop
-bool FUNCTION_DECORATOR_IRAM_ATTR EndStops::isAtEndStop(bool max)
+bool MOTOR_TICK_FN_DECORATOR EndStops::isAtEndStop(bool max)
 {
     if (max)
     {
@@ -126,7 +127,7 @@ bool FUNCTION_DECORATOR_IRAM_ATTR EndStops::isAtEndStop(bool max)
 // Check endstop valid
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FUNCTION_DECORATOR_IRAM_ATTR EndStops::isValid(bool max)
+bool MOTOR_TICK_FN_DECORATOR EndStops::isValid(bool max)
 {
     if (max)
     {
@@ -142,7 +143,7 @@ bool FUNCTION_DECORATOR_IRAM_ATTR EndStops::isValid(bool max)
 // Get pin and level
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool FUNCTION_DECORATOR_IRAM_ATTR EndStops::getPinAndLevel(bool max, int& pin, bool& actvLevel)
+bool MOTOR_TICK_FN_DECORATOR EndStops::getPinAndLevel(bool max, int& pin, bool& actvLevel)
 {
     if (max)
     {

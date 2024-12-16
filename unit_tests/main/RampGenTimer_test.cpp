@@ -14,7 +14,7 @@
 static const char* MODULE_PREFIX = "RampGenTimerTest";
 
 static volatile int localTimerCount = 0;
-void FUNCTION_DECORATOR_IRAM_ATTR rampGenTimerCallback(void* pObject)
+void MOTOR_TICK_FN_DECORATOR rampGenTimerCallback(void* pObject)
 {
     localTimerCount = localTimerCount + 1;
 }

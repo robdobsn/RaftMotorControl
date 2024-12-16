@@ -58,31 +58,31 @@ public:
         _stepPositions.clear();
     }
     // Tick indicator - called to indicate ticks elapsing
-    virtual void FUNCTION_DECORATOR_IRAM_ATTR tickIndicator() override final
+    virtual void MOTOR_TICK_FN_DECORATOR tickIndicator() override final
     {
 #ifndef TEST_PERFORMANCE_ONLY
         _testClockCount++;
 #endif
     }
-    virtual void FUNCTION_DECORATOR_IRAM_ATTR loop() override final
+    virtual void MOTOR_TICK_FN_DECORATOR loop() override final
     {
 
     }
-    virtual void FUNCTION_DECORATOR_IRAM_ATTR getEndStopStatus(AxisEndstopChecks& axisEndStopVals) override final
+    virtual void MOTOR_TICK_FN_DECORATOR getEndStopStatus(AxisEndstopChecks& axisEndStopVals) override final
     {
     }
-    virtual bool FUNCTION_DECORATOR_IRAM_ATTR getEndStopConfig(uint32_t axisIdx, bool isMin, int& pin, bool& activeLevel) override final
-    {
-        return false;
-    }
-    virtual void FUNCTION_DECORATOR_IRAM_ATTR setDirection(uint32_t axisIdx, bool direction) override final
-    {
-    }
-    virtual bool FUNCTION_DECORATOR_IRAM_ATTR readEndStopViaPinNum(uint32_t pinNum) override final
+    virtual bool MOTOR_TICK_FN_DECORATOR getEndStopConfig(uint32_t axisIdx, bool isMin, int& pin, bool& activeLevel) override final
     {
         return false;
     }
-    virtual void FUNCTION_DECORATOR_IRAM_ATTR stepStart(uint32_t axisIdx) override final
+    virtual void MOTOR_TICK_FN_DECORATOR setDirection(uint32_t axisIdx, bool direction) override final
+    {
+    }
+    virtual bool MOTOR_TICK_FN_DECORATOR readEndStopViaPinNum(uint32_t pinNum) override final
+    {
+        return false;
+    }
+    virtual void MOTOR_TICK_FN_DECORATOR stepStart(uint32_t axisIdx) override final
     {
 #ifndef TEST_PERFORMANCE_ONLY
         _stepStarted = true;
@@ -115,7 +115,7 @@ public:
         _firstStep = false;
 #endif
     }
-    virtual bool FUNCTION_DECORATOR_IRAM_ATTR stepEnd(uint32_t axisIdx) override final
+    virtual bool MOTOR_TICK_FN_DECORATOR stepEnd(uint32_t axisIdx) override final
     {
 #ifndef TEST_PERFORMANCE_ONLY
         bool wasStarted = _stepStarted;

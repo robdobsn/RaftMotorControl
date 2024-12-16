@@ -9,6 +9,7 @@
 #include <math.h>
 #include "RaftCore.h"
 #include "StepDriverTMC2209.h"
+#include "MotorControlConsts.h"
 
 #define WARN_ON_DRIVER_BUSY
 
@@ -361,7 +362,7 @@ void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double ho
 /// @brief Set direction
 /// @param dirn - direction
 /// @param forceSet - force set
-void FUNCTION_DECORATOR_IRAM_ATTR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
+void MOTOR_TICK_FN_DECORATOR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
 {
     // Check valid
     if (!_hwIsSetup)
@@ -414,7 +415,7 @@ void FUNCTION_DECORATOR_IRAM_ATTR StepDriverTMC2209::setDirection(bool dirn, boo
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Start a step
-void FUNCTION_DECORATOR_IRAM_ATTR StepDriverTMC2209::stepStart()
+void MOTOR_TICK_FN_DECORATOR StepDriverTMC2209::stepStart()
 {
     // Check hardware pin
     if (_hwIsSetup && (_requestedParams.stepPin >= 0))
@@ -445,7 +446,7 @@ void FUNCTION_DECORATOR_IRAM_ATTR StepDriverTMC2209::stepStart()
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief End a step
-bool FUNCTION_DECORATOR_IRAM_ATTR StepDriverTMC2209::stepEnd()
+bool MOTOR_TICK_FN_DECORATOR StepDriverTMC2209::stepEnd()
 {
     if (_stepCurActive && (_requestedParams.stepPin >= 0))
     {
