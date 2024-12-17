@@ -105,7 +105,7 @@ void RampGenerator::setup(const RaftJsonIF& config,
 #else
                 "N/A",
 #endif
-                _stepGenPeriodNs / 1000, _stepperDrivers.size(), _axisEndStops.size(), pipelineLen);
+                _stepGenPeriodNs / 1000, (int)_stepperDrivers.size(), (int)_axisEndStops.size(), pipelineLen);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

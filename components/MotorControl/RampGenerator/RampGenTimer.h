@@ -8,6 +8,8 @@
 
 #pragma once
 
+#ifdef ESP_PLATFORM
+
 #include "RaftCore.h"
 #include "RampGenConsts.h"
 #include "driver/gptimer.h"
@@ -123,3 +125,5 @@ private:
     // Debug
     static constexpr const char* MODULE_PREFIX = "RampGenTimer";    
 };
+
+#endif // ESP_PLATFORM

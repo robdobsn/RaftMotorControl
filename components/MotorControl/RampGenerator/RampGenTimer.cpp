@@ -6,6 +6,8 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#ifdef ESP_PLATFORM
+
 #include "RaftCore.h"
 #include "RampGenTimer.h"
 #include "driver/gptimer.h"
@@ -312,3 +314,5 @@ uint64_t RampGenTimer::getDebugRawCount()
     gptimer_get_raw_count(_timerHandle, &timerCount);
     return timerCount;
 }
+
+#endif // ESP_PLATFORM

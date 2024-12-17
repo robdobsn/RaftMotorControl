@@ -6,11 +6,11 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Include RaftCore
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../../RaftCore/build_linux/install")
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../linux_lib/build_linux/raftcorelib/linux_lib/src/linux_tests/linux_lib/build_linux/install")
 find_package(RaftCore REQUIRED)
 
 # Include RaftMotorControl
-list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../../build_linux/install")
+list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/../linux_lib/build_linux/install")
 find_package(RaftMotorControl REQUIRED)
 
 # Find Pybind11
