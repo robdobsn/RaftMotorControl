@@ -95,17 +95,31 @@ public:
                 return false;
             }
 
-            // Find the minimum rotation for each motor
-            AxisCalcDataType a1Rel = computeRelativeAngle(soln1.getVal(0), curAngles.getVal(0));
-            AxisCalcDataType b1Rel = computeRelativeAngle(soln1.getVal(1), curAngles.getVal(1));
-            AxisCalcDataType a2Rel = computeRelativeAngle(soln2.getVal(0), curAngles.getVal(0));
-            AxisCalcDataType b2Rel = computeRelativeAngle(soln2.getVal(1), curAngles.getVal(1));
+            // Choose the solution whose theta1 is closest to the current theta1
+            double diff1 = fabs(computeRelativeAngle(soln1.getVal(0), curAngles.getVal(0)));
+            double diff2 = fabs(computeRelativeAngle(soln2.getVal(0), curAngles.getVal(0)));
+            if (diff1 < diff2) {
+                relativeAngleSolution = {
+                    computeRelativeAngle(soln1.getVal(0), curAngles.getVal(0)),
+                    computeRelativeAngle(soln1.getVal(1), curAngles.getVal(1))
+                };
+            } else {
+                relativeAngleSolution = {
+                    computeRelativeAngle(soln2.getVal(0), curAngles.getVal(0)),
+                    computeRelativeAngle(soln2.getVal(1), curAngles.getVal(1))
+                };
+            }
 
-            // Find solution involves least overall rotation
-            if (abs(a1Rel) + abs(b1Rel) <= abs(a2Rel) + abs(b2Rel))
-                relativeAngleSolution = { a1Rel, b1Rel };
-            else
-                relativeAngleSolution = { a2Rel, b2Rel };
+#ifdef DEBUG_KINEMATICS_SA_SCARA
+            LOG_I(MODULE_PREFIX, "ptToActuator: target X %.2f Y %.2f, soln1 theta1 %.2f theta2 %.2f, soln2 theta1 %.2f theta2 %.2f, chosen relAngle0 %.2f relAngle1 %.2f, absSteps0 %d absSteps1 %d, curAngles theta1 %.2f theta2 %.2f", 
+                targetPt.getVal(0), targetPt.getVal(1),
+                soln1.getVal(0), soln1.getVal(1),
+                soln2.getVal(0), soln2.getVal(1),
+                relativeAngleSolution.getVal(0), relativeAngleSolution.getVal(1),
+                outActuator.getVal(0), outActuator.getVal(1),
+                curAngles.getVal(0), curAngles.getVal(1));
+#endif
+
         }
 
         // Apply this to calculate required steps (relative to the current position)
@@ -119,6 +133,9 @@ public:
                 sqrt(pow(targetPt.getVal(0) - curAxesState.getUnitsFromOrigin(0), 2) + pow(targetPt.getVal(1) - curAxesState.getUnitsFromOrigin(1), 2)),
                 outActuator.getVal(0), outActuator.getVal(1),
                 relativeAngleSolution.getVal(0), relativeAngleSolution.getVal(1));
+#endif
+#ifdef DEBUG_KINEMATICS_SA_SCARA
+    LOG_I(MODULE_PREFIX, "ptToActuator: curAngles theta1 %.2f theta2 %.2f, chosen relAngle0 %.2f relAngle1 %.2f", curAngles.getVal(0), curAngles.getVal(1), relativeAngleSolution.getVal(0), relativeAngleSolution.getVal(1));
 #endif
         return true;
     }
@@ -204,20 +221,19 @@ private:
         AxisCalcDataType a3 = AxisUtils::cosineRule(_arm1LenMM, _arm2LenMM, thirdSideL3MM);
 
         // Calculate the alpha and beta angles in degrees
-        targetSoln1 = { AxisUtils::r2d(targetAngleRads - a2), AxisUtils::r2d(M_PI + targetAngleRads - a2 - a3) };
-        targetSoln2 = { AxisUtils::r2d(targetAngleRads + a2), AxisUtils::r2d(-M_PI + targetAngleRads + a2 + a3) };
+        targetSoln1 = { AxisUtils::r2d(targetAngleRads + a2), AxisUtils::r2d(-M_PI + targetAngleRads + a2 + a3) };
+        targetSoln2 = { AxisUtils::r2d(targetAngleRads - a2), AxisUtils::r2d(M_PI + targetAngleRads - a2 - a3) };
 
 #ifdef DEBUG_KINEMATICS_SA_SCARA
-        LOG_I(MODULE_PREFIX, "cartesianToPolar %s X%.2fmm Y%.2fmm theta1 %.2fd/%.2f theta2 %.2fd/%.2f targetAngle %.2fd 3rdSide %.2fmm a1 %.2fd a2 %.2fd a3 %.2fd l1 %.2fmm l2 %.2fmm",
-                posValid ? "ok" : "OUT_OF_BOUNDS",
-                targetPt.getVal(0), targetPt.getVal(1),
-                targetSoln1.getVal(0), targetSoln2.getVal(0),
-                targetSoln1.getVal(1), targetSoln2.getVal(1),
-                AxisUtils::r2d(targetAngleRads),
-                thirdSideL3MM,
-                AxisUtils::r2d(M_PI-a2-a3), AxisUtils::r2d(a2), AxisUtils::r2d(a3),
-                _arm1LenMM, _arm2LenMM);
+        LOG_I(MODULE_PREFIX, "cartesianToPolar INPUT X%.2f Y%.2f -> soln1 theta1 %.2f theta2 %.2f, soln2 theta1 %.2f theta2 %.2f", targetPt.getVal(0), targetPt.getVal(1), targetSoln1.getVal(0), targetSoln1.getVal(1), targetSoln2.getVal(0), targetSoln2.getVal(1));
 #endif
+
+        if (fabs(targetPt.getVal(0) - 100.0) < 1e-2 && fabs(targetPt.getVal(1)) < 1e-2) {
+            LOG_I(MODULE_PREFIX, "TEST (100,0): soln1 theta1 %.2f theta2 %.2f, soln2 theta1 %.2f theta2 %.2f (expected: theta1=0, theta2=180)", targetSoln1.getVal(0), targetSoln1.getVal(1), targetSoln2.getVal(0), targetSoln2.getVal(1));
+        }
+        if (fabs(targetPt.getVal(0)) < 1e-2 && fabs(targetPt.getVal(1) - 100.0) < 1e-2) {
+            LOG_I(MODULE_PREFIX, "TEST (0,100): soln1 theta1 %.2f theta2 %.2f, soln2 theta1 %.2f theta2 %.2f (expected: theta1=90, theta2=90)", targetSoln1.getVal(0), targetSoln1.getVal(1), targetSoln2.getVal(0), targetSoln2.getVal(1));
+        }
 
         return posValid;        
     }

@@ -9,9 +9,9 @@
 #include "MotionBlockManager.h"
 #include "RaftKinematicsSystem.h"
 
-#define DEBUG_RAMPED_BLOCK
-#define DEBUG_COORD_UPDATES
-#define DEBUG_BLOCK_SPLITTER
+// #define DEBUG_RAMPED_BLOCK
+// #define DEBUG_COORD_UPDATES
+// #define DEBUG_BLOCK_SPLITTER
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor

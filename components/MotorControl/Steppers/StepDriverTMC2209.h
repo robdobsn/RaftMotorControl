@@ -87,6 +87,11 @@ private:
     static const constexpr double VREF_LOW_SENSE = 0.325;
     static const constexpr double VREF_HIGH_SENSE = 0.180;
 
+    // Config check for re-init
+    static const uint32_t CONFIG_CHECK_INTERVAL_MS = 5000; // 5 seconds
+    uint32_t _lastConfigCheckMs = 0;
+    void checkAndReinitIfNeeded();
+
     // Get microsteps (either from request, default or from read value)
     uint32_t getMicrosteps() const
     {

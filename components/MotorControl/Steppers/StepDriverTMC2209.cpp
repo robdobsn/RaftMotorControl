@@ -213,6 +213,10 @@ void StepDriverTMC2209::loop()
         _driverRegisters[DRIVER_REGISTER_CODE_DRV_STATUS].readPending = true;
         _driverRegisters[DRIVER_REGISTER_CODE_GSTAT].readPending = true;
         _statusReadLastTimeMs = millis();
+
+#ifdef DEBUG_REGISTER_READ_PROCESS
+        LOG_I(MODULE_PREFIX, "%s loop read status registers requested", _name.c_str());
+#endif
     }
 
     // Check for config reset
@@ -225,6 +229,38 @@ void StepDriverTMC2209::loop()
             setMainRegs();
             _configResetRequired = false;
         }
+    }
+
+    // Periodically check config and re-init if needed
+    checkAndReinitIfNeeded();
+}
+
+void StepDriverTMC2209::checkAndReinitIfNeeded()
+{
+    if (!Raft::isTimeout(millis(), _lastConfigCheckMs, CONFIG_CHECK_INTERVAL_MS))
+        return;
+    _lastConfigCheckMs = millis();
+
+    // Only check if registers have been read at least once
+    bool gconfValid = _driverRegisters[DRIVER_REGISTER_CODE_GCONF].readValid;
+    bool chopconfValid = _driverRegisters[DRIVER_REGISTER_CODE_CHOPCONF].readValid;
+    bool iholdValid = _driverRegisters[DRIVER_REGISTER_CODE_IHOLD_IRUN].readValid;
+    if (!(gconfValid && chopconfValid && iholdValid))
+        return;
+
+    // Compare current register values to expected (write) values
+    bool mismatch = false;
+    if (_driverRegisters[DRIVER_REGISTER_CODE_GCONF].regValCur != _driverRegisters[DRIVER_REGISTER_CODE_GCONF].regWriteVal)
+        mismatch = true;
+    if (_driverRegisters[DRIVER_REGISTER_CODE_CHOPCONF].regValCur != _driverRegisters[DRIVER_REGISTER_CODE_CHOPCONF].regWriteVal)
+        mismatch = true;
+    if (_driverRegisters[DRIVER_REGISTER_CODE_IHOLD_IRUN].regValCur != _driverRegisters[DRIVER_REGISTER_CODE_IHOLD_IRUN].regWriteVal)
+        mismatch = true;
+
+    if (mismatch)
+    {
+        LOG_W(MODULE_PREFIX, "Detected TMC2209 config mismatch, re-initializing driver %s", _name.c_str());
+        setMainRegs();
     }
 }
 
@@ -382,6 +418,12 @@ void IRAM_ATTR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
         // Set the pin value if valid and direction is not done via serial bus
         if ((_requestedParams.dirnPin >= 0) && !_useBusForDirectionReversal)
         {
+#ifdef DEBUG_DIRECTION_ONLY_IF_NOT_ISR
+            if (!_usingISR)
+            {
+                LOG_I(MODULE_PREFIX, "setDirection %s pin value %d", _name.c_str(), hwDirn);
+            }
+#endif
             digitalWrite(_requestedParams.dirnPin, hwDirn);
         }
     }
@@ -488,7 +530,7 @@ void StepDriverTMC2209::setMainRegs()
     _driverRegisters[DRIVER_REGISTER_CODE_GCONF].regWriteVal =
                 (1 << TMC_2209_GCONF_MULTISTEP_FILT_BIT) |
                 (1 << TMC_2209_GCONF_PDN_UART_BIT) |
-                (_requestedParams.invDirn ? (1 << TMC_2209_GCONF_INV_DIRN_BIT) : 0) |
+                (_useBusForDirectionReversal && _requestedParams.invDirn ? (1 << TMC_2209_GCONF_INV_DIRN_BIT) : 0) |
                 ((_requestedParams.extSenseOhms < 0.01) ? (1 << TMC_2209_GCONF_EXT_SENSE_RES_BIT) : 0) |
                 (_requestedParams.extVRef ? (1 << TMC_2209_GCONF_EXT_VREF_BIT) : 0) |
                 (_requestedParams.extMStep ? 0 : (1 << TMC_2209_GCONF_MSTEP_REG_SELECT_BIT));
