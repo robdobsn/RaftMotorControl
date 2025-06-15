@@ -87,6 +87,34 @@ String MotorControl::getDataJSON(RaftDeviceJSONLevel level) const
 /// @return double value
 double MotorControl::getNamedValue(const char* param, bool& isFresh) const
 {
+    // Check for new-style axis queries: e.g. "0pos", "1min", "2max"
+    if (isdigit(param[0])) {
+        // Parse axis index
+        int axisIdx = param[0] - '0';
+        const char* prop = param + 1;
+        // Check for "pos"
+        if (strcmp(prop, "pos") == 0) {
+            isFresh = true;
+            AxesValues<AxisPosDataType> pos = _motionController.getLastMonitoredPos();
+            return pos.getVal(axisIdx);
+        }
+        // Check for "min" or "max"
+        if (strcmp(prop, "min") == 0) {
+            bool fresh = false;
+            bool triggered = _motionController.getEndStopState(axisIdx, false, fresh);
+            isFresh = fresh;
+            return triggered ? 1.0 : 0.0;
+        }
+        if (strcmp(prop, "max") == 0) {
+            bool fresh = false;
+            bool triggered = _motionController.getEndStopState(axisIdx, true, fresh);
+            isFresh = fresh;
+            return triggered ? 1.0 : 0.0;
+        }
+        // Unknown property
+        isFresh = false;
+        return 0.0;
+    }
     switch(tolower(param[0]))
     {
         case 'x':

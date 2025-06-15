@@ -94,6 +94,10 @@ public:
     // Get debug JSON
     String getDebugJSON(bool includeBraces) const;
 
+    // Get end-stop state for an axis (min or max)
+    // Returns true if triggered, false otherwise. Sets isFresh to true if valid, false if not configured.
+    bool getEndStopState(uint32_t axisIdx, bool max, bool& isFresh) const;
+
 private:
     // Debug
     static constexpr const char* MODULE_PREFIX = "MotionController";

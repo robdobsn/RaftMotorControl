@@ -21,6 +21,7 @@
 #define DEBUG_RAMP_SETUP_CONFIG
 // #define DEBUG_MOTION_CONTROLLER
 // #define INFO_LOG_AXES_PARAMS
+// #define DEBUG_ENDSTOP_STATUS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -518,4 +519,32 @@ String MotionController::getDebugJSON(bool includeBraces) const
         }
     }
     return includeBraces ? "{" + jsonStr + "}" : jsonStr;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get end-stop state for an axis (min or max)
+bool MotionController::getEndStopState(uint32_t axisIdx, bool max, bool& isFresh) const
+{
+    // Check axis index validity
+    if (axisIdx >= _axisEndStops.size() || !_axisEndStops[axisIdx]) {
+        isFresh = false;
+#ifdef DEBUG_ENDSTOP_STATUS
+        LOG_I(MODULE_PREFIX, "EndStop axis %u %s: INVALID axis", axisIdx, max ? "max" : "min");
+#endif
+        return false;
+    }
+    // Check if the end-stop is configured
+    if (!_axisEndStops[axisIdx]->isValid(max)) {
+        isFresh = false;
+#ifdef DEBUG_ENDSTOP_STATUS
+        LOG_I(MODULE_PREFIX, "EndStop axis %u %s: not configured", axisIdx, max ? "max" : "min");
+#endif
+        return false;
+    }
+    isFresh = true;
+    bool triggered = _axisEndStops[axisIdx]->isAtEndStop(max);
+#ifdef DEBUG_ENDSTOP_STATUS
+    LOG_I(MODULE_PREFIX, "EndStop axis %u %s: isFresh=%d, triggered=%d", axisIdx, max ? "max" : "min", (int)isFresh, (int)triggered);
+#endif
+    return triggered;
 }
