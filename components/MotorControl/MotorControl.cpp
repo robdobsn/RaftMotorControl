@@ -10,6 +10,7 @@
 #include "RaftJsonPrefixed.h"
 #include "RaftBusSystem.h"
 #include "Logger.h"
+#include "HomingPattern.h"
 
 // #define DEBUG_MOTOR_CMD_JSON
 
@@ -40,10 +41,13 @@ void MotorControl::setup()
     // Setup serial bus
     String serialBusName = deviceConfig.getString("bus", "");
     _pMotorSerialBus = raftBusSystem.getBusByName(serialBusName);
-    _motionController.setupSerialBus(_pMotorSerialBus, false); 
+    _motionController.setupSerialBus(_pMotorSerialBus, false);
+
+    // Register motion patterns
+    _motionController.addMotionPattern("homing", HomingPattern::create);
 
     // Debug
-    LOG_I(MODULE_PREFIX, "setup type %s serialBusName %s%s", 
+    LOG_I(MODULE_PREFIX, "setup type %s serialBusName %s%s",
             deviceClassName.c_str(), serialBusName.c_str(),
             _pMotorSerialBus ? "" : " (BUS INVALID)");
 }
@@ -212,6 +216,16 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
     {
         float motorOnTimeAfterMoveSecs = jsonInfo.getDouble("offAfterS", 0);
         _motionController.setMotorOnTimeAfterMoveSecs(motorOnTimeAfterMoveSecs);
+    }
+    else if (cmd.equalsIgnoreCase("startPattern"))
+    {
+        String patternName = jsonInfo.getString("pattern", "");
+        uint32_t runTimeMs = jsonInfo.getInt("forMs", 0);
+        _motionController.setMotionPattern(patternName, runTimeMs, cmdJSON);
+    }
+    else if (cmd.equalsIgnoreCase("stopPattern"))
+    {
+        _motionController.stopPattern();
     }
     return RAFT_OK;
 }

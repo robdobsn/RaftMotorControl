@@ -146,15 +146,11 @@ void MotionController::loop()
     // Process any split-up blocks to be added to the pipeline
     _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline());
 
-    // Loop homing
-    // TODO
-    // _motionHoming.loop(_axesParams);
+    // Loop motion patterns
+    _patternManager.loop(*this);
 
     // Ensure motors enabled when homing or moving
-    if ((_rampGenerator.getMotionPipeline().count() > 0) 
-        // TODO 2021
-        //  || _motionHoming.isHomingInProgress()
-         )
+    if ((_rampGenerator.getMotionPipeline().count() > 0) || _patternManager.isPatternActive())
     {
         _motorEnabler.enableMotors(true, false);
     }
@@ -547,4 +543,54 @@ bool MotionController::getEndStopState(uint32_t axisIdx, bool max, bool& isFresh
     LOG_I(MODULE_PREFIX, "EndStop axis %u %s: isFresh=%d, triggered=%d", axisIdx, max ? "max" : "min", (int)isFresh, (int)triggered);
 #endif
     return triggered;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Stop current motion pattern
+void MotionController::stopPattern()
+{
+    _patternManager.stopPattern(true);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Add a motion pattern to the registry
+/// @param patternName Name of the pattern
+/// @param createFn Factory function to create pattern instance
+void MotionController::addMotionPattern(const String& patternName, MotionPatternCreateFn createFn)
+{
+    _patternManager.addPattern(patternName, createFn);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Start a motion pattern
+/// @param patternName Name of pattern to start
+/// @param patternRunTimeDefaultMs Default runtime in milliseconds (0 = run forever)
+/// @param pParamsJson Optional JSON parameters for pattern
+void MotionController::setMotionPattern(const String& patternName, uint32_t patternRunTimeDefaultMs, const char* pParamsJson)
+{
+    _patternManager.setPattern(*this, patternName, patternRunTimeDefaultMs, pParamsJson);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check if motion pattern is currently active
+/// @return true if pattern is running
+bool MotionController::isMotionPatternActive() const
+{
+    return _patternManager.isPatternActive();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get name of current motion pattern
+/// @return Current pattern name (empty if none)
+const String& MotionController::getCurrentMotionPatternName() const
+{
+    return _patternManager.getCurrentPatternName();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set named value provider for patterns
+/// @param pNamedValueProvider Pointer to named value provider
+void MotionController::setPatternNamedValueProvider(NamedValueProvider* pNamedValueProvider)
+{
+    _patternManager.setNamedValueProvider(pNamedValueProvider);
 }

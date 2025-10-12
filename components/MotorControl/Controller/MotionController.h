@@ -15,13 +15,15 @@
 #include "RampGenerator.h"
 #include "RaftDeviceJSONLevel.h"
 #include "RaftKinematics.h"
+#include "MotionControlIF.h"
+#include "MotionPatternManager.h"
 
 class StepDriverBase;
 class EndStops;
 
 // #define DEBUG_MOTION_CONTROL_TIMER
 
-class MotionController
+class MotionController : public MotionControlIF
 {
 public:
     /// @brief Constructor
@@ -47,34 +49,34 @@ public:
     /// @param args MotionArgs specify the motion to be performed
     /// @return true if the motion was successfully added to the pipeline
     /// @note The args may be modified so cannot be const
-    bool moveTo(MotionArgs &args);
+    virtual bool moveTo(MotionArgs &args) override;
 
     /// @brief Pause (or resume) all motion
     /// @param pauseIt true to pause, false to resume
-    void pause(bool pauseIt);
+    virtual void pause(bool pauseIt) override;
 
     /// @brief Check if the motion controller is paused
     /// @return true if paused
-    bool isPaused() const
+    virtual bool isPaused() const override
     {
         return _isPaused;
     }
 
     /// @brief Check if the motion controller is busy
     /// @return true if any motion is in the pipeline
-    bool isBusy() const;
+    virtual bool isBusy() const override;
 
     // Set current position as home
-    void setCurPositionAsOrigin(bool allAxes = true, uint32_t axisIdx = 0);
+    virtual void setCurPositionAsOrigin(bool allAxes = true, uint32_t axisIdx = 0) override;
 
     // Go to previously set home position
     void goToOrigin(const MotionArgs &args);
 
     // Get last commanded position
-    AxesValues<AxisPosDataType> getLastCommandedPos() const;
+    virtual AxesValues<AxisPosDataType> getLastCommandedPos() const override;
 
     // Get last monitored position
-    AxesValues<AxisPosDataType> getLastMonitoredPos() const;
+    virtual AxesValues<AxisPosDataType> getLastMonitoredPos() const override;
 
     // Get data (diagnostics)
     String getDataJSON(RaftDeviceJSONLevel level) const;
@@ -96,7 +98,33 @@ public:
 
     // Get end-stop state for an axis (min or max)
     // Returns true if triggered, false otherwise. Sets isFresh to true if valid, false if not configured.
-    bool getEndStopState(uint32_t axisIdx, bool max, bool& isFresh) const;
+    virtual bool getEndStopState(uint32_t axisIdx, bool max, bool& isFresh) const override;
+
+    /// @brief Stop current motion pattern
+    virtual void stopPattern() override;
+
+    /// @brief Add a motion pattern to the registry
+    /// @param patternName Name of the pattern
+    /// @param createFn Factory function to create pattern instance
+    void addMotionPattern(const String& patternName, MotionPatternCreateFn createFn);
+
+    /// @brief Start a motion pattern
+    /// @param patternName Name of pattern to start
+    /// @param patternRunTimeDefaultMs Default runtime in milliseconds (0 = run forever)
+    /// @param pParamsJson Optional JSON parameters for pattern
+    void setMotionPattern(const String& patternName, uint32_t patternRunTimeDefaultMs = 0, const char* pParamsJson = nullptr);
+
+    /// @brief Check if motion pattern is currently active
+    /// @return true if pattern is running
+    bool isMotionPatternActive() const;
+
+    /// @brief Get name of current motion pattern
+    /// @return Current pattern name (empty if none)
+    const String& getCurrentMotionPatternName() const;
+
+    /// @brief Set named value provider for patterns
+    /// @param pNamedValueProvider Pointer to named value provider
+    void setPatternNamedValueProvider(NamedValueProvider* pNamedValueProvider);
 
 private:
     // Debug
@@ -119,7 +147,10 @@ private:
 
     // Motor enabler - handles timeout of motor movement
     MotorEnabler _motorEnabler;
-    
+
+    // Motion pattern manager
+    MotionPatternManager _patternManager;
+
     // Homing needed
     bool _homingNeededBeforeAnyMove = true;
 
