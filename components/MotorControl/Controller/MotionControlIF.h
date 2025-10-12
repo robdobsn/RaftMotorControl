@@ -10,7 +10,6 @@
 #pragma once
 
 #include "AxesValues.h"
-#include "AxisValues.h"
 
 class MotionArgs;
 
