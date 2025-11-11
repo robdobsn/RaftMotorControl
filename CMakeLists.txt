@@ -10,6 +10,8 @@ idf_component_register(
     "components/MotorControl/Controller/MotionController.cpp"
     "components/MotorControl/Controller/MotionPlanner.cpp"
     "components/MotorControl/EndStops/EndStops.cpp"
+    "components/MotorControl/MotionPatterns/HomingPattern.cpp"
+    "components/MotorControl/MotionPatterns/MotionPatternManager.cpp"
     "components/MotorControl/MotorControl.cpp"
     "components/MotorControl/RampGenerator/MotionBlock.cpp"
     "components/MotorControl/RampGenerator/MotionPipeline.cpp"
