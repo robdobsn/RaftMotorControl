@@ -24,6 +24,7 @@ idf_component_register(
     "components/MotorControl/Controller"
     "components/MotorControl/EndStops"
     "components/MotorControl/Kinematics"
+    "components/MotorControl/MotionPatterns"
     "components/MotorControl/MotorEnabler"
     "components/MotorControl/RampGenerator"
     "components/MotorControl/Steppers"
