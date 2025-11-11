@@ -96,7 +96,7 @@ void RampGenerator::setup(const RaftJsonIF& config,
     // Debug
     LOG_I(MODULE_PREFIX, "setup useTimerInterrupt %s stepGenPeriod %dus numStepperDrivers %d numEndStops %d pipelineLen %d", 
                 _useRampGenTimer ? "Y" : "N", 
-                _stepGenPeriodNs / 1000, _stepperDrivers.size(), _axisEndStops.size(), pipelineLen);
+                _stepGenPeriodNs / 1000, (int)_stepperDrivers.size(), (int)_axisEndStops.size(), pipelineLen);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

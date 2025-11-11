@@ -476,9 +476,25 @@ void MotionController::setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCu
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// Get last monitored position
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get last commanded position for all axes
+/// @return Position in axes units (falls back to monitored position if needed)
+AxesValues<AxisPosDataType> MotionController::getLastCommandedPos() const
+{
+    const AxesState& axesState = _blockManager.getAxesState();
+    if (axesState.isValid())
+        return axesState.getUnitsFromOrigin();
 
+    // If commanded units are not valid fall back to monitored position
+    AxesValues<AxisStepsDataType> actuatorPos;
+    _rampGenerator.getTotalStepPosition(actuatorPos);
+    AxesValues<AxisPosDataType> fallbackPos;
+    _blockManager.actuatorToPt(actuatorPos, fallbackPos);
+    return fallbackPos;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get last monitored position (based on total steps recorded)
+/// @return Position in axes units converted from actuator steps
 AxesValues<AxisPosDataType> MotionController::getLastMonitoredPos() const
 {
     // Get current position

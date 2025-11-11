@@ -238,14 +238,15 @@ void HomingPattern::sendRotate(int axis, int dir)
 
     MotionArgs args;
     args.clear();
-    args.setFeedrate(_feedrate);
+    args.setFeedrateUnitsPerMin(_feedrate);
     args.setRelative(true);
-    args.setNoSplit(true);
+    args.setDoNotSplitMove(true);
     args.setRamped(false);
+    args.setUnitsSteps(true);
 
-    AxesValues<AxisStepsDataType> stepsVals;
-    stepsVals.setVal(axis, steps);
-    args.setSteps(stepsVals);
+    AxesValues<AxisPosDataType>& axisVals = args.getAxesPos();
+    axisVals.setVal(axis, steps);
+    args.getAxesSpecified().setVal(axis, true);
 
     _motionControl.moveTo(args);
     LOG_I(MODULE_PREFIX, "sendRotate axis %d dir %d steps %d", axis, dir, steps);
@@ -257,12 +258,12 @@ void HomingPattern::sendMoveTo(int axis, double pos, bool homing)
 {
     MotionArgs args;
     args.clear();
-    args.setFeedrate(_feedrate);
+    args.setFeedrateUnitsPerMin(_feedrate);
     args.setRelative(false);
 
-    AxesPosValues posList;
-    posList.setVal(axis, pos);
-    args.setPosn(posList);
+    AxesValues<AxisPosDataType>& posVals = args.getAxesPos();
+    posVals.setVal(axis, pos);
+    args.getAxesSpecified().setVal(axis, true);
 
     _motionControl.moveTo(args);
     LOG_I(MODULE_PREFIX, "sendMoveTo axis %d pos %f homing %d", axis, pos, homing);
@@ -325,13 +326,15 @@ void HomingPattern::sendMoveToOrigin()
     // Move all axes to origin
     MotionArgs args;
     args.clear();
-    args.setFeedrate(_feedrate);
+    args.setFeedrateUnitsPerMin(_feedrate);
     args.setRelative(false);
 
-    AxesPosValues posList;
+    AxesValues<AxisPosDataType>& posVals = args.getAxesPos();
     for (int i = 0; i < _numAxes; i++)
-        posList.setVal(i, 0.0);
-    args.setPosn(posList);
+    {
+        posVals.setVal(i, 0.0);
+        args.getAxesSpecified().setVal(i, true);
+    }
 
     _motionControl.moveTo(args);
     LOG_I(MODULE_PREFIX, "sendMoveToOrigin (all axes to 0)");
