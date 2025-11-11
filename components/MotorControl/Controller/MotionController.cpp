@@ -490,6 +490,13 @@ AxesValues<AxisPosDataType> MotionController::getLastMonitoredPos() const
     return lastMonitoredPos;
 }
 
+AxesValues<AxisStepsDataType> MotionController::getAxisTotalSteps() const
+{
+    AxesValues<AxisStepsDataType> steps;
+    _rampGenerator.getTotalStepPosition(steps);
+    return steps;
+}
+
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Get debug string
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

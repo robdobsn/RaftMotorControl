@@ -115,6 +115,11 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
             isFresh = fresh;
             return triggered ? 1.0 : 0.0;
         }
+        if (strcmp(prop, "steps") == 0) {
+            AxesValues<AxisStepsDataType> steps = _motionController.getAxisTotalSteps();
+            isFresh = true;
+            return steps.getVal(axisIdx);
+        }
         // Unknown property
         isFresh = false;
         return 0.0;

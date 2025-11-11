@@ -7,7 +7,9 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "RampGenerator.h"
+#ifdef ESP_PLATFORM
 #include "esp_intr_alloc.h"
+#endif
 #include "MotionPipeline.h"
 #include "RampGenTimer.h"
 #include "RaftArduino.h"

@@ -8,8 +8,12 @@
 
 #include "RampGenTimer.h"
 #include "Logger.h"
+#ifdef ESP_PLATFORM
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
+#endif
+
+#ifdef ESP_PLATFORM
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Statics
@@ -311,3 +315,67 @@ uint64_t RampGenTimer::getDebugRawCount()
     gptimer_get_raw_count(_timerHandle, &timerCount);
     return timerCount;
 }
+
+#else // !ESP_PLATFORM
+
+RampGenTimer::RampGenTimer()
+{
+}
+
+RampGenTimer::~RampGenTimer()
+{
+}
+
+bool RampGenTimer::setup(uint32_t timerPeriodUs)
+{
+    _timerPeriodUs = timerPeriodUs;
+    LOG_W(MODULE_PREFIX, "Timer not available on this platform - using loop-driven stepping");
+    return false;
+}
+
+void RampGenTimer::shutdown()
+{
+}
+
+void RampGenTimer::enable(bool)
+{
+}
+
+bool RampGenTimer::hookTimer(RampGenTimerCB, void*)
+{
+    return false;
+}
+
+void RampGenTimer::unhookTimer(void*)
+{
+}
+
+String RampGenTimer::getDebugJSON(bool includeBraces) const
+{
+    String json = "\"timer\":\"disabled\"";
+    return includeBraces ? "{" + json + "}" : json;
+}
+
+void RampGenTimer::disableTimerInterrupts()
+{
+}
+
+void RampGenTimer::reenableTimerInterrupts()
+{
+}
+
+void RampGenTimer::timerReset()
+{
+}
+
+uint32_t RampGenTimer::getDebugISRCount()
+{
+    return 0;
+}
+
+uint64_t RampGenTimer::getDebugRawCount()
+{
+    return 0;
+}
+
+#endif // ESP_PLATFORM

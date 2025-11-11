@@ -11,9 +11,13 @@
 #include <stdint.h>
 #include <vector>
 #include "RaftArduino.h"
+#ifdef ESP_PLATFORM
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
 #include "driver/gptimer.h"
+#else
+#include "RaftThreading.h"
+#endif
 
 // #define RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
 
@@ -54,7 +58,9 @@ private:
     uint32_t _timerPeriodUs = RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT;
 
     // Timer handle
+#ifdef ESP_PLATFORM
     gptimer_handle_t _timerHandle = nullptr;
+#endif
 
     // Debug timer count
     volatile uint32_t _timerISRCount = 0;
@@ -69,11 +75,12 @@ private:
     static const uint32_t MAX_TIMER_CB_HOOKS = 20;
     std::vector<TimerCBHook> _timerCBHooks;
 
-#ifdef RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS
+#if defined(RAMP_GEN_USE_SEMAPHORE_FOR_LIST_ACCESS) && defined(ESP_PLATFORM)
     // Mutex for callback hooks vector
     static SemaphoreHandle_t _hookListMutex;
 #endif
 
+#ifdef ESP_PLATFORM
     // ISR
     static IRAM_ATTR bool _staticGPTimerCB(gptimer_t* timer, const gptimer_alarm_event_data_t* eventData, void* arg)
     {
@@ -119,6 +126,7 @@ private:
 #endif    
 
     }
+#endif
 
     // Timer control
     void disableTimerInterrupts();

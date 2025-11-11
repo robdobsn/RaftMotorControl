@@ -78,6 +78,9 @@ public:
     // Get last monitored position
     virtual AxesValues<AxisPosDataType> getLastMonitoredPos() const override;
 
+    // Get total step counts recorded by ramp generator
+    AxesValues<AxisStepsDataType> getAxisTotalSteps() const;
+
     // Get data (diagnostics)
     String getDataJSON(RaftDeviceJSONLevel level) const;
 
