@@ -12,7 +12,6 @@
 #include "RaftArduino.h"
 #include "Logger.h"
 #include "RaftJson.h"
-#include "esp_attr.h"
 
 static const uint32_t AXIS_VALUES_MAX_ENDSTOPS_PER_AXIS = 2;
 

@@ -11,7 +11,6 @@
 #include <stdint.h>
 #include "Logger.h"
 #include "RaftArduino.h"
-#include "esp_attr.h"
 
 // Max axes and endstops supported
 static const uint32_t AXIS_VALUES_MAX_AXES = 3;
