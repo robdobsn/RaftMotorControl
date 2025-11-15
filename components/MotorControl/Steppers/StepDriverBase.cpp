@@ -13,6 +13,9 @@
 
 // Warning on CRC error
 #define WARN_ON_CRC_ERROR
+#ifdef ESP_PLATFORM
+#define WARN_ON_DRIVER_BUSY
+#endif
 
 // Debug
 // #define DEBUG_REGISTER_READ_PROCESS
@@ -199,8 +202,10 @@ void StepDriverBase::startReadTrinamicsRegister(uint32_t readRegisterIdx)
     // Check valid
     if (!busValid() || isBusy())
     {
+#ifdef WARN_ON_DRIVER_BUSY
         LOG_W(MODULE_PREFIX, "startReadTrinamicsRegister name %s readRegisterIdx %d failed busValid %d busy %d",
                     _name.c_str(), readRegisterIdx, busValid(), isBusy());
+#endif
         return;
     }
     if (readRegisterIdx >= _driverRegisters.size())
