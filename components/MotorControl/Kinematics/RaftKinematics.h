@@ -92,4 +92,54 @@ public:
         // Return block distance (for splitting up into blocks if required)
         return sqrt(movementDistSumSq);
     }
+
+    /// @brief Check if this kinematics supports alternate IK solutions
+    /// @return true if alternate solutions are available (e.g., SCARA elbow-up/down)
+    /// @note Default implementation returns false (most kinematics have single solution)
+    virtual bool supportsAlternateSolutions() const
+    {
+        return false;
+    }
+
+    /// @brief Set preference for alternate IK solution
+    /// @param prefer True to prefer alternate solution
+    /// @note Only has effect if supportsAlternateSolutions() returns true
+    /// @note Default implementation does nothing
+    virtual void setPreferAlternateSolution(bool prefer) const
+    {
+        // Default: no-op for kinematics without alternate solutions
+        (void)prefer;
+    }
+
+    /// @brief Get current alternate solution preference
+    /// @return True if preferring alternate solution
+    /// @note Default implementation returns false
+    virtual bool getPreferAlternateSolution() const
+    {
+        return false;
+    }
+
+    /// @brief Validate that all intermediate points in a linear path are reachable
+    /// @param startPt Start point in Cartesian coordinates
+    /// @param endPt End point in Cartesian coordinates
+    /// @param numSegments Number of segments to test along the path
+    /// @param curAxesState Current axes state
+    /// @param axesParams Axes parameters
+    /// @return true if all intermediate points are reachable
+    /// @note Default implementation returns true (assumes all points reachable)
+    /// @note Kinematics with constraints (like SCARA) should override this
+    virtual bool validateLinearPath(const AxesValues<AxisPosDataType>& startPt,
+                                   const AxesValues<AxisPosDataType>& endPt,
+                                   uint32_t numSegments,
+                                   const AxesState& curAxesState,
+                                   const AxesParams& axesParams) const
+    {
+        // Default: assume all paths are valid (e.g., for Cartesian kinematics)
+        (void)startPt;
+        (void)endPt;
+        (void)numSegments;
+        (void)curAxesState;
+        (void)axesParams;
+        return true;
+    }
 };

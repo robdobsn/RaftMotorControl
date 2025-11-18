@@ -96,9 +96,15 @@ public:
             }
 
             // Choose the solution whose theta1 is closest to the current theta1
+            // Unless alternate solution is preferred (for path planning)
             double diff1 = fabs(computeRelativeAngle(soln1.getVal(0), curAngles.getVal(0)));
             double diff2 = fabs(computeRelativeAngle(soln2.getVal(0), curAngles.getVal(0)));
-            if (diff1 < diff2) {
+            
+            bool useSoln1 = (diff1 < diff2);
+            if (_preferAlternateSolution)
+                useSoln1 = !useSoln1;  // Swap to alternate solution
+                
+            if (useSoln1) {
                 relativeAngleSolution = {
                     computeRelativeAngle(soln1.getVal(0), curAngles.getVal(0)),
                     computeRelativeAngle(soln1.getVal(1), curAngles.getVal(1))
@@ -151,11 +157,12 @@ public:
             const AxesState& curAxesState,
             const AxesParams& axesParams) const override final
     {
-        // Convert to angles
+        // Convert steps to angles - NOTE: Must use inActuator parameter, not curAxesState!
+        // This ensures we calculate position for the actual current step count from the motors
         AxesValues<AxisCalcDataType> curAngles;
-        calculateAngles(curAxesState, curAngles, axesParams);
+        calculateAnglesFromSteps(inActuator, curAngles, axesParams);
 
-        // Calculate the x and y coordinates
+        // Calculate the x and y coordinates using forward kinematics
         outPt = { (AxisPosDataType) (_arm1LenMM * cos(AxisUtils::d2r(curAngles.getVal(0))) + _arm2LenMM * cos(AxisUtils::d2r(curAngles.getVal(1)))),
                     (AxisPosDataType) (_arm1LenMM * sin(AxisUtils::d2r(curAngles.getVal(0))) + _arm2LenMM * sin(AxisUtils::d2r(curAngles.getVal(1))) )};
 
@@ -238,7 +245,25 @@ private:
         return posValid;        
     }
 
-    /// @brief Calculate the current axis angles
+    /// @brief Calculate angles from step values directly
+    /// @param stepValues Step values for each axis
+    /// @param anglesDegrees Output angles in degrees
+    /// @param axesParams Axes parameters
+    void calculateAnglesFromSteps(const AxesValues<AxisStepsDataType>& stepValues,
+                AxesValues<AxisCalcDataType>& anglesDegrees, 
+                const AxesParams& axesParams) const
+    {
+        // All angles returned are in degrees anticlockwise from the x-axis
+        AxisCalcDataType theta1Degrees = AxisUtils::wrapDegrees(stepValues.getVal(0) * 360 / axesParams.getStepsPerRot(0));
+        AxisCalcDataType theta2Degrees = AxisUtils::wrapDegrees(stepValues.getVal(1) * 360 / axesParams.getStepsPerRot(1) + _originTheta2OffsetDegrees);
+        anglesDegrees = { theta1Degrees, theta2Degrees };
+#ifdef DEBUG_KINEMATICS_SA_SCARA
+        LOG_I(MODULE_PREFIX, "calculateAnglesFromSteps ax0Steps %d ax1Steps %d theta1 %.2f° theta2 %.2f°",
+                stepValues.getVal(0), stepValues.getVal(1), anglesDegrees.getVal(0), anglesDegrees.getVal(1));
+#endif        
+    }
+
+    /// @brief Calculate the current axis angles (wrapper for backwards compatibility)
     /// @param curAxesState Current axes state (includes current position in steps from origin)
     /// @param anglesDegrees Output angles in degrees
     /// @param axesParams Axes parameters
@@ -246,14 +271,10 @@ private:
                 AxesValues<AxisCalcDataType>& anglesDegrees, 
                 const AxesParams& axesParams) const
     {
-        // All angles returned are in degrees anticlockwise from the x-axis
-        AxisCalcDataType theta1Degrees = AxisUtils::wrapDegrees(curAxesState.getStepsFromOrigin(0) * 360 / axesParams.getStepsPerRot(0));
-        AxisCalcDataType theta2Degrees = AxisUtils::wrapDegrees(curAxesState.getStepsFromOrigin(1) * 360 / axesParams.getStepsPerRot(1) + _originTheta2OffsetDegrees);
-        anglesDegrees = { theta1Degrees, theta2Degrees };
-#ifdef DEBUG_KINEMATICS_SA_SCARA
-        LOG_I(MODULE_PREFIX, "stepsToPolar ax0Steps %d ax1Steps %d a %.2fd b %.2fd",
-                curAxesState.getStepsFromOrigin(0), curAxesState.getStepsFromOrigin(1), anglesDegrees.getVal(0), anglesDegrees.getVal(1));
-#endif        
+        AxesValues<AxisStepsDataType> stepValues;
+        stepValues.setVal(0, curAxesState.getStepsFromOrigin(0));
+        stepValues.setVal(1, curAxesState.getStepsFromOrigin(1));
+        calculateAnglesFromSteps(stepValues, anglesDegrees, axesParams);
     }
 
     /// @brief Calculate the relative angle (handling wrap-around at 0/360 degrees)
@@ -316,5 +337,77 @@ private:
 
     // Tolderance for check close to origin in mm
     static constexpr AxisPosDataType CLOSE_TO_ORIGIN_TOLERANCE_MM = 1;
+
+    // Solution preference for inverse kinematics
+    // When true, prefers the alternate IK solution (used for path planning to avoid invalid intermediate points)
+    mutable bool _preferAlternateSolution = false;
+
+public:
+    /// @brief Check if this kinematics supports alternate IK solutions
+    /// @return true (SCARA has elbow-up/down solutions)
+    virtual bool supportsAlternateSolutions() const override
+    {
+        return true;
+    }
+
+    /// @brief Set solution preference for inverse kinematics
+    /// @param prefer True to prefer alternate solution (elbow-up vs elbow-down)
+    virtual void setPreferAlternateSolution(bool prefer) const override
+    {
+        _preferAlternateSolution = prefer;
+    }
+
+    /// @brief Get current solution preference
+    /// @return True if preferring alternate solution
+    virtual bool getPreferAlternateSolution() const override
+    {
+        return _preferAlternateSolution;
+    }
+
+    /// @brief Validate that all intermediate points in a linear path are reachable
+    /// @param startPt Start point in Cartesian coordinates
+    /// @param endPt End point in Cartesian coordinates
+    /// @param numSegments Number of segments to test along the path
+    /// @param curAxesState Current axes state
+    /// @param axesParams Axes parameters
+    /// @return true if all intermediate points are reachable
+    virtual bool validateLinearPath(const AxesValues<AxisPosDataType>& startPt,
+                                   const AxesValues<AxisPosDataType>& endPt,
+                                   uint32_t numSegments,
+                                   const AxesState& curAxesState,
+                                   const AxesParams& axesParams) const override
+    {
+        if (numSegments == 0)
+            return true;
+
+        // Calculate delta per segment
+        AxesValues<AxisPosDataType> delta;
+        for (uint32_t i = 0; i < AXIS_VALUES_MAX_AXES; i++)
+            delta.setVal(i, (endPt.getVal(i) - startPt.getVal(i)) / double(numSegments));
+
+        // Test each intermediate point
+        AxesState testState = curAxesState;
+        for (uint32_t seg = 1; seg <= numSegments; seg++)
+        {
+            // Calculate test point
+            AxesValues<AxisPosDataType> testPt;
+            for (uint32_t i = 0; i < AXIS_VALUES_MAX_AXES; i++)
+                testPt.setVal(i, startPt.getVal(i) + delta.getVal(i) * seg);
+
+            // Try inverse kinematics
+            AxesValues<AxisStepsDataType> actuatorCoords;
+            bool valid = ptToActuator(testPt, actuatorCoords, testState, axesParams, false);
+            
+            if (!valid)
+            {
+                return false;
+            }
+
+            // Update test state for next iteration (to simulate sequential moves)
+            testState.setPosition(testPt, actuatorCoords, false);
+        }
+
+        return true;
+    }
 
 };

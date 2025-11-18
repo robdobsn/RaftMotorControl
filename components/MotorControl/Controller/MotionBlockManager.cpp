@@ -88,6 +88,52 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args, uint32_t numBloc
     _finalTargetPos = args.getAxesPosConst();
     _blockMotionVector = (_finalTargetPos - _axesState.getUnitsFromOrigin()) / double(numBlocks);
 
+    // Smart solution selection for kinematics that support alternate IK solutions
+    // If splitting into multiple blocks, validate the path with both IK solutions
+    if (numBlocks > 1 && _pRaftKinematics && _pRaftKinematics->supportsAlternateSolutions())
+    {
+        // Test primary solution (normal behavior)
+        _pRaftKinematics->setPreferAlternateSolution(false);
+        bool primaryPathValid = _pRaftKinematics->validateLinearPath(
+            _axesState.getUnitsFromOrigin(), 
+            _finalTargetPos, 
+            numBlocks, 
+            _axesState, 
+            _axesParams);
+
+        if (!primaryPathValid)
+        {
+            // Primary path has invalid points, try alternate solution
+            LOG_I(MODULE_PREFIX, "Primary IK solution creates invalid intermediate points, testing alternate...");
+            
+            _pRaftKinematics->setPreferAlternateSolution(true);
+            bool alternatePathValid = _pRaftKinematics->validateLinearPath(
+                _axesState.getUnitsFromOrigin(), 
+                _finalTargetPos, 
+                numBlocks, 
+                _axesState, 
+                _axesParams);
+
+            if (alternatePathValid)
+            {
+                LOG_I(MODULE_PREFIX, "Alternate IK solution valid, using alternate configuration");
+                // Keep alternate solution preference set
+            }
+            else
+            {
+                // Both solutions fail - disable splitting, move directly
+                LOG_W(MODULE_PREFIX, "Both IK solutions have invalid points, disabling block splitting (nosplit)");
+                _numBlocks = 1;
+                _pRaftKinematics->setPreferAlternateSolution(false);  // Reset to normal
+            }
+        }
+        else
+        {
+            // Primary path is valid, use it
+            _pRaftKinematics->setPreferAlternateSolution(false);
+        }
+    }
+
 #ifdef DEBUG_RAMPED_BLOCK
     LOG_I(MODULE_PREFIX, "addRampedBlock curUnits %s curSteps %s targetPosUnits %s numBlocks %d blockMotionVector %s)",
                 _axesState.getUnitsFromOrigin().getDebugJSON("unFrOr").c_str(),
@@ -112,7 +158,14 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
     {
         // Check if any blocks remain to be expanded out
         if (_numBlocks <= 0)
+        {
+            // Reset solution preference when move sequence completes
+            if (_pRaftKinematics && _pRaftKinematics->supportsAlternateSolutions())
+            {
+                _pRaftKinematics->setPreferAlternateSolution(false);
+            }
             return;
+        }
 
         // Add to pipeline any blocks that are waiting to be expanded out
         AxesValues<AxisPosDataType> nextBlockDest = _axesState.getUnitsFromOrigin() + _blockMotionVector;
