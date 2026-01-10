@@ -1,0 +1,50 @@
+Raft build SysType unittest in . (no Docker)
+Searching default paths: ["/home/rob/esp"]
+Found matching path: "/home/rob/esp/esp-idf-v5.5.1"
+IDF found Some("/home/rob/esp/esp-idf-v5.5.1")
+Capturing ESP-IDF environment from /home/rob/esp/esp-idf-v5.5.1
+Executing action: all (aliases: build)
+Running ninja in directory /home/rob/rdev/raft/RaftMotorControl/unit_tests/build/unittest
+Executing "ninja all"...
+[1/7] cd /home/rob/rdev/raft/RaftMotorControl/unit_tests/build/unittest && echo --------------\ Always\ copy\ FS\ and\ WebUI\ files\ ----------------------
+-------------- Always copy FS and WebUI files ----------------------
+[2/7] Updating shared compile_commands.json
+[3/7] Copying FSImage files to the FS Image directory
+------------------ Copying FSImage files to file system --------------------
+[4/7] cd /home/rob/rdev/raft/RaftMotorControl/unit_tests/build/unittest/esp-idf/esptool_py && /home/rob/.espressif/python_env/idf5.5_py3.12_env/bin/python /home/rob/esp/esp-idf-v5.5.1/components/partition_table/check_sizes.py --offset 0x8000 partition --type app /home/rob/rdev/raft/RaftMotorControl/unit_tests/build/unittest/partition_table/partition-table.bin /home/rob/rdev/raft/RaftMotorControl/unit_tests/build/unittest/unittest.bin
+unittest.bin binary size 0x4c560 bytes. Smallest app partition is 0x1b0000 bytes. 0x163aa0 bytes (82%) free.
+[5/7] Performing build step for 'bootloader'
+[1/1] cd /home/rob/rdev/raft/RaftMotorControl/unit_tests/build/unittest/bootloader/esp-idf/esptool_py && /home/rob/.espressif/python_env/idf5.5_py3.12_env/bin/python /home/rob/esp/esp-idf-v5.5.1/components/partition_table/check_sizes.py --offset 0x8000 bootloader 0x1000 /home/rob/rdev/raft/RaftMotorControl/unit_tests/build/unittest/bootloader/bootloader.bin
+Bootloader binary size 0x6680 bytes. 0x980 bytes (8%) free.
+[6/7] No install step for 'bootloader'
+[7/7] Completed 'bootloader'
+
+Project build complete. To flash, run:
+ idf.py flash
+or
+ idf.py -p PORT flash
+or
+ python -m esptool --chip esp32 -b 460800 --before default_reset --after hard_reset write_flash --flash_mode dio --flash_size 4MB --flash_freq 40m 0x1000 build/unittest/bootloader/bootloader.bin 0x8000 build/unittest/partition_table/partition-table.bin 0x1e000 build/unittest/ota_data_initial.bin 0x20000 build/unittest/unittest.bin
+or from the "/home/rob/rdev/raft/RaftMotorControl/unit_tests/build/unittest" directory
+ python -m esptool --chip esp32 -b 460800 --before default_reset --after hard_reset write_flash "@flash_args"
+WSL detected: Delegating flash operation to Windows raft.exe for USB serial port access
+Executing Windows raft.exe with args: ["flash", "-s", "unittest", "-f", "1000000", "-n"]
+Flash command: esptool
+Flash command args: ["-p", "COM16", "-b", "1000000", "--before", "default_reset", "--after", "hard_reset", "--chip", "esp32", "write_flash", "--flash_mode", "dio", "--flash_size", "4MB", "--flash_freq", "40m", "0x1000", "./build/unittest/bootloader/bootloader.bin", "0x1e000", "./build/unittest/ota_data_initial.bin", "0x20000", "./build/unittest/unittest.bin", "0x8000", "./build/unittest/partition_table/partition-table.bin"]
+Flash command app folder: .
+
+A fatal error occurred: Could not open COM16, the port is busy or doesn't exist.
+(could not open port 'COM16': PermissionError(13, 'Access is denied.', None, 5))
+
+Hint: Check if the port is not used by another task
+
+Warning: Deprecated: Option '--flash_mode' is deprecated. Use '--flash-mode' instead.
+Warning: Deprecated: Option '--flash_size' is deprecated. Use '--flash-size' instead.
+Warning: Deprecated: Option '--flash_freq' is deprecated. Use '--flash-freq' instead.
+Warning: Deprecated: Choice 'default_reset' for option '--before' is deprecated. Use 'default-reset' instead.
+Warning: Deprecated: Choice 'hard_reset' for option '--after' is deprecated. Use 'hard-reset' instead.
+Warning: Deprecated: Command 'write_flash' is deprecated. Use 'write-flash' instead.
+esptool v5.1.0
+Serial port COM16:
+Flash operation failed Err(Custom { kind: Other, error: "Flash executed with errors: \nA fatal error occurred: Could not open COM16, the port is busy or doesn't exist.\n(could not open port 'COM16': PermissionError(13, 'Access is denied.', None, 5))\n\nHint: Check if the port is not used by another task\n\nWarning: Deprecated: Option '--flash_mode' is deprecated. Use '--flash-mode' instead.\nWarning: Deprecated: Option '--flash_size' is deprecated. Use '--flash-size' instead.\nWarning: Deprecated: Option '--flash_freq' is deprecated. Use '--flash-freq' instead.\nWarning: Deprecated: Choice 'default_reset' for option '--before' is deprecated. Use 'default-reset' instead.\nWarning: Deprecated: Choice 'hard_reset' for option '--after' is deprecated. Use 'hard-reset' instead.\nWarning: Deprecated: Command 'write_flash' is deprecated. Use 'write-flash' instead.\nesptool v5.1.0\nSerial port COM16:\n" })
+Flash operation failed Err(Custom { kind: Other, error: "Windows raft.exe flash command failed with exit code: Some(1)" })

@@ -20,6 +20,7 @@ idf_component_register(
     "components/MotorControl/RampGenerator/RampGenTimer.cpp"
     "components/MotorControl/Steppers/StepDriverBase.cpp"
     "components/MotorControl/Steppers/StepDriverTMC2209.cpp"
+    "components/MotorControl/Steppers/StepDriverTMC2209Enhanced.cpp"
   INCLUDE_DIRS
     "components/MotorControl/."
     "components/MotorControl/Axes"

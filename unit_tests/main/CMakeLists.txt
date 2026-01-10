@@ -2,6 +2,7 @@ idf_component_register(SRCS
             "test_main.cpp"
             "xyz_test.cpp"
             "TMC2209Driver_test.cpp"
+            "MotorDriverBase_test.cpp"
         INCLUDE_DIRS 
             "."
         REQUIRES
