@@ -1,5 +1,4 @@
 {
-    "SysTypeName": "unittest",
     "SysManager": {
         "monitorPeriodMs":10000,
         "reportList":[
