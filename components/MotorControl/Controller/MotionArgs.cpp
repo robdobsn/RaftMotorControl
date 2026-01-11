@@ -34,7 +34,7 @@ std::vector<MotionArgs::FieldDefType> MotionArgs::getFieldDefs()
     fieldDefs.push_back(FieldDefType("en", &_enableMotors, "bool"));
     fieldDefs.push_back(FieldDefType("ampsPCofMax", &_ampsPercentOfMax, "double"));
     fieldDefs.push_back(FieldDefType("clearQ", &_preClearMotionQueue, "bool"));
-    fieldDefs.push_back(FieldDefType("stop", &_stopMotion, "bool"));
+    fieldDefs.push_back(FieldDefType("immediate", &_stopMotion, "bool", {"stop"}));
     fieldDefs.push_back(FieldDefType("constrain", &_constrainToBounds, "bool"));
     return fieldDefs;
 }
@@ -51,19 +51,34 @@ void MotionArgs::fromJSON(const char* jsonStr)
     // Get fields
     for (auto &fieldDef : fieldDefs)
     {
-        // Check if value is present
-        if (!cmdJson.contains(fieldDef._name.c_str()))
-            continue;
+        // Check if value is present (primary name or aliases)
+        String fieldToCheck = fieldDef._name;
+        if (!cmdJson.contains(fieldToCheck.c_str()))
+        {
+            // Check aliases
+            bool found = false;
+            for (const auto& alias : fieldDef._aliases)
+            {
+                if (cmdJson.contains(alias.c_str()))
+                {
+                    fieldToCheck = alias;
+                    found = true;
+                    break;
+                }
+            }
+            if (!found)
+                continue;
+        }
 
         // Get value
         if (fieldDef._dataType.equalsIgnoreCase("bool"))
         {
-            bool fieldVal = cmdJson.getBool(fieldDef._name.c_str(), 0);
+            bool fieldVal = cmdJson.getBool(fieldToCheck.c_str(), 0);
             *((bool*)fieldDef._pValue) = fieldVal;
         }
         else if (fieldDef._dataType.equalsIgnoreCase("double"))
         {
-            double fieldVal = cmdJson.getDouble(fieldDef._name.c_str(), 0);
+            double fieldVal = cmdJson.getDouble(fieldToCheck.c_str(), 0);
             *((double*)fieldDef._pValue) = fieldVal;
         }
     }

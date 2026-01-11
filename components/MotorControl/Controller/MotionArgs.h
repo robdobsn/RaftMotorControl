@@ -313,15 +313,17 @@ private:
     // Boolean flags
     class FieldDefType {
     public:
-        FieldDefType(const char* name, void* pValue, const char* dataType)
+        FieldDefType(const char* name, void* pValue, const char* dataType, std::vector<String> aliases = {})
         {
             _name = name;
             _pValue = pValue;
             _dataType = dataType;
+            _aliases = aliases;
         }
         String _name;
         void* _pValue;
         String _dataType;
+        std::vector<String> _aliases;
     };
     std::vector<FieldDefType> getFieldDefs();
 
