@@ -1,0 +1,12 @@
+{
+  "extends": "@parcel/config-default",
+  "transformers": {
+    "*.{ts,tsx}": ["@parcel/transformer-typescript-tsc"]
+  },
+  "optimizers": {
+    "*.{js,mjs,cjs}": ["@parcel/optimizer-terser"],
+    "*.{css}": ["@parcel/optimizer-css"]
+  },
+  "resolvers": ["@parcel/resolver-default"],
+  "bundler": "@parcel/bundler-default"
+}

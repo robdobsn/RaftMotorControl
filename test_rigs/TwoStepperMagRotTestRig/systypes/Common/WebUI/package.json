@@ -1,0 +1,37 @@
+{
+  "name": "two-stepper-test-rig-webui",
+  "version": "1.0.0",
+  "description": "Lightweight WebUI for TwoStepperMagRotTestRig",
+  "source": "src/index.html",
+  "scripts": {
+    "start": "parcel src/index.html --open",
+    "build": "parcel build src/index.html --public-url ./ --no-source-maps",
+    "clean": "rm -rf dist .parcel-cache",
+    "postinstall": "cd node_modules/@robdobsn/raftjs/dist/web && ln -sf RaftChannelBLE.web.js RaftChannelBLE.js || true"
+  },
+  "targets": {
+    "default": {
+      "distDir": "./dist",
+      "optimize": true
+    }
+  },
+  "alias": {
+    "@robdobsn/raftjs/dist/web/RaftChannelBLE": "@robdobsn/raftjs/dist/web/RaftChannelBLE.web.js"
+  },
+  "dependencies": {
+    "@robdobsn/raftjs": "^1.0.0",
+    "react": "^18.2.0",
+    "react-dom": "^18.2.0"
+  },
+  "devDependencies": {
+    "@parcel/optimizer-terser": "^2.16.3",
+    "@parcel/transformer-typescript-tsc": "^2.12.0",
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "parcel": "^2.12.0",
+    "process": "^0.11.10",
+    "typescript": "^5.3.0"
+  },
+  "author": "",
+  "license": "MIT"
+}

@@ -1,0 +1,137 @@
+{
+  "CmdsAtStart": "",
+  "DevMan": {
+    "Buses": {
+      "buslist": [
+        {
+          "i2cFreq": 100000,
+          "name": "I2CA",
+          "sclPin": 7,
+          "sdaPin": 6,
+          "type": "I2C"
+        }
+      ]
+    },
+    "Devices": []
+  },
+  "ESPOTAUpdate": {
+    "OTADirect": 1,
+    "enable": 1
+  },
+  "FileManager": {
+    "CacheFileSysInfo": 0,
+    "DefaultSD": 1,
+    "LocalFSFormatIfCorrupt": 1,
+    "LocalFsDefault": "littlefs",
+    "SDCLK": 14,
+    "SDCS": 13,
+    "SDEnabled": 0,
+    "SDMISO": 4,
+    "SDMOSI": 15
+  },
+  "LogManager": {
+    "enable": 0,
+    "logDests": [
+      {
+        "enable": false,
+        "host": "xxxxx.papertrailapp.com",
+        "port": 12345,
+        "type": "Papertrail"
+      }
+    ]
+  },
+  "MQTTMan": {
+    "brokerHostname": "mqttbroker",
+    "brokerPort": 1883,
+    "clientID": "",
+    "enable": 0,
+    "topics": [
+      {
+        "inbound": 1,
+        "name": "examplein",
+        "path": "example/in",
+        "qos": 1
+      },
+      {
+        "inbound": 0,
+        "name": "exampleout",
+        "path": "example/out",
+        "qos": 1
+      }
+    ]
+  },
+  "MainSysMod": {
+    "exampleGroup": {
+      "exampleKey": "Welcome to Raft!"
+    }
+  },
+  "NetMan": {
+    "NTPServer": "pool.ntp.org",
+    "ethEn": 0,
+    "logLevel": "D",
+    "timezone": "UTC",
+    "wifiAPAuthMode": "WPA2_PSK",
+    "wifiAPChannel": 1,
+    "wifiAPEn": 1,
+    "wifiAPMaxConn": 4,
+    "wifiAPPW": "raftpassword",
+    "wifiAPSSID": "RaftAP",
+    "wifiPW": "",
+    "wifiSSID": "",
+    "wifiSTAEn": 1,
+    "wifiSTAScanThreshold": "OPEN"
+  },
+  "ProtExchg": {
+    "RICSerial": {
+      "CtrlEscape": "0xD7",
+      "FrameBound": "0xE7"
+    }
+  },
+  "Publish": {
+    "enable": 1
+  },
+  "SerialConsole": {
+    "crlfOnTx": 1,
+    "enable": 1,
+    "logLevel": "D",
+    "protocol": "RICSerial",
+    "rxBuf": 5000,
+    "txBuf": 1500,
+    "uartNum": 0
+  },
+  "SysManager": {
+    "monitorPeriodMs": 10000,
+    "reportList": [
+      "NetMan",
+      "SysMan"
+    ],
+    "slowSysModMs": 50
+  },
+  "SysTypeName": "SysTypeMain",
+  "WebServer": {
+    "apiPrefix": "api/",
+    "enable": 1,
+    "fileServer": 1,
+    "logLevel": "D",
+    "numConnSlots": 12,
+    "sendMax": 5000,
+    "staticFilePaths": "",
+    "stdRespHeaders": [
+      "Access-Control-Allow-Origin: *"
+    ],
+    "taskCore": 0,
+    "taskPriority": 9,
+    "taskStack": 5000,
+    "webServerPort": 80,
+    "websockets": [
+      {
+        "maxConn": 4,
+        "pcol": "RICSerial",
+        "pfix": "ws",
+        "pingMs": 30000,
+        "txQueueMax": 20
+      }
+    ]
+  },
+  "WebUI": ""
+}
