@@ -16,10 +16,17 @@ const ROBOT_GEOMETRIES = [
   { id: 'custom', name: 'Custom' },
 ];
 
-// Robot configuration for XY Cartesian (2-joint arm)
-const ROBOT_CONFIG = {
+// Robot configurations
+const SCARA_CONFIG = {
   link1Length: 100, // Length of first link in mm
   link2Length: 80,  // Length of second link in mm
+  scale: 0.8,       // Scale factor for display
+};
+
+const XY_CARTESIAN_CONFIG = {
+  // Map 360 degrees to a linear range (e.g., 200mm travel)
+  xRange: 200,      // mm of X travel
+  yRange: 200,      // mm of Y travel
   scale: 0.8,       // Scale factor for display
 };
 
@@ -33,9 +40,30 @@ interface CartesianPosition {
   y: number; // mm
 }
 
-// Forward kinematics for 2-joint planar arm
-function calculateForwardKinematics(angles: JointAngles): CartesianPosition {
-  const { link1Length, link2Length } = ROBOT_CONFIG;
+interface PositionHistoryPoint {
+  x: number;
+  y: number;
+  timestamp: number;
+}
+
+const TRAIL_DURATION_MS = 5000; // 5 seconds
+const TRAIL_MAX_POINTS = 100; // Limit number of points
+
+// XY Cartesian: Direct angle to position mapping
+function calculateXYCartesian(angles: JointAngles): CartesianPosition {
+  const { xRange, yRange } = XY_CARTESIAN_CONFIG;
+  
+  // Map angle (0-360°) to linear position
+  // Center at 0, so range goes from -xRange/2 to +xRange/2
+  const x = ((angles.joint1 / 360) * xRange) - (xRange / 2);
+  const y = ((angles.joint2 / 360) * yRange) - (yRange / 2);
+  
+  return { x, y };
+}
+
+// SCARA: Forward kinematics for 2-joint planar arm
+function calculateSCARAKinematics(angles: JointAngles): CartesianPosition {
+  const { link1Length, link2Length } = SCARA_CONFIG;
   
   // Convert to radians
   const theta1 = (angles.joint1 * Math.PI) / 180;
@@ -48,9 +76,9 @@ function calculateForwardKinematics(angles: JointAngles): CartesianPosition {
   return { x, y };
 }
 
-// Calculate joint positions for rendering
-function calculateJointPositions(angles: JointAngles) {
-  const { link1Length, link2Length, scale } = ROBOT_CONFIG;
+// Calculate SCARA joint positions for rendering
+function calculateSCARAJointPositions(angles: JointAngles) {
+  const { link1Length, link2Length, scale } = SCARA_CONFIG;
   
   // Convert to radians
   const theta1 = (angles.joint1 * Math.PI) / 180;
@@ -78,6 +106,7 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
   const [selectedGeometry, setSelectedGeometry] = useState<string>(ROBOT_GEOMETRIES[0].id);
   const [jointAngles, setJointAngles] = useState<JointAngles>({ joint1: 0, joint2: 0 });
   const [endEffectorPos, setEndEffectorPos] = useState<CartesianPosition>({ x: 0, y: 0 });
+  const [positionHistory, setPositionHistory] = useState<PositionHistoryPoint[]>([]);
 
   useEffect(() => {
     const deviceManager = connManager.getConnector().getSystemType()?.deviceMgrIF;
@@ -111,10 +140,46 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
     };
     setJointAngles(angles);
 
-    // Calculate forward kinematics
-    const position = calculateForwardKinematics(angles);
+    // Calculate forward kinematics based on selected geometry
+    let position: CartesianPosition;
+    if (selectedGeometry === 'xy_cartesian') {
+      position = calculateXYCartesian(angles);
+    } else if (selectedGeometry === 'scara') {
+      position = calculateSCARAKinematics(angles);
+    } else {
+      position = { x: 0, y: 0 };
+    }
     setEndEffectorPos(position);
-  }, [lastUpdate]);
+    
+    // Add to position history
+    setPositionHistory((prev) => {
+      const now = Date.now();
+      const newPoint: PositionHistoryPoint = {
+        x: position.x,
+        y: position.y,
+        timestamp: now,
+      };
+      
+      // Filter out old points and add new one
+      const filtered = prev.filter((p) => now - p.timestamp < TRAIL_DURATION_MS);
+      
+      // Only add if position has changed significantly (more than 0.5mm)
+      const lastPoint = filtered[filtered.length - 1];
+      if (!lastPoint || 
+          Math.abs(lastPoint.x - position.x) > 0.5 || 
+          Math.abs(lastPoint.y - position.y) > 0.5) {
+        const updated = [...filtered, newPoint];
+        
+        // Limit total points
+        if (updated.length > TRAIL_MAX_POINTS) {
+          return updated.slice(updated.length - TRAIL_MAX_POINTS);
+        }
+        return updated;
+      }
+      
+      return filtered;
+    });
+  }, [lastUpdate, selectedGeometry]);
 
   // Convert world coordinates to SVG coordinates
   const worldToSVG = (x: number, y: number) => {
@@ -124,10 +189,148 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
     };
   };
 
+  // Render position trail
+  const renderTrail = () => {
+    if (positionHistory.length < 2) return null;
+    
+    const now = Date.now();
+    const scale = selectedGeometry === 'xy_cartesian' ? XY_CARTESIAN_CONFIG.scale : SCARA_CONFIG.scale;
+    
+    // Create path segments with varying opacity based on age
+    return (
+      <g>
+        {positionHistory.map((point, index) => {
+          if (index === 0) return null; // Skip first point (no line to draw)
+          
+          const prevPoint = positionHistory[index - 1];
+          const age = now - point.timestamp;
+          const opacity = Math.max(0, 1 - (age / TRAIL_DURATION_MS));
+          
+          const svgPoint = worldToSVG(point.x * scale, point.y * scale);
+          const svgPrevPoint = worldToSVG(prevPoint.x * scale, prevPoint.y * scale);
+          
+          return (
+            <line
+              key={`trail-${point.timestamp}-${index}`}
+              x1={svgPrevPoint.x}
+              y1={svgPrevPoint.y}
+              x2={svgPoint.x}
+              y2={svgPoint.y}
+              stroke="#ffeb3b"
+              strokeWidth="2"
+              strokeLinecap="round"
+              opacity={opacity * 0.8}
+            />
+          );
+        })}
+      </g>
+    );
+  };
+
   // Render robot based on selected geometry
   const renderRobot = () => {
     if (selectedGeometry === 'xy_cartesian') {
-      const positions = calculateJointPositions(jointAngles);
+      const { xRange, yRange, scale } = XY_CARTESIAN_CONFIG;
+      const position = calculateXYCartesian(jointAngles);
+      
+      // Scale position for display
+      const displayPos = worldToSVG(position.x * scale, position.y * scale);
+      
+      // Draw X slider
+      const xSliderY = 280;
+      const xSliderStart = worldToSVG(-xRange/2 * scale, 0);
+      const xSliderEnd = worldToSVG(xRange/2 * scale, 0);
+      const xPos = worldToSVG(position.x * scale, 0);
+      
+      // Draw Y slider
+      const ySliderX = 280;
+      const ySliderStart = worldToSVG(0, -yRange/2 * scale);
+      const ySliderEnd = worldToSVG(0, yRange/2 * scale);
+      const yPos = worldToSVG(0, position.y * scale);
+      
+      return (
+        <g>
+          {/* X axis slider track */}
+          <line
+            x1={xSliderStart.x}
+            y1={xSliderY}
+            x2={xSliderEnd.x}
+            y2={xSliderY}
+            stroke="#4a9eff"
+            strokeWidth="3"
+            opacity="0.3"
+          />
+          
+          {/* Y axis slider track */}
+          <line
+            x1={ySliderX}
+            y1={ySliderStart.y}
+            x2={ySliderX}
+            y2={ySliderEnd.y}
+            stroke="#ff6384"
+            strokeWidth="3"
+            opacity="0.3"
+          />
+          
+          {/* X axis position marker */}
+          <g>
+            <line
+              x1={xPos.x}
+              y1={xSliderY - 10}
+              x2={xPos.x}
+              y2={xSliderY + 10}
+              stroke="#4a9eff"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+            <circle cx={xPos.x} cy={xSliderY} r="6" fill="#4a9eff" />
+          </g>
+          
+          {/* Y axis position marker */}
+          <g>
+            <line
+              x1={ySliderX - 10}
+              y1={yPos.y}
+              x2={ySliderX + 10}
+              y2={yPos.y}
+              stroke="#ff6384"
+              strokeWidth="4"
+              strokeLinecap="round"
+            />
+            <circle cx={ySliderX} cy={yPos.y} r="6" fill="#ff6384" />
+          </g>
+          
+          {/* Position lines from sliders to end effector */}
+          <line
+            x1={xPos.x}
+            y1={xSliderY}
+            x2={displayPos.x}
+            y2={displayPos.y}
+            stroke="#4a9eff"
+            strokeWidth="1"
+            strokeDasharray="3,3"
+            opacity="0.5"
+          />
+          <line
+            x1={ySliderX}
+            y1={yPos.y}
+            x2={displayPos.x}
+            y2={displayPos.y}
+            stroke="#ff6384"
+            strokeWidth="1"
+            strokeDasharray="3,3"
+            opacity="0.5"
+          />
+          
+          {/* End effector */}
+          <circle cx={displayPos.x} cy={displayPos.y} r="8" fill="#4caf50" stroke="#fff" strokeWidth="2" />
+          <circle cx={displayPos.x} cy={displayPos.y} r="3" fill="#fff" />
+        </g>
+      );
+    }
+    
+    if (selectedGeometry === 'scara') {
+      const positions = calculateSCARAJointPositions(jointAngles);
       
       const base = worldToSVG(positions.base.x, positions.base.y);
       const joint1 = worldToSVG(positions.joint1.x, positions.joint1.y);
@@ -170,7 +373,7 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
           <circle
             cx={base.x}
             cy={base.y}
-            r={(ROBOT_CONFIG.link1Length + ROBOT_CONFIG.link2Length) * ROBOT_CONFIG.scale}
+            r={(SCARA_CONFIG.link1Length + SCARA_CONFIG.link2Length) * SCARA_CONFIG.scale}
             fill="none"
             stroke="#333"
             strokeWidth="1"
@@ -266,6 +469,7 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
           </g>
 
           {/* Robot */}
+          {renderTrail()}
           {renderRobot()}
         </svg>
       </div>
