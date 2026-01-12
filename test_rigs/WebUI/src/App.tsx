@@ -3,6 +3,8 @@ import ConnectionPanel from './components/ConnectionPanel';
 import MotorControl from './components/MotorControl';
 import EncoderDisplay from './components/EncoderDisplay';
 import StatusPanel from './components/StatusPanel';
+import AngleChart from './components/AngleChart';
+import RobotVisualization from './components/RobotVisualization';
 import ConnManager from './ConnManager';
 import { RaftConnEvent } from '@robdobsn/raftjs';
 
@@ -79,6 +81,12 @@ export default function App() {
           <div className="main-grid">
             <EncoderDisplay lastUpdate={lastUpdate} />
             <StatusPanel lastUpdate={lastUpdate} />
+          </div>
+          <div className="chart-section">
+            <AngleChart lastUpdate={lastUpdate} />
+          </div>
+          <div className="visualization-section">
+            <RobotVisualization lastUpdate={lastUpdate} />
           </div>
           <MotorControl />
         </>

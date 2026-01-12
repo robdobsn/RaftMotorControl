@@ -213,3 +213,50 @@ input[type="number"]::-webkit-inner-spin-button,
 input[type="number"]::-webkit-outer-spin-button {
   opacity: 1;
 }
+
+/* Chart Section */
+.chart-section {
+  margin-top: 20px;
+}
+
+.chart-panel {
+  min-height: 400px;
+}
+
+.chart-container {
+  height: 350px;
+  margin-top: 15px;
+  position: relative;
+}
+
+.chart-info {
+  text-align: center;
+  margin-bottom: 10px;
+}
+
+/* Visualization Section */
+.visualization-section {
+  margin-top: 20px;
+}
+
+.visualization-panel {
+  min-height: 500px;
+}
+
+.visualization-container {
+  margin: 20px 0;
+  display: flex;
+  justify-content: center;
+}
+
+.robot-canvas {
+  max-width: 100%;
+  height: auto;
+}
+
+.visualization-info {
+  margin-top: 20px;
+  padding: 15px;
+  background: #333;
+  border-radius: 6px;
+}
