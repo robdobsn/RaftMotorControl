@@ -52,15 +52,16 @@ export default function ConnectionPanel({ connectionStatus }: ConnectionPanelPro
 
   return (
     <div className="panel">
-      <h2>
+      <h2>Sensor Device Connection</h2>
+      <div className="connection-status mb-3">
         <span className={`status-indicator ${getStatusClass()}`}></span>
-        Connection: {getStatusText()}
-      </h2>
+        <span>{getStatusText()}</span>
+      </div>
       
       {!isConnected ? (
         <div className="row g-3 align-items-end">
           <div className="col-md-8">
-            <label htmlFor="ipAddress" className="form-label">ESP32 IP Address</label>
+            <label htmlFor="ipAddress" className="form-label">Sensor Device IP Address</label>
             <input
               type="text"
               className="form-control"

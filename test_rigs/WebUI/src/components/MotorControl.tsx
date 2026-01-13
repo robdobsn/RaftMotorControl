@@ -3,7 +3,11 @@ import ConnManager from '../ConnManager';
 
 const connManager = ConnManager.getInstance();
 
-export default function MotorControl() {
+interface MotorControlProps {
+  motorConnectionReady: boolean;
+}
+
+export default function MotorControl({ motorConnectionReady }: MotorControlProps) {
   const [motor1Speed, setMotor1Speed] = useState(50);
   const [motor2Speed, setMotor2Speed] = useState(50);
   const [motor1Position, setMotor1Position] = useState(0);
@@ -11,7 +15,7 @@ export default function MotorControl() {
 
   const sendCommand = async (command: string) => {
     try {
-      await connManager.getConnector().sendRICRESTMsg(command, {});
+      await connManager.getMotorConnector().sendRICRESTMsg(command, {});
       console.log('Command sent:', command);
     } catch (error) {
       console.error('Failed to send command:', error);
@@ -42,7 +46,14 @@ export default function MotorControl() {
   return (
     <div className="panel mt-4">
       <h2>Motor Control</h2>
-      <div className="motor-controls">
+      
+      {!motorConnectionReady && (
+        <div className="alert alert-warning" role="alert">
+          <strong>Motor controller not connected.</strong> Configure the motor controller connection above to enable motor controls.
+        </div>
+      )}
+      
+      <div className={`motor-controls ${!motorConnectionReady ? 'disabled' : ''}`}>
         {/* Motor 1 */}
         <div className="motor-section">
           <h3>Motor 1</h3>
@@ -54,6 +65,7 @@ export default function MotorControl() {
               className="form-range"
               id="motor1Speed"
               min="1"
+              disabled={!motorConnectionReady}
               max="100"
               value={motor1Speed}
               onChange={(e) => setMotor1Speed(parseInt(e.target.value))}
@@ -64,18 +76,21 @@ export default function MotorControl() {
             <button 
               className="btn btn-primary btn-sm"
               onClick={() => moveMotor(1, 'ccw')}
+              disabled={!motorConnectionReady}
             >
               ◄ CCW
             </button>
             <button 
               className="btn btn-danger btn-sm"
               onClick={() => stopMotor(1)}
+              disabled={!motorConnectionReady}
             >
               ■ Stop
             </button>
             <button 
               className="btn btn-primary btn-sm"
               onClick={() => moveMotor(1, 'cw')}
+              disabled={!motorConnectionReady}
             >
               CW ►
             </button>
@@ -90,10 +105,12 @@ export default function MotorControl() {
                 id="motor1Pos"
                 value={motor1Position}
                 onChange={(e) => setMotor1Position(parseInt(e.target.value) || 0)}
+                disabled={!motorConnectionReady}
               />
               <button 
                 className="btn btn-outline-primary"
                 onClick={() => goToPosition(1)}
+                disabled={!motorConnectionReady}
               >
                 Go
               </button>
@@ -103,6 +120,7 @@ export default function MotorControl() {
           <button 
             className="btn btn-warning btn-sm w-100 mt-2"
             onClick={() => homeMotor(1)}
+            disabled={!motorConnectionReady}
           >
             🏠 Home
           </button>
@@ -122,6 +140,7 @@ export default function MotorControl() {
               max="100"
               value={motor2Speed}
               onChange={(e) => setMotor2Speed(parseInt(e.target.value))}
+              disabled={!motorConnectionReady}
             />
           </div>
 
@@ -129,18 +148,21 @@ export default function MotorControl() {
             <button 
               className="btn btn-primary btn-sm"
               onClick={() => moveMotor(2, 'ccw')}
+              disabled={!motorConnectionReady}
             >
               ◄ CCW
             </button>
             <button 
               className="btn btn-danger btn-sm"
               onClick={() => stopMotor(2)}
+              disabled={!motorConnectionReady}
             >
               ■ Stop
             </button>
             <button 
               className="btn btn-primary btn-sm"
               onClick={() => moveMotor(2, 'cw')}
+              disabled={!motorConnectionReady}
             >
               CW ►
             </button>
@@ -155,10 +177,12 @@ export default function MotorControl() {
                 id="motor2Pos"
                 value={motor2Position}
                 onChange={(e) => setMotor2Position(parseInt(e.target.value) || 0)}
+                disabled={!motorConnectionReady}
               />
               <button 
                 className="btn btn-outline-primary"
                 onClick={() => goToPosition(2)}
+                disabled={!motorConnectionReady}
               >
                 Go
               </button>
@@ -168,6 +192,7 @@ export default function MotorControl() {
           <button 
             className="btn btn-warning btn-sm w-100 mt-2"
             onClick={() => homeMotor(2)}
+            disabled={!motorConnectionReady}
           >
             🏠 Home
           </button>

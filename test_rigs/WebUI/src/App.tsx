@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ConnectionPanel from './components/ConnectionPanel';
+import MotorControllerConnection from './components/MotorControllerConnection';
 import MotorControl from './components/MotorControl';
 import EncoderDisplay from './components/EncoderDisplay';
 import StatusPanel from './components/StatusPanel';
@@ -11,9 +12,10 @@ import { RaftConnEvent } from '@robdobsn/raftjs';
 const connManager = ConnManager.getInstance();
 
 export default function App() {
-  const [connectionStatus, setConnectionStatus] = useState<RaftConnEvent>(
+  const [sensorConnectionStatus, setSensorConnectionStatus] = useState<RaftConnEvent>(
     RaftConnEvent.CONN_DISCONNECTED
   );
+  const [motorConnectionReady, setMotorConnectionReady] = useState<boolean>(false);
   const [lastUpdate, setLastUpdate] = useState<number>(0);
 
   useEffect(() => {
@@ -28,11 +30,11 @@ export default function App() {
           eventEnum === RaftConnEvent.CONN_CONNECTED ||
           eventEnum === RaftConnEvent.CONN_DISCONNECTED
         ) {
-          setConnectionStatus(eventEnum);
+          setSensorConnectionStatus(eventEnum);
           
           // Set up device update listener when connected
           if (eventEnum === RaftConnEvent.CONN_CONNECTED) {
-            const deviceManager = connManager.getConnector().getSystemType()?.deviceMgrIF;
+            const deviceManager = connManager.getSensorConnector().getSystemType()?.deviceMgrIF;
             if (deviceManager) {
               deviceManager.addNewAttributeCallback(() => {
                 setLastUpdate(Date.now());
@@ -46,23 +48,25 @@ export default function App() {
       }
     };
 
-    connManager.setConnectionEventListener(listener);
+    connManager.setSensorConnectionEventListener(listener);
 
     // Auto-connect if served from device (not localhost)
     const hostname = window.location.hostname;
     const isDevelopment = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '';
     if (!isDevelopment) {
-      connManager.connect(hostname);
+      connManager.connectSensor(hostname);
     }
 
     return () => {
-      connManager.setConnectionEventListener(() => {});
+      connManager.setSensorConnectionEventListener(() => {});
     };
   }, []);
 
   const isDevelopment = window.location.hostname === 'localhost' || 
                         window.location.hostname === '127.0.0.1' ||
                         window.location.hostname === '';
+
+  const sensorConnected = sensorConnectionStatus === RaftConnEvent.CONN_CONNECTED;
 
   return (
     <div className="app-container">
@@ -72,12 +76,16 @@ export default function App() {
 
       {isDevelopment && (
         <ConnectionPanel 
-          connectionStatus={connectionStatus}
+          connectionStatus={sensorConnectionStatus}
         />
       )}
 
-      {connectionStatus === RaftConnEvent.CONN_CONNECTED && (
+      {sensorConnected && (
         <>
+          <MotorControllerConnection 
+            onMotorConnectionChange={setMotorConnectionReady}
+          />
+          
           <div className="main-grid">
             <EncoderDisplay lastUpdate={lastUpdate} />
             <StatusPanel lastUpdate={lastUpdate} />
@@ -88,7 +96,7 @@ export default function App() {
           <div className="visualization-section">
             <RobotVisualization lastUpdate={lastUpdate} />
           </div>
-          <MotorControl />
+          <MotorControl motorConnectionReady={motorConnectionReady} />
         </>
       )}
     </div>
