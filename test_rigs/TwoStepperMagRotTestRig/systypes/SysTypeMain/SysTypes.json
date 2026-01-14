@@ -6,13 +6,147 @@
         {
           "i2cFreq": 100000,
           "name": "I2CA",
-          "sclPin": 7,
-          "sdaPin": 6,
+          "sclPin": 9,
+          "sdaPin": 8,
           "type": "I2C"
+        },
+        {
+          "name": "SERA",
+          "type": "serial",
+          "uartNum": 2,
+          "rxPin": 5,
+          "txPin": 47,
+          "baudRate": 115200,
+          "minAfterSendMs": 5,
+          "logLevel": "D"
         }
       ]
     },
-    "Devices": []
+    "Devices": [
+      {
+        "class": "Motors",
+        "name": "Motors",
+        "bus": "SERA",
+        "logLevel": "D",
+        "debug": {
+          "tmc2209": {
+            "verbose": true,
+            "config": true,
+            "status": true,
+            "motion": true
+          },
+          "rampGen": {
+            "verbose": true,
+            "motion": true,
+            "timing": true
+          }
+        },
+        "motion": {
+          "geom": "SingleArmSCARA",
+          "blockDistMM": 10,
+          "homeBeforeMove": 0,
+          "maxJunctionDeviationMM": 0.05,
+          "arm1LenMM": 150,
+          "arm2LenMM": 150,
+          "maxRadiusMM": 290,
+          "originTheta2OffsetDegrees": 180
+        },
+        "ramp": {
+          "rampTimerEn": true,
+          "rampTimerUs": 20,
+          "pipelineLen": 100
+        },
+        "motorEn": {
+          "stepEnablePin": "4",
+          "stepEnLev": 0,
+          "stepDisableSecs": 100
+        },
+        "axes": [
+          {
+            "name": "shoulder",
+            "params": {
+              "unitsPerRot": 360,
+              "stepsPerRot": 9600,
+              "maxSpeedUps": 100,
+              "maxAccUps2": 100
+            },
+            "driver": {
+              "driver": "TMC2209",
+              "hw": "local",
+              "addr": 0,
+              "stepPin": "15",
+              "dirnPin": "16",
+              "invDirn": 1,
+              "writeOnly": 0,
+              "extSenseOhms": 0.15,
+              "extVRef": 0,
+              "extMStep": 0,
+              "intpol": 1,
+              "microsteps": 16,
+              "rmsAmps": 0.12,
+              "holdModeOrFactor": 0.5,
+              "holdDelay": 1,
+              "pwmFreqKHz": 35,
+              "debug": {
+                "verbose": true,
+                "config": true,
+                "status": true
+              }
+            },
+            "endstops": [
+              {
+                "isMax": false,
+                "name": "0min",
+                "sensePin": "39",
+                "actLvl": 0,
+                "inputType": "INPUT"
+              }
+            ]
+          },
+          {
+            "name": "elbow",
+            "params": {
+              "unitsPerRot": 360,
+              "stepsPerRot": 9600,
+              "maxSpeedUps": 100,
+              "maxAccUps2": 100
+            },
+            "driver": {
+              "driver": "TMC2209",
+              "hw": "local",
+              "addr": 1,
+              "stepPin": "17",
+              "dirnPin": "18",
+              "invDirn": 0,
+              "writeOnly": 0,
+              "extSenseOhms": 0.15,
+              "extVRef": 0,
+              "extMStep": 0,
+              "intpol": 1,
+              "microsteps": 16,
+              "rmsAmps": 0.12,
+              "holdModeOrFactor": 0.5,
+              "holdDelay": 1,
+              "pwmFreqKHz": 35,
+              "debug": {
+                "verbose": true,
+                "config": true,
+                "status": true
+              }
+            },
+            "endstops": [
+              {
+                "isMax": false,
+                "name": "1min",
+                "sensePin": "38",
+                "actLvl": 0,
+                "inputType": "INPUT"
+              }
+            ]
+          }
+        ]
+      }
+    ]
   },
   "ESPOTAUpdate": {
     "OTADirect": 1,
