@@ -17,7 +17,7 @@ std::vector<MotionArgs::FieldDefType> MotionArgs::getFieldDefs()
     std::vector<FieldDefType> fieldDefs;
     fieldDefs.push_back(FieldDefType("rel", &_isRelative, "bool"));
     fieldDefs.push_back(FieldDefType("ramped", &_rampedMotion, "bool"));
-    fieldDefs.push_back(FieldDefType("steps", &_unitsAreSteps, "bool"));
+    fieldDefs.push_back(FieldDefType("unitsAreSteps", &_unitsAreSteps, "bool", {"steps"}));
     fieldDefs.push_back(FieldDefType("nosplit", &_dontSplitMove, "bool"));
     fieldDefs.push_back(FieldDefType("exDistOk", &_extrudeValid, "bool"));
     fieldDefs.push_back(FieldDefType("speedOk", &_targetSpeedValid, "bool"));

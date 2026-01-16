@@ -142,11 +142,12 @@ AxesValues<AxisStepsDataType> MotionPlanner::moveToNonRamped(MotionArgs &args,
 /// @param axesParams Parameters for the axes
 /// @param motionPipeline Motion pipeline to add the block to
 /// @return true if a block was added
-bool MotionPlanner::moveToRamped(const MotionArgs& args,
+RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
             const AxesValues<AxisStepsDataType>& destActuatorCoords,
             AxesState& axesState,
             const AxesParams& axesParams, 
-            MotionPipelineIF& motionPipeline)
+            MotionPipelineIF& motionPipeline,
+            String* respMsg)
 {
     // Find first primary axis
     int firstPrimaryAxis = -1;
@@ -190,7 +191,9 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
 
     // Ignore if there is no real movement
     if (!isAMove || moveDist < MotionBlock::MINIMUM_MOVE_DIST_MM)
-        return false;
+    {
+        return RAFT_MOTION_NO_MOVEMENT;
+    }
 
     // Create a block for this movement which will end up on the pipeline
     MotionBlock block;
@@ -268,7 +271,9 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
 
     // Check there are some actual steps
     if (!hasSteps)
-        return false;
+    {
+        return RAFT_MOTION_NO_STEPS;
+    }
 
     // Set the dist moved on the axis with max steps
     block._unitVecAxisWithMaxDist = unitVectors.getVal(axisWithMaxMoveDist);
@@ -343,7 +348,7 @@ bool MotionPlanner::moveToRamped(const MotionArgs& args,
     // Update current position
     axesState.setPosition(targetAxesPos, block.getStepsToTarget(), true);
 
-    return true;
+    return RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

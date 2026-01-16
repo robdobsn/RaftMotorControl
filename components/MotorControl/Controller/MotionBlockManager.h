@@ -33,11 +33,6 @@ public:
     /// @param motionConfig JSON configuration
     void setup(uint32_t stepGenPeriodUs, const RaftJsonIF& motionConfig);
 
-    /// @brief Pump the block splitter - should be called regularly 
-    /// @param motionPipeline Motion pipeline to add the block to
-    /// @note This is used to manage splitting of a single moveTo command into multiple blocks
-    void pumpBlockSplitter(MotionPipelineIF& motionPipeline);
-
     /// @brief Check if the motion block manager is busy
     /// @return true if busy
     bool isBusy() const
@@ -113,6 +108,19 @@ public:
     {
         return _homingNeededBeforeAnyMove;
     }
+
+    /// @brief Add to planner
+    /// @param args MotionArgs define the parameters for motion
+    /// @param motionPipeline Motion pipeline to add the block to
+    /// @param respMsg Optional pointer to string for error message (default nullptr)
+    /// @return RaftRetCode
+    RaftRetCode addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline, String* respMsg = nullptr);
+
+    /// @brief Pump block splitter
+    /// @param motionPipeline Motion pipeline to add blocks to
+    /// @param respMsg Optional pointer to string for error message (default nullptr)
+    /// @return RaftRetCode
+    RaftRetCode pumpBlockSplitter(MotionPipelineIF& motionPipeline, String* respMsg = nullptr);
     
 private:
     // Debug

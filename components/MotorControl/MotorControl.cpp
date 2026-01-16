@@ -198,6 +198,11 @@ RaftRetCode MotorControl::getDataBinary(uint32_t formatCode, std::vector<uint8_t
 /// @return RaftRetCode
 RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 {
+    return sendCmdJSON(cmdJSON, nullptr);
+}
+
+RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
+{
     // Extract command from JSON
     RaftJson jsonInfo(cmdJSON);
     String cmd = jsonInfo.getString("cmd", "");
@@ -209,7 +214,17 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
         String cmdStr = motionArgs.toJSON();
         LOG_I(MODULE_PREFIX, "sendCmdJSON %s", cmdStr.c_str());
 #endif
-        _motionController.moveTo(motionArgs);
+        RaftRetCode rc = _motionController.moveTo(motionArgs, respMsg);
+        if (rc != RAFT_OK)
+        {
+            LOG_W(MODULE_PREFIX, "sendCmdJSON motion failed: %s", 
+                  respMsg && respMsg->length() > 0 ? respMsg->c_str() : Raft::getRetCodeStr(rc));
+        }
+        return rc;
+    }
+    else if (cmd.equalsIgnoreCase("setOrigin"))
+    {
+        _motionController.setCurPositionAsOrigin(true);
     }
     else if (cmd.equalsIgnoreCase("maxCurrent"))
     {

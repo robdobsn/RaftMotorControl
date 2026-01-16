@@ -6,5 +6,8 @@ set(BOOTSTRAP_URL "https://github.com/robdobsn/RaftCore/releases/download/v1.24.
 file(DOWNLOAD ${BOOTSTRAP_URL} "${CMAKE_BINARY_DIR}/RaftBootstrap.cmake")
 include("${CMAKE_BINARY_DIR}/RaftBootstrap.cmake")
 
+# Add the RaftMotorControl component from the source folders
+list(APPEND EXTRA_COMPONENT_DIRS "../..")
+
 # Define the project dependencies
 project(${_build_config_name} DEPENDS ${ADDED_PROJECT_DEPENDENCIES})

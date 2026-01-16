@@ -47,9 +47,10 @@ public:
 
     /// @brief Move to a specific location (flat or ramped and relative or absolute)
     /// @param args MotionArgs specify the motion to be performed
-    /// @return true if the motion was successfully added to the pipeline
+    /// @param respMsg Optional pointer to string for error message (default nullptr)
+    /// @return RaftRetCode
     /// @note The args may be modified so cannot be const
-    virtual bool moveTo(MotionArgs &args) override;
+    virtual RaftRetCode moveTo(MotionArgs &args, String* respMsg = nullptr) override;
 
     /// @brief Pause (or resume) all motion
     /// @param pauseIt true to pause, false to resume
@@ -66,10 +67,10 @@ public:
     /// @return true if any motion is in the pipeline
     virtual bool isBusy() const override;
 
-    // Set current position as home
+    // Set current position as origin
     virtual void setCurPositionAsOrigin(bool allAxes = true, uint32_t axisIdx = 0) override;
 
-    // Go to previously set home position
+    // Go to previously set origin position
     void goToOrigin(const MotionArgs &args);
 
     // Get last commanded position
@@ -170,9 +171,10 @@ private:
 
     /// @brief Move to a specific location (relative or absolute) using ramped motion
     /// @param args MotionArgs specify the motion to be performed
-    /// @return true if the motion was successfully added to the pipeline
+    /// @param respMsg Optional pointer to string for error message (default nullptr)
+    /// @return RaftRetCode
     /// @note The args may be modified so cannot be const
-    bool moveToRamped(MotionArgs& args);
+    RaftRetCode moveToRamped(MotionArgs& args, String* respMsg = nullptr);
 
     // Defaults
     static constexpr const char* DEFAULT_DRIVER_CHIP = "TMC2209";

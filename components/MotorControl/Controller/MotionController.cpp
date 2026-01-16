@@ -17,8 +17,8 @@
 #include "RaftArduino.h"
 #include "RaftJsonPrefixed.h"
 
-#define DEBUG_STEPPER_SETUP_CONFIG
-#define DEBUG_RAMP_SETUP_CONFIG
+// #define DEBUG_STEPPER_SETUP_CONFIG
+// #define DEBUG_RAMP_SETUP_CONFIG
 // #define DEBUG_MOTION_CONTROLLER
 // #define INFO_LOG_AXES_PARAMS
 // #define DEBUG_ENDSTOP_STATUS
@@ -144,7 +144,7 @@ void MotionController::loop()
     // _trinamicsController.process();
 
     // Process any split-up blocks to be added to the pipeline
-    _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline());
+    _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline(), nullptr);
 
     // Loop motion patterns
     _patternManager.loop(*this);
@@ -167,9 +167,10 @@ bool MotionController::isBusy() const
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Move to a specific location (flat or ramped and relative or absolute)
 /// @param args MotionArgs specify the motion to be performed
-/// @return true if the motion was successfully added to the pipeline
+/// @param respMsg Optional pointer to string for error message
+/// @return RaftRetCode
 /// @note The args may be modified so cannot be const
-bool MotionController::moveTo(MotionArgs &args)
+RaftRetCode MotionController::moveTo(MotionArgs &args, String* respMsg)
 {
     LOG_I(MODULE_PREFIX, "moveTo %s args %s", 
             args.getAxesPos().getDebugJSON("axes").c_str(),
@@ -191,18 +192,19 @@ bool MotionController::moveTo(MotionArgs &args)
     if (!args.isEnableMotors())
     {
         _motorEnabler.enableMotors(false, false);
-        return true;
+        return RAFT_OK;
     }
 
     // Check motion type
     if (args.isRamped())
     {
         // Ramped (variable speed) motion
-        return moveToRamped(args);
+        return moveToRamped(args, respMsg);
     }
 
     // Handle flat motion (no ramp) - motion is defined in terms of steps (not mm)
-    return _blockManager.addNonRampedBlock(args, _rampGenerator.getMotionPipeline());
+    bool success = _blockManager.addNonRampedBlock(args, _rampGenerator.getMotionPipeline());
+    return success ? RAFT_OK : RAFT_OTHER_FAILURE;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -218,9 +220,10 @@ void MotionController::pause(bool pauseIt)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Move to a specific location (relative or absolute) using ramped motion
 /// @param args MotionArgs specify the motion to be performed
-/// @return true if the motion was successfully added to the pipeline
+/// @param respMsg Optional pointer to string for error message
+/// @return RaftRetCode
 /// @note The args may be modified so cannot be const
-bool MotionController::moveToRamped(MotionArgs& args)
+RaftRetCode MotionController::moveToRamped(MotionArgs& args, String* respMsg)
 {
     // Check not busy
     if (_blockManager.isBusy())
@@ -228,7 +231,7 @@ bool MotionController::moveToRamped(MotionArgs& args)
 #ifdef DEBUG_MOTION_CONTROLLER
         LOG_I(MODULE_PREFIX, "moveTo busy");
 #endif
-        return false;
+        return RAFT_MOTION_BUSY;
     }
 
     // Check the last commanded position is valid (homing complete, no stepwise movement, etc)
@@ -237,7 +240,7 @@ bool MotionController::moveToRamped(MotionArgs& args)
 #ifdef DEBUG_MOTION_CONTROLLER
         LOG_I(MODULE_PREFIX, "moveTo lastPos invalid - need to home (initially and after non-ramped moves)");
 #endif
-        return false;
+        return RAFT_MOTION_HOMING_REQUIRED;
     }
 
     // Pre-process coordinates - this fills in unspecified values for axes and handles relative motion
@@ -260,10 +263,12 @@ bool MotionController::moveToRamped(MotionArgs& args)
     _blockManager.addRampedBlock(args, numBlocks);
 
     // Pump the block splitter to prime the pipeline with blocks
-    _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline());
+    RaftRetCode rc = _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline(), respMsg);
+    if (rc != RAFT_OK)
+        return rc;
 
     // Ok
-    return true;
+    return RAFT_OK;
 }
 
 

@@ -10,6 +10,7 @@
 #pragma once
 
 #include "AxesValues.h"
+#include "RaftRetCode.h"
 
 class MotionArgs;
 
@@ -20,8 +21,9 @@ public:
 
     /// @brief Move to a specific location (flat or ramped and relative or absolute)
     /// @param args MotionArgs specify the motion to be performed
-    /// @return true if the motion was successfully added to the pipeline
-    virtual bool moveTo(MotionArgs& args) = 0;
+    /// @param respMsg Optional pointer to string for error message (default nullptr)
+    /// @return RaftRetCode
+    virtual RaftRetCode moveTo(MotionArgs& args, String* respMsg = nullptr) = 0;
 
     /// @brief Pause (or resume) all motion
     /// @param pauseIt true to pause, false to resume

@@ -42,7 +42,7 @@
           }
         },
         "motion": {
-          "geom": "SingleArmSCARA",
+          "geom": "XYZ",
           "blockDistMM": 10,
           "homeBeforeMove": 0,
           "maxJunctionDeviationMM": 0.05,
@@ -65,10 +65,10 @@
           {
             "name": "s0",
             "params": {
-                "unitsPerRot": 360,
-                "stepsPerRot": 9600,
-                "maxSpeedUps": 100,
-                "maxAccUps2": 100
+                "unitsPerRot": 100,
+                "stepsPerRot": 12800,
+                "maxSpeedUps": 50,
+                "maxAccUps2": 50
             },
             "driver": {
               "driver": "TMC2209",
@@ -108,8 +108,8 @@
             "params": {
                 "unitsPerRot": 100,
                 "stepsPerRot": 12800,
-                "maxSpeedUps": 100,
-                "maxAccUps2": 100
+                "maxSpeedUps": 50,
+                "maxAccUps2": 50
             },
             "driver": {
               "driver": "TMC2209",

@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Chart as ChartJS,
-  CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
@@ -14,7 +13,6 @@ import { Line } from 'react-chartjs-2';
 import ConnManager from '../ConnManager';
 
 ChartJS.register(
-  CategoryScale,
   LinearScale,
   PointElement,
   LineElement,
@@ -39,7 +37,7 @@ const MAX_DATA_POINTS = 200;
 
 export default function AngleChart({ lastUpdate }: AngleChartProps) {
   const [dataHistory, setDataHistory] = useState<DataPoint[]>([]);
-  const startTimeRef = useRef<number>(Date.now());
+  const startTimeRef = useRef<number | null>(null);
 
   useEffect(() => {
     const deviceManager = connManager.getConnector().getSystemType()?.deviceMgrIF;
@@ -47,6 +45,7 @@ export default function AngleChart({ lastUpdate }: AngleChartProps) {
 
     let mt6701Angle: number | null = null;
     let as5600Angle: number | null = null;
+    let timestamp: number = Date.now();
 
     // Get MT6701 encoder data
     const mt6701State = deviceManager.getDeviceState('I2CA_6_MT6701');
@@ -54,6 +53,12 @@ export default function AngleChart({ lastUpdate }: AngleChartProps) {
       const values = mt6701State.deviceAttributes.angle.values;
       if (values.length > 0) {
         mt6701Angle = values[values.length - 1];
+        // Use the timestamp from the device timeline if available
+        const timestamps = mt6701State.deviceTimeline?.timestampsUs;
+        if (timestamps && timestamps.length > 0) {
+          // Convert microseconds to milliseconds
+          timestamp = timestamps[timestamps.length - 1] / 1000;
+        }
       }
     }
 
@@ -63,6 +68,14 @@ export default function AngleChart({ lastUpdate }: AngleChartProps) {
       const values = as5600State.deviceAttributes.angle.values;
       if (values.length > 0) {
         as5600Angle = values[values.length - 1];
+        // If we didn't get timestamp from MT6701, use AS5600's timestamp
+        if (timestamp === Date.now()) {
+          const timestamps = as5600State.deviceTimeline?.timestampsUs;
+          if (timestamps && timestamps.length > 0) {
+            // Convert microseconds to milliseconds
+            timestamp = timestamps[timestamps.length - 1] / 1000;
+          }
+        }
       }
     }
 
@@ -72,11 +85,16 @@ export default function AngleChart({ lastUpdate }: AngleChartProps) {
         const newData = [
           ...prev,
           {
-            timestamp: Date.now(),
+            timestamp: timestamp,
             mt6701: mt6701Angle,
             as5600: as5600Angle,
           },
         ];
+
+        // Set start time reference to the first data point's timestamp
+        if (startTimeRef.current === null && newData.length > 0) {
+          startTimeRef.current = newData[0].timestamp;
+        }
 
         // Keep only the last MAX_DATA_POINTS
         if (newData.length > MAX_DATA_POINTS) {
@@ -88,14 +106,17 @@ export default function AngleChart({ lastUpdate }: AngleChartProps) {
   }, [lastUpdate]);
 
   const chartData = {
-    labels: dataHistory.map((point) => {
-      const elapsed = (point.timestamp - startTimeRef.current) / 1000;
-      return elapsed.toFixed(1);
-    }),
     datasets: [
       {
         label: 'MT6701',
-        data: dataHistory.map((point) => point.mt6701),
+        data: dataHistory.map((point) => {
+          const startTime = startTimeRef.current ?? (dataHistory.length > 0 ? dataHistory[0].timestamp : point.timestamp);
+          const elapsed = (point.timestamp - startTime) / 1000;
+          return {
+            x: elapsed,
+            y: point.mt6701
+          };
+        }),
         borderColor: 'rgb(74, 158, 255)',
         backgroundColor: 'rgba(74, 158, 255, 0.1)',
         borderWidth: 2,
@@ -106,7 +127,14 @@ export default function AngleChart({ lastUpdate }: AngleChartProps) {
       },
       {
         label: 'AS5600',
-        data: dataHistory.map((point) => point.as5600),
+        data: dataHistory.map((point) => {
+          const startTime = startTimeRef.current ?? (dataHistory.length > 0 ? dataHistory[0].timestamp : point.timestamp);
+          const elapsed = (point.timestamp - startTime) / 1000;
+          return {
+            x: elapsed,
+            y: point.as5600
+          };
+        }),
         borderColor: 'rgb(255, 99, 132)',
         backgroundColor: 'rgba(255, 99, 132, 0.1)',
         borderWidth: 2,
@@ -126,6 +154,7 @@ export default function AngleChart({ lastUpdate }: AngleChartProps) {
     },
     scales: {
       x: {
+        type: 'linear',
         title: {
           display: true,
           text: 'Time (s)',

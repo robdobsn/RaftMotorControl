@@ -1,10 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import ConnManager from '../ConnManager';
+import { RobotConfig } from './MotorControllerConnection';
 
 const connManager = ConnManager.getInstance();
 
 interface RobotVisualizationProps {
   lastUpdate: number;
+  robotConfig: RobotConfig | null;
 }
 
 // Placeholder geometry types - expand based on your robot configurations
@@ -77,8 +79,8 @@ function calculateSCARAKinematics(angles: JointAngles): CartesianPosition {
 }
 
 // Calculate SCARA joint positions for rendering
-function calculateSCARAJointPositions(angles: JointAngles) {
-  const { link1Length, link2Length, scale } = SCARA_CONFIG;
+function calculateSCARAJointPositions(angles: JointAngles, config = SCARA_CONFIG) {
+  const { link1Length, link2Length, scale } = config;
   
   // Convert to radians
   const theta1 = (angles.joint1 * Math.PI) / 180;
@@ -102,11 +104,44 @@ function calculateSCARAJointPositions(angles: JointAngles) {
   return { base, joint1, endEffector };
 }
 
-export default function RobotVisualization({ lastUpdate }: RobotVisualizationProps) {
+export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVisualizationProps) {
   const [selectedGeometry, setSelectedGeometry] = useState<string>(ROBOT_GEOMETRIES[0].id);
   const [jointAngles, setJointAngles] = useState<JointAngles>({ joint1: 0, joint2: 0 });
   const [endEffectorPos, setEndEffectorPos] = useState<CartesianPosition>({ x: 0, y: 0 });
   const [positionHistory, setPositionHistory] = useState<PositionHistoryPoint[]>([]);
+
+  // Update selected geometry when robot config is first received
+  useEffect(() => {
+    if (robotConfig && robotConfig.geometry) {
+      const geomLower = robotConfig.geometry.toLowerCase();
+      if (geomLower.includes('scara')) {
+        setSelectedGeometry('scara');
+      } else if (geomLower.includes('cartesian') || geomLower.includes('xyz')) {
+        setSelectedGeometry('xy_cartesian');
+      }
+    }
+  }, [robotConfig]);
+
+  // Determine which config to use based on selected geometry and available robot config
+  // Memoized to prevent infinite re-renders
+  const activeConfig = useMemo(() => {
+    if (selectedGeometry === 'scara') {
+      // Use robot config for SCARA if available and geometry matches
+      if (robotConfig && robotConfig.geometry.toLowerCase().includes('scara')) {
+        const config = {
+          link1Length: robotConfig.arm1LengthMM,
+          link2Length: robotConfig.arm2LengthMM,
+          scale: 0.8,
+        };
+        console.log('Using robot config for SCARA:', config);
+        return config;
+      }
+      console.log('Using default SCARA config:', SCARA_CONFIG);
+      return SCARA_CONFIG;
+    }
+    // For other geometries, use defaults
+    return SCARA_CONFIG;
+  }, [selectedGeometry, robotConfig]);
 
   useEffect(() => {
     const deviceManager = connManager.getConnector().getSystemType()?.deviceMgrIF;
@@ -114,6 +149,7 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
 
     let mt6701Angle: number | null = null;
     let as5600Angle: number | null = null;
+    let timestamp: number = Date.now();
 
     // Get MT6701 encoder data (joint 1)
     const mt6701State = deviceManager.getDeviceState('I2CA_6_MT6701');
@@ -121,6 +157,12 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
       const values = mt6701State.deviceAttributes.angle.values;
       if (values.length > 0) {
         mt6701Angle = values[values.length - 1];
+        // Use the timestamp from the device timeline if available
+        const timestamps = mt6701State.deviceTimeline?.timestampsUs;
+        if (timestamps && timestamps.length > 0) {
+          // Convert microseconds to milliseconds
+          timestamp = timestamps[timestamps.length - 1] / 1000;
+        }
       }
     }
 
@@ -130,6 +172,14 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
       const values = as5600State.deviceAttributes.angle.values;
       if (values.length > 0) {
         as5600Angle = values[values.length - 1];
+        // If we didn't get timestamp from MT6701, use AS5600's timestamp
+        if (timestamp === Date.now()) {
+          const timestamps = as5600State.deviceTimeline?.timestampsUs;
+          if (timestamps && timestamps.length > 0) {
+            // Convert microseconds to milliseconds
+            timestamp = timestamps[timestamps.length - 1] / 1000;
+          }
+        }
       }
     }
 
@@ -145,7 +195,7 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
     if (selectedGeometry === 'xy_cartesian') {
       position = calculateXYCartesian(angles);
     } else if (selectedGeometry === 'scara') {
-      position = calculateSCARAKinematics(angles);
+      position = calculateSCARAKinematics(angles, activeConfig);
     } else {
       position = { x: 0, y: 0 };
     }
@@ -153,15 +203,14 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
     
     // Add to position history
     setPositionHistory((prev) => {
-      const now = Date.now();
       const newPoint: PositionHistoryPoint = {
         x: position.x,
         y: position.y,
-        timestamp: now,
+        timestamp: timestamp,
       };
       
       // Filter out old points and add new one
-      const filtered = prev.filter((p) => now - p.timestamp < TRAIL_DURATION_MS);
+      const filtered = prev.filter((p) => timestamp - p.timestamp < TRAIL_DURATION_MS);
       
       // Only add if position has changed significantly (more than 0.5mm)
       const lastPoint = filtered[filtered.length - 1];
@@ -179,7 +228,7 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
       
       return filtered;
     });
-  }, [lastUpdate, selectedGeometry]);
+  }, [lastUpdate, selectedGeometry, activeConfig]);
 
   // Convert world coordinates to SVG coordinates
   const worldToSVG = (x: number, y: number) => {
@@ -193,8 +242,9 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
   const renderTrail = () => {
     if (positionHistory.length < 2) return null;
     
-    const now = Date.now();
-    const scale = selectedGeometry === 'xy_cartesian' ? XY_CARTESIAN_CONFIG.scale : SCARA_CONFIG.scale;
+    // Use the latest point's timestamp as "now" instead of Date.now()
+    const latestTimestamp = positionHistory.length > 0 ? positionHistory[positionHistory.length - 1].timestamp : Date.now();
+    const scale = selectedGeometry === 'xy_cartesian' ? XY_CARTESIAN_CONFIG.scale : activeConfig.scale;
     
     // Create path segments with varying opacity based on age
     return (
@@ -203,7 +253,7 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
           if (index === 0) return null; // Skip first point (no line to draw)
           
           const prevPoint = positionHistory[index - 1];
-          const age = now - point.timestamp;
+          const age = latestTimestamp - point.timestamp;
           const opacity = Math.max(0, 1 - (age / TRAIL_DURATION_MS));
           
           const svgPoint = worldToSVG(point.x * scale, point.y * scale);
@@ -330,7 +380,7 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
     }
     
     if (selectedGeometry === 'scara') {
-      const positions = calculateSCARAJointPositions(jointAngles);
+      const positions = calculateSCARAJointPositions(jointAngles, activeConfig);
       
       const base = worldToSVG(positions.base.x, positions.base.y);
       const joint1 = worldToSVG(positions.joint1.x, positions.joint1.y);
@@ -480,6 +530,26 @@ export default function RobotVisualization({ lastUpdate }: RobotVisualizationPro
           <span className="info-value">
             {ROBOT_GEOMETRIES.find(g => g.id === selectedGeometry)?.name}
           </span>
+          
+          {selectedGeometry === 'scara' && (
+            <>
+              <span className="info-label">Arm 1 Length:</span>
+              <span className="info-value">{activeConfig.link1Length.toFixed(1)}mm</span>
+              
+              <span className="info-label">Arm 2 Length:</span>
+              <span className="info-value">{activeConfig.link2Length.toFixed(1)}mm</span>
+              
+              {robotConfig && (
+                <>
+                  <span className="info-label">Max Radius:</span>
+                  <span className="info-value">{robotConfig.maxRadiusMM.toFixed(1)}mm</span>
+                  
+                  <span className="info-label">Theta2 Offset:</span>
+                  <span className="info-value">{robotConfig.originTheta2OffsetDegrees.toFixed(1)}°</span>
+                </>
+              )}
+            </>
+          )}
           
           <span className="info-label">Joint 1 (MT6701):</span>
           <span className="info-value">{jointAngles.joint1.toFixed(1)}°</span>

@@ -42,12 +42,14 @@ public:
     /// @param curAxesState Current state of the axes including position and origin status
     /// @param axesParams Parameters for the axes
     /// @param motionPipeline Motion pipeline to add the block to
-    /// @return true if a block was added
-    bool moveToRamped(const MotionArgs& args,
+    /// @param respMsg Optional pointer to string for error message (default nullptr)
+    /// @return RaftRetCode
+    RaftRetCode moveToRamped(const MotionArgs& args,
                     const AxesValues<AxisStepsDataType>& destActuatorCoords,
                     AxesState& curAxesState,
                     const AxesParams& axesParams,
-                    MotionPipelineIF& motionPipeline);
+                    MotionPipelineIF& motionPipeline,
+                    String* respMsg = nullptr);
 
     /// @brief Debug show pipeline contents
     /// @param motionPipeline Motion pipeline to show

@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import ConnectionPanel from './components/ConnectionPanel';
-import MotorControllerConnection from './components/MotorControllerConnection';
+import MotorControllerConnection, { RobotConfig } from './components/MotorControllerConnection';
 import MotorControl from './components/MotorControl';
 import EncoderDisplay from './components/EncoderDisplay';
 import StatusPanel from './components/StatusPanel';
@@ -17,6 +17,7 @@ export default function App() {
   );
   const [motorConnectionReady, setMotorConnectionReady] = useState<boolean>(false);
   const [lastUpdate, setLastUpdate] = useState<number>(0);
+  const [robotConfig, setRobotConfig] = useState<RobotConfig | null>(null);
 
   useEffect(() => {
     const listener = (
@@ -84,6 +85,7 @@ export default function App() {
         <>
           <MotorControllerConnection 
             onMotorConnectionChange={setMotorConnectionReady}
+            onRobotConfigReceived={setRobotConfig}
           />
           
           <div className="main-grid">
@@ -94,7 +96,7 @@ export default function App() {
             <AngleChart lastUpdate={lastUpdate} />
           </div>
           <div className="visualization-section">
-            <RobotVisualization lastUpdate={lastUpdate} />
+            <RobotVisualization lastUpdate={lastUpdate} robotConfig={robotConfig} />
           </div>
           <MotorControl motorConnectionReady={motorConnectionReady} />
         </>

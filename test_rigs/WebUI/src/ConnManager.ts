@@ -93,6 +93,9 @@ export default class ConnManager {
       }
     });
     
+    // Enable auto-reconnect with 60 second retry period
+    this._sensorConnector.setRetryConnectionIfLost(true, 60);
+    
     await this._sensorConnector.initializeChannel('WebSocket');
     return this._sensorConnector.connect(ipAddress);
   }
@@ -108,6 +111,9 @@ export default class ConnManager {
         this._onMotorConnectionEvent(evtType, eventEnum, eventName, eventData);
       }
     });
+    
+    // Enable auto-reconnect with 60 second retry period
+    this._motorConnector.setRetryConnectionIfLost(true, 60);
     
     await this._motorConnector.initializeChannel('WebSocket');
     return this._motorConnector.connect(ipAddress);

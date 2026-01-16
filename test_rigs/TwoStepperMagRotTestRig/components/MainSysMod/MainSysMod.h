@@ -8,6 +8,7 @@
 
 #include "RaftArduino.h"
 #include "RaftSysMod.h"
+#include "RestAPIEndpointManager.h"
 
 class MainSysMod : public RaftSysMod
 {
@@ -30,6 +31,18 @@ protected:
     virtual void loop() override final;
 
 private:
+    // Add REST API endpoints
+    virtual void addRestAPIEndpoints(RestAPIEndpointManager &endpointManager) override final;
+
+    // Control via API
+    RaftRetCode apiControl(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo);
+
+    // Send command to MotorControl device
+    bool sendToMotorControl(const String& cmdJSON, String& respStr);
+
+    // Get motor device
+    RaftDevice* getMotorDevice() const;
+    
     // Debug
     static constexpr const char *MODULE_PREFIX = "MainSysMod";
 

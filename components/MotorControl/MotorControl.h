@@ -49,6 +49,9 @@ public:
     // Send JSON command
     virtual RaftRetCode sendCmdJSON(const char* jsonCmd) override final;
 
+    // Send JSON command with error message
+    virtual RaftRetCode sendCmdJSON(const char* jsonCmd, String* respMsg) override final;
+
     // Has capability
     virtual bool hasCapability(const char* pCapabilityStr) const override final;
  

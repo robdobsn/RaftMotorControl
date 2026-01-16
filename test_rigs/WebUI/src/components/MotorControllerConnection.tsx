@@ -4,11 +4,20 @@ import { RaftConnEvent } from '@robdobsn/raftjs';
 
 const connManager = ConnManager.getInstance();
 
-interface MotorControllerConnectionProps {
-  onMotorConnectionChange: (connected: boolean) => void;
+export interface RobotConfig {
+  geometry: string;
+  arm1LengthMM: number;
+  arm2LengthMM: number;
+  maxRadiusMM: number;
+  originTheta2OffsetDegrees: number;
 }
 
-export default function MotorControllerConnection({ onMotorConnectionChange }: MotorControllerConnectionProps) {
+interface MotorControllerConnectionProps {
+  onMotorConnectionChange: (connected: boolean) => void;
+  onRobotConfigReceived?: (config: RobotConfig | null) => void;
+}
+
+export default function MotorControllerConnection({ onMotorConnectionChange, onRobotConfigReceived }: MotorControllerConnectionProps) {
   const [useSeparateController, setUseSeparateController] = useState<boolean>(
     connManager.getUseSeparateMotorController()
   );
@@ -19,6 +28,45 @@ export default function MotorControllerConnection({ onMotorConnectionChange }: M
     RaftConnEvent.CONN_DISCONNECTED
   );
   const [isConnecting, setIsConnecting] = useState<boolean>(false);
+
+  // Fetch robot configuration settings from motor controller
+  const fetchRobotSettings = async () => {
+    try {
+      console.log('Fetching robot settings from motor controller...');
+      const systemUtils = connManager.getMotorConnector().getRaftSystemUtils();
+      const msgHandler = systemUtils.getMsgHandler();
+      const response = await msgHandler.sendRICRESTURL<any>('getsettings');
+      console.log('Robot settings response:', response);
+      if (response && typeof response === 'object') {
+        console.log('Robot settings (formatted):', JSON.stringify(response, null, 2));
+        
+        // Parse motion configuration
+        const motorControl = response?.base?.DevMan?.Devices?.find(
+          (dev: any) => dev.class === 'MotorControl'
+        );
+        
+        if (motorControl?.motion) {
+          const motion = motorControl.motion;
+          const robotConfig: RobotConfig = {
+            geometry: motion.geom || 'SingleArmSCARA',
+            arm1LengthMM: motion.arm1LenMM || 150,
+            arm2LengthMM: motion.arm2LenMM || 150,
+            maxRadiusMM: motion.maxRadiusMM || 290,
+            originTheta2OffsetDegrees: motion.originTheta2OffsetDegrees || 180
+          };
+          console.log('Parsed robot config:', robotConfig);
+          if (onRobotConfigReceived) {
+            onRobotConfigReceived(robotConfig);
+          }
+        }
+      }
+    } catch (error) {
+      console.error('Failed to fetch robot settings:', error);
+      if (onRobotConfigReceived) {
+        onRobotConfigReceived(null);
+      }
+    }
+  };
 
   useEffect(() => {
     // Initialize motor IP to sensor IP if available
@@ -36,6 +84,11 @@ export default function MotorControllerConnection({ onMotorConnectionChange }: M
         connected ? RaftConnEvent.CONN_CONNECTED : RaftConnEvent.CONN_DISCONNECTED
       );
       onMotorConnectionChange(connected);
+      
+      // Fetch settings when connected
+      if (connected) {
+        fetchRobotSettings();
+      }
     } else {
       // Set up motor controller connection event listener
       const listener = (
@@ -47,6 +100,12 @@ export default function MotorControllerConnection({ onMotorConnectionChange }: M
         if (eventType === 'conn') {
           setMotorConnectionStatus(eventEnum);
           onMotorConnectionChange(eventEnum === RaftConnEvent.CONN_CONNECTED);
+          
+          // Fetch settings when motor controller connects
+          if (eventEnum === RaftConnEvent.CONN_CONNECTED) {
+            fetchRobotSettings();
+          }
+          
           if (eventEnum === RaftConnEvent.CONN_CONNECTED || 
               eventEnum === RaftConnEvent.CONN_DISCONNECTED) {
             setIsConnecting(false);

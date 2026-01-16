@@ -9,5 +9,6 @@ idf_component_register(
         RaftSysMods
         RaftWebServer
         RaftI2C
+        RaftMotorControl
         MainSysMod
 )

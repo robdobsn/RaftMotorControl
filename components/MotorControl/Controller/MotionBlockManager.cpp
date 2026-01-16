@@ -150,8 +150,10 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args, uint32_t numBloc
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Pump the block splitter - should be called regularly 
 /// @param motionPipeline Motion pipeline to add the block to
+/// @param respMsg Optional pointer to string for error message
+/// @return RaftRetCode
 /// @note This is used to manage splitting of a single moveTo command into multiple blocks
-void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
+RaftRetCode MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline, String* respMsg)
 {
     // Check if we can add anything to the pipeline
     while (motionPipeline.canAccept())
@@ -164,7 +166,7 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
             {
                 _pRaftKinematics->setPreferAlternateSolution(false);
             }
-            return;
+            return RAFT_OK;
         }
 
         // Add to pipeline any blocks that are waiting to be expanded out
@@ -195,27 +197,33 @@ void MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeline)
 #endif
 
         // Add to planner
-        addToPlanner(_blockMotionArgs, motionPipeline);
+        RaftRetCode rc = addToPlanner(_blockMotionArgs, motionPipeline, respMsg);
+        if (rc != RAFT_OK)
+            return rc;
 
         // Enable motors
         _motorEnabler.enableMotors(true, false);
     }
+    return RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Add to planner
 /// @param args MotionArgs define the parameters for motion
 /// @param motionPipeline Motion pipeline to add the block to
-/// @return true if successful
+/// @param respMsg Optional pointer to string for error message
+/// @return RaftRetCode
 /// @note The planner is responsible for computing suitable motion
 ///       and args may be modified by this function
-bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline)
+RaftRetCode MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline, String* respMsg)
 {
     // Get kinematics
     if (!_pRaftKinematics)
     {
+        if (respMsg)
+            *respMsg = "No kinematics geometry configured";
         LOG_W(MODULE_PREFIX, "addToPlanner no geometry set");
-        return false;
+        return RAFT_INVALID_OBJECT;
     }
 
     // Convert the move to actuator coordinates
@@ -227,17 +235,17 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
             args.constrainToBounds());
 
     // Plan the move
-    bool moveOk = _motionPlanner.moveToRamped(args, actuatorCoords, 
-                        _axesState, _axesParams, motionPipeline);
+    RaftRetCode rc = _motionPlanner.moveToRamped(args, actuatorCoords, 
+                        _axesState, _axesParams, motionPipeline, respMsg);
 #ifdef DEBUG_COORD_UPDATES
-    LOG_I(MODULE_PREFIX, "addToPlanner moveOk %d pt %s actuator %s", 
-            moveOk,
+    LOG_I(MODULE_PREFIX, "addToPlanner rc %s pt %s actuator %s", 
+            Raft::getRetCodeStr(rc),
             args.getAxesPosConst().getDebugJSON("cur").c_str(),
             actuatorCoords.toJSON().c_str());
 #endif
 
     // Correct overflows if necessary
-    if (moveOk)
+    if (rc == RAFT_OK)
     {
         // TODO check that this is already done in moveToRamped - it updates _lastCommandedAxisPos
         // // Update axisMotion
@@ -256,9 +264,10 @@ bool MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipelineIF& 
     }
     else
     {
-        LOG_W(MODULE_PREFIX, "addToPlanner moveToRamped failed");
+        LOG_W(MODULE_PREFIX, "addToPlanner moveToRamped failed: %s", 
+              respMsg && respMsg->length() > 0 ? respMsg->c_str() : Raft::getRetCodeStr(rc));
     }
-    return moveOk;
+    return rc;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
