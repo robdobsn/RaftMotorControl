@@ -289,7 +289,7 @@ void HomingPattern::setHome(int axis)
     LOG_I(MODULE_PREFIX, "setHome axis %d, current position before setHome: %f (fresh: %d)", axis, curPos, isFresh);
 
     // Set current position as origin for this axis
-    _motionControl.setCurPositionAsOrigin(false, axis);
+    _motionControl.setCurPositionAsOrigin();
 
     LOG_I(MODULE_PREFIX, "setHome axis %d: set as origin", axis);
 }

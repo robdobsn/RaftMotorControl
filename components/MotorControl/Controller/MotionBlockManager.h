@@ -99,8 +99,7 @@ public:
     }
 
     /// @brief Set current position as origin
-    /// @param axisIdx Axis index
-    void setCurPositionAsOrigin(uint32_t axisIdx);
+    void setCurPositionAsOrigin();
 
     /// @brief Check if homing needed before any move
     /// @return true if homing is needed

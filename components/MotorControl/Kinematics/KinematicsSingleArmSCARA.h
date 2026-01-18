@@ -17,9 +17,9 @@
 #define WARN_KINEMATICS_SA_SCARA_POS_OUT_OF_BOUNDS
 
 // Debug
-// #define DEBUG_KINEMATICS_SA_SCARA
-// #define DEBUG_KINEMATICS_SA_SCARA_SETUP
-// #define DEBUG_KINEMATICS_SA_SCARA_RELATIVE_ANGLE
+#define DEBUG_KINEMATICS_SA_SCARA
+#define DEBUG_KINEMATICS_SA_SCARA_SETUP
+#define DEBUG_KINEMATICS_SA_SCARA_RELATIVE_ANGLE
 
 class KinematicsSingleArmSCARA : public RaftKinematics
 {
@@ -64,6 +64,15 @@ public:
         AxesValues<AxisCalcDataType> curAngles;
         calculateAngles(curAxesState, curAngles, axesParams);
 
+#ifdef DEBUG_KINEMATICS_SA_SCARA
+        // Debug show the requested poing and the current position (in units from origin and steps from origin)
+        LOG_I(MODULE_PREFIX, "ptToActuator: target X %.2f Y %.2f, curPos X %.2f Y %.2f, curSteps X %d Y %d, curAngles theta1 %.2f theta2 %.2f",
+                targetPt.getVal(0), targetPt.getVal(1),
+                curAxesState.getUnitsFromOrigin(0), curAxesState.getUnitsFromOrigin(1),
+                curAxesState.getStepsFromOrigin(0), curAxesState.getStepsFromOrigin(1),
+                curAngles.getVal(0), curAngles.getVal(1));
+#endif
+
         // Absolute and relative angle solutions
         AxesValues<AxisCalcDataType> absoluteAngleSolution;
         AxesValues<AxisCalcDataType> relativeAngleSolution;
@@ -76,8 +85,7 @@ public:
             absoluteAngleSolution = { curAngles.getVal(0), curAngles.getVal(0) + _originTheta2OffsetDegrees };
             relativeAngleSolution = { 0, computeRelativeAngle(absoluteAngleSolution.getVal(1), curAngles.getVal(1)) };
 #ifdef DEBUG_KINEMATICS_SA_SCARA
-    		LOG_I(MODULE_PREFIX, "ptToActuator x %.2f y %.2f close to origin best angles theta1 %.2f (diff %.2f) theta2 %.2f (diff %.2f)", 
-                            targetPt.getVal(0), targetPt.getVal(1), 
+    		LOG_I(MODULE_PREFIX, "ptToActuator CLOSE_TO_ORIGIN best angles theta1 %.2f (diff %.2f) theta2 %.2f (diff %.2f)", 
                             absoluteAngleSolution.getVal(0), relativeAngleSolution.getVal(0),
                             absoluteAngleSolution.getVal(1), relativeAngleSolution.getVal(1));
 #endif
@@ -90,7 +98,7 @@ public:
             if (!isValid)
             {
 #ifdef WARN_KINEMATICS_SA_SCARA_POS_OUT_OF_BOUNDS
-                LOG_W(MODULE_PREFIX, "ptToActuator out of bounds x %.2f y %.2f", targetPt.getVal(0), targetPt.getVal(1));
+                LOG_W(MODULE_PREFIX, "ptToActuator OUT_OF_BOUNDS x %.2f y %.2f", targetPt.getVal(0), targetPt.getVal(1));
 #endif
                 return false;
             }
@@ -117,32 +125,34 @@ public:
             }
 
 #ifdef DEBUG_KINEMATICS_SA_SCARA
-            LOG_I(MODULE_PREFIX, "ptToActuator: target X %.2f Y %.2f, soln1 theta1 %.2f theta2 %.2f, soln2 theta1 %.2f theta2 %.2f, chosen relAngle0 %.2f relAngle1 %.2f, absSteps0 %d absSteps1 %d, curAngles theta1 %.2f theta2 %.2f", 
-                targetPt.getVal(0), targetPt.getVal(1),
-                soln1.getVal(0), soln1.getVal(1),
-                soln2.getVal(0), soln2.getVal(1),
-                relativeAngleSolution.getVal(0), relativeAngleSolution.getVal(1),
-                outActuator.getVal(0), outActuator.getVal(1),
+            LOG_I(MODULE_PREFIX, "ptToActuator ANGLES CHOSEN: (%.2f, %.2f) ... ALTERNATIVE (%.2f, %.2f) CURRENT (%.2f, %.2f)", 
+                useSoln1 ? soln1.getVal(0) : soln2.getVal(0), useSoln1 ? soln1.getVal(1) : soln2.getVal(1),
+                useSoln1 ? soln2.getVal(0) : soln1.getVal(0), useSoln1 ? soln2.getVal(1) : soln1.getVal(1),
                 curAngles.getVal(0), curAngles.getVal(1));
 #endif
-
         }
 
         // Apply this to calculate required steps (relative to the current position)
         relativeAnglesToAbsoluteSteps(relativeAngleSolution, curAxesState, outActuator, axesParams);
 
-        // Debug
 #ifdef DEBUG_KINEMATICS_SA_SCARA
-        LOG_I(MODULE_PREFIX, "ptToActuator X %.2f (%.2f) Y %.2f (%.2f) dist %.2f abs steps %d %d minRot1 %.2f minRot2 %.2f", 
-                targetPt.getVal(0), targetPt.getVal(1),
-                curAxesState.getUnitsFromOrigin(0), curAxesState.getUnitsFromOrigin(1),
-                sqrt(pow(targetPt.getVal(0) - curAxesState.getUnitsFromOrigin(0), 2) + pow(targetPt.getVal(1) - curAxesState.getUnitsFromOrigin(1), 2)),
-                outActuator.getVal(0), outActuator.getVal(1),
-                relativeAngleSolution.getVal(0), relativeAngleSolution.getVal(1));
+            LOG_I(MODULE_PREFIX, "ptToActuator REL ANGLE: (%.2f, %.2f), ABS_STEPS (%d, %d)", 
+                relativeAngleSolution.getVal(0), relativeAngleSolution.getVal(1),
+                outActuator.getVal(0), outActuator.getVal(1));
 #endif
-#ifdef DEBUG_KINEMATICS_SA_SCARA
-    LOG_I(MODULE_PREFIX, "ptToActuator: curAngles theta1 %.2f theta2 %.2f, chosen relAngle0 %.2f relAngle1 %.2f", curAngles.getVal(0), curAngles.getVal(1), relativeAngleSolution.getVal(0), relativeAngleSolution.getVal(1));
-#endif
+
+//         // Debug
+// #ifdef DEBUG_KINEMATICS_SA_SCARA
+//         LOG_I(MODULE_PREFIX, "ptToActuator TARGET POS (%.2f, %.2f) TARGET FROM ORIGIN (%.2f, %.2f) DIST %.2f ABS STEPS (%d, %d) NIN ROTATION (%.2f, %.2f)", 
+//                 targetPt.getVal(0), targetPt.getVal(1),
+//                 curAxesState.getUnitsFromOrigin(0), curAxesState.getUnitsFromOrigin(1),
+//                 sqrt(pow(targetPt.getVal(0) - curAxesState.getUnitsFromOrigin(0), 2) + pow(targetPt.getVal(1) - curAxesState.getUnitsFromOrigin(1), 2)),
+//                 outActuator.getVal(0), outActuator.getVal(1),
+//                 relativeAngleSolution.getVal(0), relativeAngleSolution.getVal(1));
+// #endif
+// #ifdef DEBUG_KINEMATICS_SA_SCARA
+//     LOG_I(MODULE_PREFIX, "ptToActuator: curAngles theta1 %.2f theta2 %.2f, chosen relAngle0 %.2f relAngle1 %.2f", curAngles.getVal(0), curAngles.getVal(1), relativeAngleSolution.getVal(0), relativeAngleSolution.getVal(1));
+// #endif
         return true;
     }
 
@@ -232,15 +242,19 @@ private:
         targetSoln2 = { AxisUtils::r2d(targetAngleRads - a2), AxisUtils::r2d(M_PI + targetAngleRads - a2 - a3) };
 
 #ifdef DEBUG_KINEMATICS_SA_SCARA
-        LOG_I(MODULE_PREFIX, "cartesianToPolar INPUT X%.2f Y%.2f -> soln1 theta1 %.2f theta2 %.2f, soln2 theta1 %.2f theta2 %.2f", targetPt.getVal(0), targetPt.getVal(1), targetSoln1.getVal(0), targetSoln1.getVal(1), targetSoln2.getVal(0), targetSoln2.getVal(1));
-#endif
+        LOG_I(MODULE_PREFIX, "cartesianToPolar INPUT X%.2f Y%.2f -> soln1 theta1 %.2f theta2 %.2f, soln2 theta1 %.2f theta2 %.2f, targetAngleRads %.2f thirdSideL3MM %.2f posValid %d", 
+                    targetPt.getVal(0), targetPt.getVal(1), targetSoln1.getVal(0), targetSoln1.getVal(1), targetSoln2.getVal(0), targetSoln2.getVal(1),
+                    targetAngleRads, thirdSideL3MM, posValid);
 
         if (fabs(targetPt.getVal(0) - 100.0) < 1e-2 && fabs(targetPt.getVal(1)) < 1e-2) {
-            LOG_I(MODULE_PREFIX, "TEST (100,0): soln1 theta1 %.2f theta2 %.2f, soln2 theta1 %.2f theta2 %.2f (expected: theta1=0, theta2=180)", targetSoln1.getVal(0), targetSoln1.getVal(1), targetSoln2.getVal(0), targetSoln2.getVal(1));
+            LOG_I(MODULE_PREFIX, "TEST (100,0): soln1 theta1 %.2f theta2 %.2f, soln2 theta1 %.2f theta2 %.2f (expected: theta1=0, theta2=180)", 
+                    targetSoln1.getVal(0), targetSoln1.getVal(1), targetSoln2.getVal(0), targetSoln2.getVal(1));
         }
         if (fabs(targetPt.getVal(0)) < 1e-2 && fabs(targetPt.getVal(1) - 100.0) < 1e-2) {
-            LOG_I(MODULE_PREFIX, "TEST (0,100): soln1 theta1 %.2f theta2 %.2f, soln2 theta1 %.2f theta2 %.2f (expected: theta1=90, theta2=90)", targetSoln1.getVal(0), targetSoln1.getVal(1), targetSoln2.getVal(0), targetSoln2.getVal(1));
+            LOG_I(MODULE_PREFIX, "TEST (0,100): soln1 theta1 %.2f theta2 %.2f, soln2 theta1 %.2f theta2 %.2f (expected: theta1=90, theta2=90)", 
+                    targetSoln1.getVal(0), targetSoln1.getVal(1), targetSoln2.getVal(0), targetSoln2.getVal(1));
         }
+#endif
 
         return posValid;        
     }
@@ -258,7 +272,7 @@ private:
         AxisCalcDataType theta2Degrees = AxisUtils::wrapDegrees(stepValues.getVal(1) * 360 / axesParams.getStepsPerRot(1) + _originTheta2OffsetDegrees);
         anglesDegrees = { theta1Degrees, theta2Degrees };
 #ifdef DEBUG_KINEMATICS_SA_SCARA
-        LOG_I(MODULE_PREFIX, "calculateAnglesFromSteps ax0Steps %d ax1Steps %d theta1 %.2f° theta2 %.2f°",
+        LOG_I(MODULE_PREFIX, "calculateAnglesFromSteps steps (%d, %d) angles (%.2f°, %.2f°)",
                 stepValues.getVal(0), stepValues.getVal(1), anglesDegrees.getVal(0), anglesDegrees.getVal(1));
 #endif        
     }
@@ -317,9 +331,11 @@ private:
         outActuator.setVal(0, curAxesState.getStepsFromOrigin(0) + stepsRel0);
         outActuator.setVal(1, curAxesState.getStepsFromOrigin(1) + stepsRel1);
 #ifdef DEBUG_KINEMATICS_SA_SCARA
-        LOG_I(MODULE_PREFIX, "relativeAnglesToAbsoluteSteps [0] relAngle %.2f relSteps %d curSteps %d absSteps %d [1] relAngle %.2f relSteps %d curSteps %d absSteps %d",
-                relativeAngles.getVal(0), stepsRel0, curAxesState.getStepsFromOrigin(0), outActuator.getVal(0),
-                relativeAngles.getVal(1), stepsRel1, curAxesState.getStepsFromOrigin(1), outActuator.getVal(1));
+        LOG_I(MODULE_PREFIX, "relAnglesToAbsSteps relAngle (%.2f, %.2f) relSteps (%d, %d) curSteps (%d, %d) absSteps (%d, %d)",
+                relativeAngles.getVal(0), relativeAngles.getVal(1), 
+                stepsRel0, stepsRel1, 
+                curAxesState.getStepsFromOrigin(0), curAxesState.getStepsFromOrigin(1), 
+                outActuator.getVal(0), outActuator.getVal(1));
 #endif        
     }
 

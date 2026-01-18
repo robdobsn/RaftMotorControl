@@ -24,6 +24,13 @@ public:
         _unitsFromOriginValid = false;
     }
 
+    void setOrigin()
+    {
+        unitsFromOrigin.clear();
+        stepsFromOrigin.clear();
+        _unitsFromOriginValid = true;
+    }
+
     /// @brief Set position
     /// @param unitsFromOrigin units from origin
     /// @param steps steps (maybe relative to previous value or from origin)

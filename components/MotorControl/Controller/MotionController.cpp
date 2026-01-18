@@ -17,11 +17,11 @@
 #include "RaftArduino.h"
 #include "RaftJsonPrefixed.h"
 
-// #define DEBUG_STEPPER_SETUP_CONFIG
-// #define DEBUG_RAMP_SETUP_CONFIG
-// #define DEBUG_MOTION_CONTROLLER
-// #define INFO_LOG_AXES_PARAMS
-// #define DEBUG_ENDSTOP_STATUS
+#define DEBUG_STEPPER_SETUP_CONFIG
+#define DEBUG_RAMP_SETUP_CONFIG
+#define DEBUG_MOTION_CONTROLLER
+#define INFO_LOG_AXES_PARAMS
+#define DEBUG_ENDSTOP_STATUS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -70,7 +70,7 @@ void MotionController::setup(const RaftJsonIF& config)
 
     // If no homing required then set the current position as home
     if (!_homingNeededBeforeAnyMove)
-        setCurPositionAsOrigin(true);
+        setCurPositionAsOrigin();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -274,17 +274,10 @@ RaftRetCode MotionController::moveToRamped(MotionArgs& args, String* respMsg)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set current position of the axes as the origin
-/// @param allAxes true to set all axes, false to set a specific axis
-/// @param axisIdx if allAxes is false, the axis to set
-void MotionController::setCurPositionAsOrigin(bool allAxes, uint32_t axisIdx)
+void MotionController::setCurPositionAsOrigin()
 {
-    if (!allAxes && (axisIdx >= AXIS_VALUES_MAX_AXES))
-        return;
-    for (uint32_t i = (allAxes ? 0 : axisIdx); i < (allAxes ? AXIS_VALUES_MAX_AXES : axisIdx+1); i++)
-    {
-        _rampGenerator.setTotalStepPosition(i, 0);
-        _blockManager.setCurPositionAsOrigin(i);
-    }
+    _rampGenerator.resetTotalStepPosition();
+    _blockManager.setCurPositionAsOrigin();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

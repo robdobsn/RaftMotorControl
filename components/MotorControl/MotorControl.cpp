@@ -224,7 +224,7 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
     }
     else if (cmd.equalsIgnoreCase("setOrigin"))
     {
-        _motionController.setCurPositionAsOrigin(true);
+        _motionController.setCurPositionAsOrigin();
     }
     else if (cmd.equalsIgnoreCase("maxCurrent"))
     {

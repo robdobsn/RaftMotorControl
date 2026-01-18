@@ -106,8 +106,8 @@
           {
             "name": "s1",
             "params": {
-                "unitsPerRot": 100,
-                "stepsPerRot": 12800,
+                "unitsPerRot": 360,
+                "stepsPerRot": 9600,
                 "maxSpeedUps": 100,
                 "maxAccUps2": 100
             },
@@ -117,7 +117,7 @@
               "addr": 1,
               "stepPin": "17",
               "dirnPin": "18",
-              "invDirn": 0,
+              "invDirn": 1,
               "writeOnly": 0,
               "extSenseOhms": 0.15,
               "extVRef": 0,

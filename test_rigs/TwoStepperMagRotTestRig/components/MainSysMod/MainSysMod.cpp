@@ -65,12 +65,13 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
             double axis0Pos = requestAsJSON.getDouble("params/a0", 0);
             double axis1Pos = requestAsJSON.getDouble("params/a1", 0);
             bool unitsAreSteps = requestAsJSON.getBool("params/unitsAreSteps", false);
-            LOG_I(MODULE_PREFIX, "apiControl: setPos axis0Pos %f axis1Pos %f unitsAreSteps %d", axis0Pos, axis1Pos, unitsAreSteps);
-
+            double speedUps = requestAsJSON.getDouble("params/speedUps", 100);
+            LOG_I(MODULE_PREFIX, "apiControl: setPos axis0Pos %f axis1Pos %f unitsAreSteps %d speedUps %f", axis0Pos, axis1Pos, unitsAreSteps, speedUps);
+            
             // Form the JSON command to send to MotorControl
             motorCmdJSON = R"({"cmd":"motion","stop":1,"clearQ":1,"rel":0,"nosplit":1,"steps":__STEPS__,"feedrate":__SPEED__,"pos":[{"a":0,"p":__POS0__},{"a":1,"p":__POS1__}]})";
             motorCmdJSON.replace("__STEPS__", unitsAreSteps ? "1" : "0");
-            motorCmdJSON.replace("__SPEED__", "1");
+            motorCmdJSON.replace("__SPEED__", String(speedUps));
             motorCmdJSON.replace("__POS0__", String(axis0Pos));
             motorCmdJSON.replace("__POS1__", String(axis1Pos));
             // Debug
@@ -115,6 +116,7 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
     // Result
     if (rslt)
     {
+        rsltStr = "ok";
         LOG_I(MODULE_PREFIX, "apiControl: reqStr %s rslt %s", reqStr.c_str(), rsltStr.c_str());
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
     }

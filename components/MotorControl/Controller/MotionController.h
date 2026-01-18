@@ -68,7 +68,7 @@ public:
     virtual bool isBusy() const override;
 
     // Set current position as origin
-    virtual void setCurPositionAsOrigin(bool allAxes = true, uint32_t axisIdx = 0) override;
+    virtual void setCurPositionAsOrigin() override;
 
     // Go to previously set origin position
     void goToOrigin(const MotionArgs &args);

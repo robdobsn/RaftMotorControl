@@ -10,7 +10,7 @@
 #include "RaftKinematicsSystem.h"
 
 // #define DEBUG_RAMPED_BLOCK
-// #define DEBUG_COORD_UPDATES
+#define DEBUG_COORD_UPDATES
 // #define DEBUG_BLOCK_SPLITTER
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -274,18 +274,7 @@ RaftRetCode MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipel
 // Set current position as origin
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionBlockManager::setCurPositionAsOrigin(uint32_t axisIdx)
+void MotionBlockManager::setCurPositionAsOrigin()
 {
-    if (axisIdx >= AXIS_VALUES_MAX_AXES)
-        return;
-
-    // TODO 
-    // _lastCommandedAxesPositions.curPosUnitsFromOrigin.setVal(axisIdx, 0);
-    // _lastCommandedAxesPositions.setUnitsFromOriginValidity(true);
-    // _lastCommandedAxesPositions.curPosStepsFromOrigin.setVal(axisIdx, 0);
-// #ifdef DEBUG_COORD_UPDATES
-//         LOG_I(MODULE_PREFIX, "setCurPosAsOrigin axisIdx %d curMM %0.2f steps %d", axisIdx,
-//                     _lastCommandedAxesPositions.curPosUnitsFromOrigin.getVal(axisIdx),
-//                     _lastCommandedAxesPositions.curPosStepsFromOrigin.getVal(axisIdx));
-// #endif
+    _axesState.setOrigin();
 }

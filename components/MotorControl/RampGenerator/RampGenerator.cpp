@@ -182,11 +182,6 @@ void RampGenerator::getTotalStepPosition(AxesValues<AxisStepsDataType>& actuator
         actuatorPos.setVal(i, _axisTotalSteps[i]);
     }
 }
-void RampGenerator::setTotalStepPosition(int axisIdx, int32_t stepPos)
-{
-    if ((axisIdx >= 0) && (axisIdx < AXIS_VALUES_MAX_AXES))
-        _axisTotalSteps[axisIdx] = stepPos;
-}
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // End stop handling

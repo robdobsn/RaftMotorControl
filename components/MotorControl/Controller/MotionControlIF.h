@@ -38,9 +38,7 @@ public:
     virtual bool isBusy() const = 0;
 
     /// @brief Set current position as home
-    /// @param allAxes true to set all axes, false to set only specified axis
-    /// @param axisIdx axis index (only used if allAxes is false)
-    virtual void setCurPositionAsOrigin(bool allAxes = true, uint32_t axisIdx = 0) = 0;
+    virtual void setCurPositionAsOrigin() = 0;
 
     /// @brief Get last commanded position
     /// @return AxesValues of last commanded position

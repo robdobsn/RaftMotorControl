@@ -5,18 +5,14 @@
   "source": "src/index.html",
   "scripts": {
     "start": "parcel src/index.html --open",
-    "build": "parcel build src/index.html --public-url ./ --no-source-maps",
-    "clean": "rm -rf dist .parcel-cache",
-    "postinstall": "cd node_modules/@robdobsn/raftjs/dist/web && ln -sf RaftChannelBLE.web.js RaftChannelBLE.js || true"
+    "build": "parcel build src/index.html --public-url ./",
+    "clean": "rm -rf dist .parcel-cache"
   },
   "targets": {
     "default": {
       "distDir": "./dist",
-      "optimize": true
+      "optimize": false
     }
-  },
-  "alias": {
-    "@robdobsn/raftjs/dist/web/RaftChannelBLE": "@robdobsn/raftjs/dist/web/RaftChannelBLE.web.js"
   },
   "dependencies": {
     "@robdobsn/raftjs": "^1.0.0",

@@ -15,7 +15,7 @@ export default class SystemTypeTwoStepper implements RaftSystemType {
   defaultWiFiHostname = 'TwoStepperRig';
   firmwareDestName = 'ricfw';
   normalFileDestName = 'fs';
-  connectorOptions = { wsSuffix: 'wsjson', bleConnItvlMs: 50 };
+  connectorOptions = { wsSuffix: 'ws', bleConnItvlMs: 50 };
   
   private _onEvent: RaftEventFn | null = null;
   private _systemUtils: RaftSystemUtils | null = null;
