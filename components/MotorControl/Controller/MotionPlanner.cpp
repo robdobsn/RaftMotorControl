@@ -147,8 +147,12 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
             AxesState& axesState,
             const AxesParams& axesParams, 
             MotionPipelineIF& motionPipeline,
-            String* respMsg)
+            String* respMsg,
+            bool deferRecalc)
 {
+#ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
+    uint64_t moveStartUs = micros();
+#endif
     // Find first primary axis
     int firstPrimaryAxis = -1;
     for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
@@ -194,6 +198,10 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
     {
         return RAFT_MOTION_NO_MOVEMENT;
     }
+
+#ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
+    uint64_t calcTimeUs = micros() - moveStartUs;
+#endif
 
     // Create a block for this movement which will end up on the pipeline
     MotionBlock block;
@@ -334,19 +342,42 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
                 motionPipeline.canGet(), maxJunctionDeviationMM, block._maxEntrySpeedMMps);
 #endif
 
+#ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
+    uint64_t pipelineAddStartUs = micros();
+#endif
     // Add the element to the pipeline and remember previous element
     motionPipeline.add(block);
+#ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
+    uint64_t pipelineAddTimeUs = micros() - pipelineAddStartUs;
+    if (pipelineAddTimeUs > 100) {
+        LOG_I("MotionPlanner", "Pipeline add took %lluus", pipelineAddTimeUs);
+    }
+#endif
     MotionBlockSequentialData prevBlockInfo;
     prevBlockInfo._maxParamSpeedMMps = block._requestedSpeed;
     prevBlockInfo._unitVectors = unitVectors;
     _prevMotionBlock = prevBlockInfo;
     _prevMotionBlockValid = true;
 
-    // Recalculate the whole queue
-    recalculatePipeline(motionPipeline, axesParams);
+    // Recalculate the whole queue (unless deferred for batch mode)
+    if (!deferRecalc)
+    {
+        recalculatePipeline(motionPipeline, axesParams);
+    }
 
     // Update current position
     axesState.setPosition(targetAxesPos, block.getStepsToTarget(), true);
+
+#ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
+    uint64_t totalTimeUs = micros() - moveStartUs;
+    static int logCounter = 0;
+    if (logCounter < 3 || logCounter == 26) {
+        LOG_I("MotionPlanner", "moveToRamped[%d]: total=%lluus calc=%lluus defer=%d", 
+              logCounter, totalTimeUs, calcTimeUs, deferRecalc ? 1 : 0);
+    }
+    logCounter++;
+    if (!args.getMoreMovesComing()) logCounter = 0;
+#endif
 
     return RAFT_OK;
 }
@@ -501,6 +532,134 @@ void MotionPlanner::recalculatePipeline(MotionPipelineIF& motionPipeline, const 
     motionPipeline.debugShowBlocks(axesParams);
 #elif defined(DEBUG_MOTIONPLANNER_INFO)
     motionPipeline.debugShowTopBlock(axesParams);
+#endif
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Optimized pipeline recalculation for split block batches
+/// @param motionPipeline Motion pipeline to recalculate
+/// @param axesParams Parameters for the axes
+/// @param numNewBlocks Number of blocks just added (all from same split move)
+/// @note This optimized version is used when multiple blocks from a single split move are added together
+///       These blocks have nearly identical speeds and collinear directions, allowing simplified calculation
+void MotionPlanner::recalculatePipelineOptimized(MotionPipelineIF& motionPipeline, const AxesParams &axesParams, int numNewBlocks)
+{
+    // Check if the newly added blocks qualify for fast path (uniform split blocks)
+    bool canUseFastPath = true;
+    float firstBlockSpeed = 0;
+    
+    // Examine the newly added blocks
+    for (int i = 0; i < numNewBlocks && i < 10; i++)
+    {
+        MotionBlock *pBlock = motionPipeline.peekNthFromPut(i);
+        if (!pBlock)
+        {
+            canUseFastPath = false;
+            break;
+        }
+        
+        // Check if this is part of a split block batch
+        if (i == 0)
+        {
+            firstBlockSpeed = pBlock->_requestedSpeed;
+            // Last block should not have _blockIsFollowed set
+            if (i == numNewBlocks - 1 && pBlock->_blockIsFollowed)
+                canUseFastPath = false;
+        }
+        else
+        {
+            // Middle blocks should have _blockIsFollowed set and similar speed
+            if (i < numNewBlocks - 1 && !pBlock->_blockIsFollowed)
+                canUseFastPath = false;
+            if (fabs(pBlock->_requestedSpeed - firstBlockSpeed) > 0.01f * firstBlockSpeed)
+                canUseFastPath = false;
+        }
+        
+        // Check for executing block
+        if (pBlock->_isExecuting)
+        {
+            canUseFastPath = false;
+            break;
+        }
+    }
+    
+    // If can't use fast path, fall back to full recalculation
+    if (!canUseFastPath || numNewBlocks < 3)
+    {
+        recalculatePipeline(motionPipeline, axesParams);
+        return;
+    }
+    
+    // Fast path for uniform split blocks: use simplified trapezoidal profile
+    // All blocks have same requested speed and are nearly collinear
+    float cruiseSpeed = firstBlockSpeed;
+    float maxAccel = axesParams.masterAxisMaxAccel();
+    
+    // Calculate trapezoidal profile for the entire batch
+    // First block accelerates, middle blocks cruise, last block decelerates
+    for (int reverseIdx = numNewBlocks - 1; reverseIdx >= 0; reverseIdx--)
+    {
+        MotionBlock *pBlock = motionPipeline.peekNthFromPut(reverseIdx);
+        if (!pBlock)
+            continue;
+            
+        int blockIdx = numNewBlocks - 1 - reverseIdx;
+        
+        if (blockIdx == 0)
+        {
+            // First block: accelerate from 0 (or previous block exit) to cruise
+            float entrySpeed = 0;
+            // Check if there's a block before this batch
+            MotionBlock *pPrevBlock = motionPipeline.peekNthFromPut(numNewBlocks);
+            if (pPrevBlock && !pPrevBlock->_isExecuting)
+                entrySpeed = pPrevBlock->_exitSpeedMMps;
+                
+            pBlock->_entrySpeedMMps = entrySpeed;
+            
+            // Calculate achievable exit speed
+            float maxAchievable = MotionBlock::maxAchievableSpeed(maxAccel, entrySpeed, pBlock->_moveDistPrimaryAxesMM);
+            pBlock->_exitSpeedMMps = fmin(cruiseSpeed, maxAchievable);
+        }
+        else if (blockIdx == numNewBlocks - 1)
+        {
+            // Last block: decelerate to 0
+            MotionBlock *pPrevBlock = motionPipeline.peekNthFromPut(reverseIdx + 1);
+            float entrySpeed = pPrevBlock ? pPrevBlock->_exitSpeedMMps : cruiseSpeed;
+            
+            pBlock->_entrySpeedMMps = entrySpeed;
+            pBlock->_exitSpeedMMps = 0;  // Must stop at end
+        }
+        else
+        {
+            // Middle blocks: maintain cruise speed
+            MotionBlock *pPrevBlock = motionPipeline.peekNthFromPut(reverseIdx + 1);
+            float entrySpeed = pPrevBlock ? pPrevBlock->_exitSpeedMMps : cruiseSpeed;
+            
+            pBlock->_entrySpeedMMps = entrySpeed;
+            
+            // Calculate achievable exit speed
+            float maxAchievable = MotionBlock::maxAchievableSpeed(maxAccel, entrySpeed, pBlock->_moveDistPrimaryAxesMM);
+            pBlock->_exitSpeedMMps = fmin(cruiseSpeed, maxAchievable);
+        }
+    }
+    
+    // Prepare blocks for stepping
+    for (int reverseIdx = numNewBlocks - 1; reverseIdx >= 0; reverseIdx--)
+    {
+        MotionBlock *pBlock = motionPipeline.peekNthFromPut(reverseIdx);
+        if (!pBlock)
+            continue;
+            
+        if (pBlock->prepareForStepping(axesParams, false))
+        {
+            if ((!pBlock->_blockIsFollowed) || (motionPipeline.count() > 1))
+                pBlock->_canExecute = true;
+        }
+    }
+    
+#ifdef DEBUG_MOTIONPLANNER_AFTER
+    LOG_I(MODULE_PREFIX, ".................AFTER OPTIMIZED RECALC (fast path).......................");
+    motionPipeline.debugShowBlocks(axesParams);
 #endif
 }
 

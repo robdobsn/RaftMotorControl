@@ -97,15 +97,18 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
 #ifdef DEBUG_API_CONTROL
             LOG_I(MODULE_PREFIX, "apiControl: setPos axis0Pos %f axis1Pos %f unitsAreSteps %d speedUps %f", axis0Pos, axis1Pos, unitsAreSteps, speedUps);
 #endif
-            // Form the JSON command to send to MotorControl
-            motorCmdJSON = R"({"cmd":"motion","stop":__STOP__,"clearQ":__CLEAR__,"rel":0,"nosplit":__NOSPLIT__,"steps":__STEPS__,"feedrate":__SPEED__,"pos":[{"a":0,"p":__POS0__},{"a":1,"p":__POS1__}]})";
-            motorCmdJSON.replace("__STEPS__", unitsAreSteps ? "1" : "0");
-            motorCmdJSON.replace("__SPEED__", String(speedUps));
-            motorCmdJSON.replace("__POS0__", String(axis0Pos));
-            motorCmdJSON.replace("__POS1__", String(axis1Pos));
-            motorCmdJSON.replace("__STOP__", stopAndClearBeforeMove ? "1" : "0");
-            motorCmdJSON.replace("__CLEAR__", stopAndClearBeforeMove ? "1" : "0");
-            motorCmdJSON.replace("__NOSPLIT__", noSplit ? "1" : "0");
+            // Form the JSON command to send to MotorControl using snprintf (faster than string replace)
+            char jsonBuffer[256];
+            snprintf(jsonBuffer, sizeof(jsonBuffer),
+                "{\"cmd\":\"motion\",\"stop\":%d,\"clearQ\":%d,\"rel\":0,\"nosplit\":%d,\"steps\":%d,\"feedrate\":%.2f,\"pos\":[{\"a\":0,\"p\":%.2f},{\"a\":1,\"p\":%.2f}]}",
+                stopAndClearBeforeMove ? 1 : 0,
+                stopAndClearBeforeMove ? 1 : 0,
+                noSplit ? 1 : 0,
+                unitsAreSteps ? 1 : 0,
+                speedUps,
+                axis0Pos,
+                axis1Pos);
+            motorCmdJSON = jsonBuffer;
 
             // Debug
 #ifdef DEBUG_API_CONTROL

@@ -61,7 +61,62 @@ void MotionBlock::clear()
     _endStopsToCheck.clear();
     for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
         _stepsTotalMaybeNeg[axisIdx] = 0;
+#if USE_SINGLE_SPLIT_BLOCK
+    _isSplitBlock = false;
+    _totalSubBlocks = 0;
+    _currentSubBlock = 0;
+#endif
 }
+
+#if USE_SINGLE_SPLIT_BLOCK
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Configure split-block
+// Sets up metadata for a block that represents multiple geometric waypoints
+// The block will have a single acceleration profile but multiple position targets
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void MotionBlock::configureSplitBlock(uint16_t numSubBlocks,
+                                     const AxesValues<AxisStepsDataType>& startCoords,
+                                     const AxesValues<AxisStepsDataType>& endCoords)
+{
+    _isSplitBlock = true;
+    _totalSubBlocks = numSubBlocks;
+    _currentSubBlock = 0;
+    _startActuatorCoords = startCoords;
+    
+    // Calculate delta per sub-block for linear interpolation in actuator space
+    for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+    {
+        int32_t totalDelta = endCoords.getVal(axisIdx) - startCoords.getVal(axisIdx);
+        // Divide by total sub-blocks to get increment per sub-block
+        _actuatorDeltaPerSubBlock.setVal(axisIdx, totalDelta / (int32_t)numSubBlocks);
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Get current actuator position
+// Returns interpolated position for the current sub-block waypoint
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+void MotionBlock::getCurrentActuatorPosition(AxesValues<AxisStepsDataType>& outCoords) const
+{
+    if (!_isSplitBlock)
+    {
+        // For normal blocks, return the target position
+        outCoords = _stepsTotalMaybeNeg;
+        return;
+    }
+    
+    // Interpolate position for current sub-block
+    // Position = start + (delta_per_block * current_index)
+    for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+    {
+        int32_t interpolatedPos = _startActuatorCoords.getVal(axisIdx) + 
+                                  (_actuatorDeltaPerSubBlock.getVal(axisIdx) * (int32_t)_currentSubBlock);
+        outCoords.setVal(axisIdx, interpolatedPos);
+    }
+}
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // Command tracking

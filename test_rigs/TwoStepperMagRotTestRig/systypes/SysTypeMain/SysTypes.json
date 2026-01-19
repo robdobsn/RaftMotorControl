@@ -54,7 +54,7 @@
         "ramp": {
           "rampTimerEn": true,
           "rampTimerUs": 20,
-          "pipelineLen": 100
+          "pipelineLen": 250
         },
         "motorEn": {
           "stepEnablePin": "4",

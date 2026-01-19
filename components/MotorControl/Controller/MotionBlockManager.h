@@ -112,8 +112,9 @@ public:
     /// @param args MotionArgs define the parameters for motion
     /// @param motionPipeline Motion pipeline to add the block to
     /// @param respMsg Optional pointer to string for error message (default nullptr)
+    /// @param deferRecalc If true, defer pipeline recalculation (for batch mode, default false)
     /// @return RaftRetCode
-    RaftRetCode addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline, String* respMsg = nullptr);
+    RaftRetCode addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline, String* respMsg = nullptr, bool deferRecalc = false);
 
     /// @brief Pump block splitter
     /// @param motionPipeline Motion pipeline to add blocks to
@@ -142,6 +143,11 @@ private:
 
     // Next block to return
     uint32_t _nextBlockIdx = 0;
+    
+    // Actuator space interpolation for split blocks (avoids repeated IK)
+    bool _useActuatorInterpolation = false;
+    AxesValues<AxisStepsDataType> _startActuatorCoords;
+    AxesValues<AxisStepsDataType> _endActuatorCoords;
 
     // Planner used to plan the pipeline of motion
     MotionPlanner _motionPlanner;
@@ -167,4 +173,15 @@ private:
     /// @return true if successful
     /// @note The planner is responsible for computing suitable motion
     bool addToPlanner(const MotionArgs &args, MotionPipelineIF& motionPipeline);
+
+#if USE_SINGLE_SPLIT_BLOCK
+    /// @brief Add ramped block as single split-block (Phase 2+)
+    /// @param args Motion arguments for the entire segment
+    /// @param numBlocks Number of sub-blocks for geometric waypoints
+    /// @param motionPipeline Motion pipeline to add the block to
+    /// @param respMsg Optional pointer to string for error message
+    /// @return RaftRetCode
+    RaftRetCode addRampedBlockSingle(const MotionArgs& args, uint32_t numBlocks,
+                                     MotionPipelineIF& motionPipeline, String* respMsg);
+#endif
 };

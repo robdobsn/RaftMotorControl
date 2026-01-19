@@ -439,7 +439,25 @@ bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
 /// @note This function is called when a block is completed and removes the block from the pipeline
 void IRAM_ATTR RampGenerator::endMotion(MotionBlock *pBlock)
 {
+#if USE_SINGLE_SPLIT_BLOCK
+    // For split-blocks, advance to next sub-block instead of removing immediately
+    if (pBlock->isSplitBlock() && pBlock->hasMoreSubBlocks())
+    {
+        // Advance to next geometric waypoint
+        pBlock->advanceSubBlock();
+        
+        // Reset execution flag so setupNewBlock will be called for next waypoint
+        pBlock->_isExecuting = false;
+        
+        // Don't remove from pipeline - continue with next sub-block
+        return;
+    }
+#endif
+
+    // Remove completed block from pipeline
+    // For split-blocks, only called when all sub-blocks are done
     _motionPipeline.remove();
+    
     // Check if this is a numbered block - if so record its completion
     // if (pBlock->getMotionTrackingIndex() != RobotConsts::NUMBERED_COMMAND_NONE)
     //     _lastDoneNumberedCmdIdx = pBlock->getMotionTrackingIndex();

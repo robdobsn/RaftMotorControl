@@ -45,8 +45,52 @@ public:
     // Check if ready to accept data
     virtual bool canAccept() const override final
     {
+#if USE_SINGLE_SPLIT_BLOCK
+        // For split-blocks, check effective capacity including sub-blocks
+        return canAcceptSplitAware(1);
+#else
         return _pipelinePosn.canPut();
+#endif
     }
+
+#if USE_SINGLE_SPLIT_BLOCK
+    // Split-block aware capacity check
+    // Counts split-blocks as their sub-block count for capacity planning
+    bool canAcceptSplitAware(unsigned int additionalBlocks) const
+    {
+        if (!_pipelinePosn.canPut())
+            return false;
+            
+        // Calculate effective usage including sub-blocks
+        unsigned int effectiveUsed = 0;
+        unsigned int totalBlocks = count();
+        
+        for (unsigned int i = 0; i < totalBlocks; i++)
+        {
+            const MotionBlock* block = peekNthFromPutConst(i);
+            if (block && block->isSplitBlock())
+            {
+                // Count remaining sub-blocks
+                unsigned int remaining = block->getTotalSubBlocks() - block->getCurrentSubBlock();
+                effectiveUsed += remaining;
+            }
+            else
+            {
+                effectiveUsed += 1;
+            }
+        }
+        
+        return (effectiveUsed + additionalBlocks) <= _pipelinePosn.size();
+    }
+    
+    // Get pointer to last added block (for configuring split metadata)
+    // Returns NULL if pipeline is empty
+    // WARNING: Only call immediately after add() before any ISR can remove blocks
+    MotionBlock* getLastAddedBlock()
+    {
+        return peekNthFromPut(0); // 0 = last block added
+    }
+#endif
 
     // Add to pipeline
     virtual bool add(const MotionBlock &block) override final
@@ -81,6 +125,7 @@ public:
     }
 
     // Remove last element from queue
+    // Note: For split-blocks (Phase 4+), this is called only when all sub-blocks are complete
     virtual bool IRAM_ATTR remove() override final
     {
         // Check if queue is empty

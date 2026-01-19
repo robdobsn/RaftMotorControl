@@ -20,6 +20,7 @@
 // #define DEBUG_STEPPER_SETUP_CONFIG
 // #define DEBUG_RAMP_SETUP_CONFIG
 // #define DEBUG_MOTION_CONTROLLER
+// #define DEBUG_MOTION_CONTROLLER_TIMINGS
 // #define INFO_LOG_AXES_PARAMS
 // #define DEBUG_ENDSTOP_STATUS
 
@@ -172,6 +173,10 @@ bool MotionController::isBusy() const
 /// @note The args may be modified so cannot be const
 RaftRetCode MotionController::moveTo(MotionArgs &args, String* respMsg)
 {
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+    uint64_t startTimeUs = micros();
+#endif
+
 #ifdef DEBUG_MOTION_CONTROLLER
     LOG_I(MODULE_PREFIX, "moveTo %s args %s", 
             args.getAxesPos().getDebugJSON("axes").c_str(),
@@ -194,6 +199,10 @@ RaftRetCode MotionController::moveTo(MotionArgs &args, String* respMsg)
     if (!args.isEnableMotors())
     {
         _motorEnabler.enableMotors(false, false);
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+        uint64_t totalTimeUs = micros() - startTimeUs;
+        LOG_I(MODULE_PREFIX, "moveTo TIMING: total=%lluus cmd=disableMotors", totalTimeUs);
+#endif
         return RAFT_OK;
     }
 
@@ -201,11 +210,20 @@ RaftRetCode MotionController::moveTo(MotionArgs &args, String* respMsg)
     if (args.isRamped())
     {
         // Ramped (variable speed) motion
-        return moveToRamped(args, respMsg);
+        RaftRetCode rc = moveToRamped(args, respMsg);
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+        uint64_t totalTimeUs = micros() - startTimeUs;
+        LOG_I(MODULE_PREFIX, "moveTo TIMING: total=%lluus cmd=ramped", totalTimeUs);
+#endif
+        return rc;
     }
 
     // Handle flat motion (no ramp) - motion is defined in terms of steps (not mm)
     bool success = _blockManager.addNonRampedBlock(args, _rampGenerator.getMotionPipeline());
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+    uint64_t totalTimeUs = micros() - startTimeUs;
+    LOG_I(MODULE_PREFIX, "moveTo TIMING: total=%lluus cmd=nonRamped", totalTimeUs);
+#endif
     return success ? RAFT_OK : RAFT_OTHER_FAILURE;
 }
 
@@ -227,6 +245,11 @@ void MotionController::pause(bool pauseIt)
 /// @note The args may be modified so cannot be const
 RaftRetCode MotionController::moveToRamped(MotionArgs& args, String* respMsg)
 {
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+    uint64_t startTimeUs = micros();
+    uint64_t preProcessStartUs, addBlockStartUs, pumpStartUs;
+#endif
+
     // Check not busy
     if (_blockManager.isBusy())
     {
@@ -246,7 +269,13 @@ RaftRetCode MotionController::moveToRamped(MotionArgs& args, String* respMsg)
     }
 
     // Pre-process coordinates - this fills in unspecified values for axes and handles relative motion
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+    preProcessStartUs = micros();
+#endif
     AxisPosDataType moveDistanceMM = _blockManager.preProcessCoords(args);
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+    uint64_t preProcessTimeUs = micros() - preProcessStartUs;
+#endif
 
     // Ensure at least one block
     uint32_t numBlocks = 1;
@@ -262,10 +291,25 @@ RaftRetCode MotionController::moveToRamped(MotionArgs& args, String* respMsg)
 #endif
 
     // Add to the block splitter
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+    addBlockStartUs = micros();
+#endif
     _blockManager.addRampedBlock(args, numBlocks);
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+    uint64_t addBlockTimeUs = micros() - addBlockStartUs;
+#endif
 
     // Pump the block splitter to prime the pipeline with blocks
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+    pumpStartUs = micros();
+#endif
     RaftRetCode rc = _blockManager.pumpBlockSplitter(_rampGenerator.getMotionPipeline(), respMsg);
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+    uint64_t pumpTimeUs = micros() - pumpStartUs;
+    uint64_t totalTimeUs = micros() - startTimeUs;
+    LOG_I(MODULE_PREFIX, "moveToRamped TIMING: total=%lluus preProcess=%lluus addBlock=%lluus pump=%lluus numBlocks=%d",
+          totalTimeUs, preProcessTimeUs, addBlockTimeUs, pumpTimeUs, numBlocks);
+#endif
     if (rc != RAFT_OK)
         return rc;
 

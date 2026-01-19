@@ -13,6 +13,7 @@
 #include "HomingPattern.h"
 
 // #define DEBUG_MOTOR_CMD_JSON
+// #define DEBUG_SEND_CMD_TIMINGS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -203,18 +204,43 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 
 RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
 {
+#ifdef DEBUG_SEND_CMD_TIMINGS
+    uint64_t startTimeUs = micros();
+    uint64_t parseStartUs, motionArgsStartUs, moveToStartUs;
+#endif
+
     // Extract command from JSON
+#ifdef DEBUG_SEND_CMD_TIMINGS
+    parseStartUs = micros();
+#endif
     RaftJson jsonInfo(cmdJSON);
     String cmd = jsonInfo.getString("cmd", "");
+#ifdef DEBUG_SEND_CMD_TIMINGS
+    uint64_t parseTimeUs = micros() - parseStartUs;
+#endif
+
     if (cmd.equalsIgnoreCase("motion"))
     {
+#ifdef DEBUG_SEND_CMD_TIMINGS
+        motionArgsStartUs = micros();
+#endif
         MotionArgs motionArgs;
         motionArgs.fromJSON(cmdJSON);
+#ifdef DEBUG_SEND_CMD_TIMINGS
+        uint64_t motionArgsTimeUs = micros() - motionArgsStartUs;
+        moveToStartUs = micros();
+#endif
 #ifdef DEBUG_MOTOR_CMD_JSON
         String cmdStr = motionArgs.toJSON();
         LOG_I(MODULE_PREFIX, "sendCmdJSON %s", cmdStr.c_str());
 #endif
         RaftRetCode rc = _motionController.moveTo(motionArgs, respMsg);
+#ifdef DEBUG_SEND_CMD_TIMINGS
+        uint64_t moveToTimeUs = micros() - moveToStartUs;
+        uint64_t totalTimeUs = micros() - startTimeUs;
+        LOG_I(MODULE_PREFIX, "sendCmdJSON TIMING: total=%lluus parse=%lluus motionArgs=%lluus moveTo=%lluus cmd=%s",
+              totalTimeUs, parseTimeUs, motionArgsTimeUs, moveToTimeUs, cmd.c_str());
+#endif
         if (rc != RAFT_OK)
         {
             LOG_W(MODULE_PREFIX, "sendCmdJSON motion failed: %s", 
@@ -247,6 +273,11 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
     {
         _motionController.stopPattern();
     }
+#ifdef DEBUG_SEND_CMD_TIMINGS
+    uint64_t totalTimeUs = micros() - startTimeUs;
+    LOG_I(MODULE_PREFIX, "sendCmdJSON TIMING: total=%lluus parse=%lluus cmd=%s",
+          totalTimeUs, parseTimeUs, cmd.c_str());
+#endif
     return RAFT_OK;
 }
 

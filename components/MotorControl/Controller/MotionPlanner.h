@@ -43,13 +43,15 @@ public:
     /// @param axesParams Parameters for the axes
     /// @param motionPipeline Motion pipeline to add the block to
     /// @param respMsg Optional pointer to string for error message (default nullptr)
+    /// @param deferRecalc If true, defer pipeline recalculation (for batch mode)
     /// @return RaftRetCode
     RaftRetCode moveToRamped(const MotionArgs& args,
                     const AxesValues<AxisStepsDataType>& destActuatorCoords,
                     AxesState& curAxesState,
                     const AxesParams& axesParams,
                     MotionPipelineIF& motionPipeline,
-                    String* respMsg = nullptr);
+                    String* respMsg = nullptr,
+                    bool deferRecalc = false);
 
     /// @brief Debug show pipeline contents
     /// @param motionPipeline Motion pipeline to show
@@ -81,4 +83,17 @@ private:
 
     // Recalculate
     void recalculatePipeline(MotionPipelineIF& motionPipeline, const AxesParams& axesParams);
+    void recalculatePipelineOptimized(MotionPipelineIF& motionPipeline, const AxesParams& axesParams, int numNewBlocks);
+
+public:
+    /// @brief Recalculate pipeline (public wrapper for batch mode)
+    /// @param motionPipeline Motion pipeline to recalculate
+    /// @param numNewBlocks Number of blocks just added (for optimization)
+    void recalculatePipelinePublic(MotionPipelineIF& motionPipeline, const AxesParams& axesParams, int numNewBlocks = 0)
+    {
+        if (numNewBlocks > 1)
+            recalculatePipelineOptimized(motionPipeline, axesParams, numNewBlocks);
+        else
+            recalculatePipeline(motionPipeline, axesParams);
+    }
 };

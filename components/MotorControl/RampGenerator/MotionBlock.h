@@ -12,6 +12,11 @@
 #include "AxesParams.h"
 #include "AxisEndstopChecks.h"
 
+// Feature flag for single split-block optimization
+// Phase 1-5: Keep at 0 for parallel development
+// Phase 6: Set to 1 to enable optimization
+#define USE_SINGLE_SPLIT_BLOCK 1
+
 class MotionBlock
 {
 public:
@@ -139,6 +144,37 @@ public:
     // Motion tracking index - to help keep track of motion execution from other processes
     // like homing
     uint32_t _motionTrackingIndex = 0;
+
+#if USE_SINGLE_SPLIT_BLOCK
+    // Split-block support (backward compatible - all false/0 by default)
+    // When enabled, a single MotionBlock can represent multiple geometric waypoints
+    // This reduces memory allocations, pipeline operations, and planner overhead
+    bool _isSplitBlock = false;
+    uint16_t _totalSubBlocks = 0;
+    uint16_t _currentSubBlock = 0;
+    AxesValues<AxisStepsDataType> _startActuatorCoords;
+    AxesValues<AxisStepsDataType> _actuatorDeltaPerSubBlock;
+
+    // Split-block accessors
+    bool isSplitBlock() const { return _isSplitBlock; }
+    uint16_t getTotalSubBlocks() const { return _totalSubBlocks; }
+    uint16_t getCurrentSubBlock() const { return _currentSubBlock; }
+    bool hasMoreSubBlocks() const { 
+        return _isSplitBlock && _currentSubBlock < _totalSubBlocks - 1; 
+    }
+    void advanceSubBlock() { 
+        if (_isSplitBlock && _currentSubBlock < _totalSubBlocks - 1) 
+            _currentSubBlock++; 
+    }
+    
+    // Configure block as split-block with waypoint metadata
+    void configureSplitBlock(uint16_t numSubBlocks,
+                            const AxesValues<AxisStepsDataType>& startCoords,
+                            const AxesValues<AxisStepsDataType>& endCoords);
+    
+    // Get interpolated actuator position for current sub-block
+    void getCurrentActuatorPosition(AxesValues<AxisStepsDataType>& outCoords) const;
+#endif
 
 private:
     // Step distance in MM
