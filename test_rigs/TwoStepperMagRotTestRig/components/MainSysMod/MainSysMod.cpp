@@ -6,9 +6,11 @@
 
 #include "RaftCore.h"
 #include "MainSysMod.h"
+#include "ExecTimer.h"
 
 #define WARN_ON_API_CONTROL_FAIL
 // #define DEBUG_API_CONTROL
+// #define DEBUG_INFO_API_CONTROL_TIMINGS
 
 MainSysMod::MainSysMod(const char *pModuleName, RaftJsonIF& sysConfig)
     : RaftSysMod(pModuleName, sysConfig)
@@ -51,8 +53,20 @@ void MainSysMod::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
 
 RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const APISourceInfo& sourceInfo)
 {
+#ifdef DEBUG_INFO_API_CONTROL_TIMINGS
+    // Timing measurement start
+    uint64_t startTimeUs = micros();
+    uint64_t parseStartUs, commandBuildStartUs, sendStartUs;
+    parseStartUs = micros();
+#endif
+
     // Extract params
     RaftJson requestAsJSON = RestAPIEndpointManager::getJSONFromRESTRequest(reqStr.c_str());
+
+    // Timing measurement - parse time
+#ifdef DEBUG_INFO_API_CONTROL_TIMINGS
+    uint64_t parseTimeUs = micros() - parseStartUs;
+#endif
 
     // Handle commands
     bool rslt = false;
@@ -62,6 +76,11 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
 #endif
     String motorCmdJSON = "";
     String command = requestAsJSON.getString("pathSegments[1]", "");
+    
+#ifdef DEBUG_INFO_API_CONTROL_TIMINGS
+    commandBuildStartUs = micros();
+#endif
+
     if (!command.isEmpty())
     {
         if (command.equalsIgnoreCase("setPos"))
@@ -134,8 +153,21 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
         }
     }
 
+    // Timing measurement - command build time
+#ifdef DEBUG_INFO_API_CONTROL_TIMINGS
+    uint64_t commandBuildTimeUs = micros() - commandBuildStartUs;
+    sendStartUs = micros();
+#endif
+
     // Send to MotorControl device
     rslt = sendToMotorControl(motorCmdJSON, rsltStr);
+#ifdef DEBUG_INFO_API_CONTROL_TIMINGS
+    uint64_t sendTimeUs = micros() - sendStartUs;
+    // Log timing information
+    uint64_t totalTimeUs = micros() - startTimeUs;
+    LOG_I(MODULE_PREFIX, "apiControl TIMING: total=%lluus parse=%lluus build=%lluus send=%lluus cmd=%s",
+          totalTimeUs, parseTimeUs, commandBuildTimeUs, sendTimeUs, command.c_str());
+#endif
 
     // Result
     if (rslt)
