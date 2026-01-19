@@ -67,8 +67,8 @@
             "params": {
                 "unitsPerRot": 360,
                 "stepsPerRot": 9600,
-                "maxSpeedUps": 100,
-                "maxAccUps2": 100
+                "maxSpeedUps": 50,
+                "maxAccUps2": 1
             },
             "driver": {
               "driver": "TMC2209",
@@ -108,8 +108,8 @@
             "params": {
                 "unitsPerRot": 360,
                 "stepsPerRot": 9600,
-                "maxSpeedUps": 100,
-                "maxAccUps2": 100
+                "maxSpeedUps": 50,
+                "maxAccUps2": 1
             },
             "driver": {
               "driver": "TMC2209",

@@ -1,15 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import ConnectionPanel from './components/ConnectionPanel';
-import MotorControllerConnection, { RobotConfig } from './components/MotorControllerConnection';
 import MotorControl from './components/MotorControl';
+import PathExecutor from './components/PathExecutor';
 import EncoderDisplay from './components/EncoderDisplay';
-import StatusPanel from './components/StatusPanel';
 import AngleChart from './components/AngleChart';
 import RobotVisualization from './components/RobotVisualization';
 import ConnManager from './ConnManager';
 import { RaftConnEvent } from '@robdobsn/raftjs';
 
 const connManager = ConnManager.getInstance();
+
+export interface RobotConfig {
+  geometry: string;
+  arm1LengthMM: number;
+  arm2LengthMM: number;
+  maxRadiusMM: number;
+  originTheta2OffsetDegrees: number;
+}
 
 export default function App() {
   const [sensorConnectionStatus, setSensorConnectionStatus] = useState<RaftConnEvent>(
@@ -63,10 +70,6 @@ export default function App() {
     };
   }, []);
 
-  const isDevelopment = window.location.hostname === 'localhost' || 
-                        window.location.hostname === '127.0.0.1' ||
-                        window.location.hostname === '';
-
   const sensorConnected = sensorConnectionStatus === RaftConnEvent.CONN_CONNECTED;
 
   return (
@@ -75,29 +78,22 @@ export default function App() {
         <h1>Two Stepper Motor Test Rig</h1>
       </header>
 
-      {isDevelopment && (
-        <ConnectionPanel 
-          connectionStatus={sensorConnectionStatus}
-        />
-      )}
+      <ConnectionPanel 
+        connectionStatus={sensorConnectionStatus}
+        onMotorConnectionChange={setMotorConnectionReady}
+        onRobotConfigReceived={setRobotConfig}
+      />
 
       {sensorConnected && (
         <>
-          <MotorControllerConnection 
-            onMotorConnectionChange={setMotorConnectionReady}
-            onRobotConfigReceived={setRobotConfig}
-          />
-          
-          <div className="main-grid">
-            <EncoderDisplay lastUpdate={lastUpdate} />
-            <StatusPanel lastUpdate={lastUpdate} />
-          </div>
+          <EncoderDisplay lastUpdate={lastUpdate} />
           <div className="chart-section">
             <AngleChart lastUpdate={lastUpdate} />
           </div>
           <div className="visualization-section">
             <RobotVisualization lastUpdate={lastUpdate} robotConfig={robotConfig} />
           </div>
+          <PathExecutor motorConnectionReady={motorConnectionReady} robotConfig={robotConfig} />
           <MotorControl motorConnectionReady={motorConnectionReady} />
         </>
       )}

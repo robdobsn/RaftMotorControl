@@ -12,7 +12,7 @@
 
 #define WARN_ON_DRIVER_BUSY
 
-#define DEBUG_IHOLD_IRUN_CALCS
+// #define DEBUG_IHOLD_IRUN_CALCS
 // #define DEBUG_REGISTER_WRITE_PROCESS
 // #define DEBUG_IHOLD_IRUN
 // #define DEBUG_REGISTER_READ_PROCESS
@@ -20,6 +20,7 @@
 // #define DEBUG_REGISTER_READ_IN_PROGRESS
 // #define DEBUG_STEPPING_ONLY_IF_NOT_ISR
 // #define DEBUG_DIRECTION_ONLY_IF_NOT_ISR
+// #define DEBUG_DRIVER_RECONFIG_REQUIRED
 
 // PWM frequency calculations
 // #define DEBUG_PWM_FREQ_CALCS_DETAIL
@@ -204,7 +205,9 @@ void StepDriverTMC2209::loop()
             // Check if driver has been reset
             if (_driverRegisters[DRIVER_REGISTER_CODE_GSTAT].regValCur & TMC_2209_GSTAT_RESET_MASK)
             {
-                LOG_E(MODULE_PREFIX, "%s loop driver reconfig required", _name.c_str());
+#ifdef DEBUG_DRIVER_RECONFIG_REQUIRED
+                LOG_I(MODULE_PREFIX, "%s loop driver reset detected - reconfig required", _name.c_str());
+#endif
                 _configResetRequired = true;
             }
         }

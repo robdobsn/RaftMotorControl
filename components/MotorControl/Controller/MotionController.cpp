@@ -17,11 +17,11 @@
 #include "RaftArduino.h"
 #include "RaftJsonPrefixed.h"
 
-#define DEBUG_STEPPER_SETUP_CONFIG
-#define DEBUG_RAMP_SETUP_CONFIG
-#define DEBUG_MOTION_CONTROLLER
-#define INFO_LOG_AXES_PARAMS
-#define DEBUG_ENDSTOP_STATUS
+// #define DEBUG_STEPPER_SETUP_CONFIG
+// #define DEBUG_RAMP_SETUP_CONFIG
+// #define DEBUG_MOTION_CONTROLLER
+// #define INFO_LOG_AXES_PARAMS
+// #define DEBUG_ENDSTOP_STATUS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -172,9 +172,11 @@ bool MotionController::isBusy() const
 /// @note The args may be modified so cannot be const
 RaftRetCode MotionController::moveTo(MotionArgs &args, String* respMsg)
 {
+#ifdef DEBUG_MOTION_CONTROLLER
     LOG_I(MODULE_PREFIX, "moveTo %s args %s", 
             args.getAxesPos().getDebugJSON("axes").c_str(),
             args.toJSON().c_str());
+#endif
 
     // Handle stop
     if (args.isStopMotion())

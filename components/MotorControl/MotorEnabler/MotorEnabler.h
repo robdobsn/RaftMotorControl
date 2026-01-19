@@ -13,6 +13,8 @@
 #include "RaftArduino.h"
 #include "ConfigPinMap.h"
 
+// #define DEBUG_MOTOR_ENABLER
+
 class MotorEnabler
 {
 public:
@@ -55,16 +57,19 @@ public:
 
     void enableMotors(bool en, bool timeout)
     {
-        static const char* MODULE_PREFIX = "MotorEnabler";
         // LOG_I(MODULE_PREFIX, "Enable %d currentlyEn %d pin %d disable level %d, disable after time %f",
         // 							en, _motorsAreEnabled, _stepEnablePin, !_stepEnLev, _stepDisableSecs);
         if (en)
         {
             if (_stepEnablePin >= 0)
             {
+#ifdef DEBUG_MOTOR_ENABLER
                 if (!_motorsAreEnabled)
+                {
                     LOG_I(MODULE_PREFIX, "MotorEnabler: enabled, disable after idle %fs (enPin %d level %d)", 
                                 _stepDisableSecs, _stepEnablePin, _stepEnLev);
+                }
+#endif
                 digitalWrite(_stepEnablePin, _stepEnLev);
             }
             _motorsAreEnabled = true;
@@ -75,10 +80,12 @@ public:
         {
             if (_stepEnablePin >= 0)
             {
+#ifdef DEBUG_MOTOR_ENABLER
                 if (_motorsAreEnabled)
                 {
                     LOG_I(MODULE_PREFIX, "MotorEnabler: motors disabled by %s", timeout ? ("timeout(" + String(_stepDisableSecs) + "s)").c_str() : "command");
                 }
+#endif
                 digitalWrite(_stepEnablePin, !_stepEnLev);
             }
             _motorsAreEnabled = false;
@@ -114,4 +121,6 @@ private:
     bool _motorsAreEnabled = false;
     unsigned long _motorEnLastMillis = 0;
     time_t _motorEnLastUnixTime = 0;
+    static constexpr const char* MODULE_PREFIX = "MotorEnabler";
+
 };

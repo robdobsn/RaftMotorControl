@@ -35,29 +35,21 @@ export default function EncoderDisplay({ lastUpdate }: EncoderDisplayProps) {
   }, [lastUpdate]);
 
   return (
-    <div className="panel">
-      <h2>Magnetic Encoders</h2>
-      <div className="encoder-display">
-        <div className="encoder-value">
-          <div className="label">MT6701</div>
-          <div className="value">
-            {mt6701Angle !== null ? mt6701Angle.toFixed(1) : '--.-'}
-            <span className="unit">°</span>
-          </div>
+    <div className="panel panel-compact">
+      <h2>Current Position</h2>
+      <div className="encoder-display-compact">
+        <div className="encoder-value-compact">
+          <span className="label">MT6701:</span>
+          <span className="value">
+            {mt6701Angle !== null ? mt6701Angle.toFixed(1) : '--.-'}°
+          </span>
         </div>
-        <div className="encoder-value">
-          <div className="label">AS5600</div>
-          <div className="value">
-            {as5600Angle !== null ? as5600Angle.toFixed(1) : '--.-'}
-            <span className="unit">°</span>
-          </div>
+        <div className="encoder-value-compact">
+          <span className="label">AS5600:</span>
+          <span className="value">
+            {as5600Angle !== null ? as5600Angle.toFixed(1) : '--.-'}°
+          </span>
         </div>
-      </div>
-      <div className="text-center mt-3">
-        <small className="text-muted">
-          {mt6701Angle === null && as5600Angle === null && 'No encoder data received'}
-          {(mt6701Angle !== null || as5600Angle !== null) && 'Real-time angle measurement'}
-        </small>
       </div>
     </div>
   );

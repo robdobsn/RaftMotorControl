@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import ConnManager from '../ConnManager';
-import { RobotConfig } from './MotorControllerConnection';
+import { RobotConfig } from '../App';
 
 const connManager = ConnManager.getInstance();
 
@@ -548,7 +548,6 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
       <h2>Robot Visualization</h2>
       
       <div className="control-group">
-        <label htmlFor="geometry-select">Robot Geometry</label>
         <select 
           id="geometry-select"
           className="form-select"

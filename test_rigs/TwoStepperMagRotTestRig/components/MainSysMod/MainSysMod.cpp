@@ -7,6 +7,9 @@
 #include "RaftCore.h"
 #include "MainSysMod.h"
 
+#define WARN_ON_API_CONTROL_FAIL
+// #define DEBUG_API_CONTROL
+
 MainSysMod::MainSysMod(const char *pModuleName, RaftJsonIF& sysConfig)
     : RaftSysMod(pModuleName, sysConfig)
 {
@@ -54,7 +57,9 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
     // Handle commands
     bool rslt = false;
     String rsltStr = "Failed";
+#ifdef DEBUG_API_CONTROL
     LOG_I(MODULE_PREFIX, "apiControl: requestAsJSON %s", requestAsJSON.toString().c_str());
+#endif
     String motorCmdJSON = "";
     String command = requestAsJSON.getString("pathSegments[1]", "");
     if (!command.isEmpty())
@@ -66,16 +71,27 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
             double axis1Pos = requestAsJSON.getDouble("params/a1", 0);
             bool unitsAreSteps = requestAsJSON.getBool("params/unitsAreSteps", false);
             double speedUps = requestAsJSON.getDouble("params/speedUps", 100);
+            bool stopAndClearBeforeMove = requestAsJSON.getBool("params/stopAndClear", false);
+            bool noSplit = requestAsJSON.getBool("params/noSplit", true);
+
+            // Debug
+#ifdef DEBUG_API_CONTROL
             LOG_I(MODULE_PREFIX, "apiControl: setPos axis0Pos %f axis1Pos %f unitsAreSteps %d speedUps %f", axis0Pos, axis1Pos, unitsAreSteps, speedUps);
-            
+#endif
             // Form the JSON command to send to MotorControl
-            motorCmdJSON = R"({"cmd":"motion","stop":1,"clearQ":1,"rel":0,"nosplit":1,"steps":__STEPS__,"feedrate":__SPEED__,"pos":[{"a":0,"p":__POS0__},{"a":1,"p":__POS1__}]})";
+            motorCmdJSON = R"({"cmd":"motion","stop":__STOP__,"clearQ":__CLEAR__,"rel":0,"nosplit":__NOSPLIT__,"steps":__STEPS__,"feedrate":__SPEED__,"pos":[{"a":0,"p":__POS0__},{"a":1,"p":__POS1__}]})";
             motorCmdJSON.replace("__STEPS__", unitsAreSteps ? "1" : "0");
             motorCmdJSON.replace("__SPEED__", String(speedUps));
             motorCmdJSON.replace("__POS0__", String(axis0Pos));
             motorCmdJSON.replace("__POS1__", String(axis1Pos));
+            motorCmdJSON.replace("__STOP__", stopAndClearBeforeMove ? "1" : "0");
+            motorCmdJSON.replace("__CLEAR__", stopAndClearBeforeMove ? "1" : "0");
+            motorCmdJSON.replace("__NOSPLIT__", noSplit ? "1" : "0");
+
             // Debug
+#ifdef DEBUG_API_CONTROL
             LOG_I(MODULE_PREFIX, "apiControl: setPos motorCmd %s (from params %s)", motorCmdJSON.c_str(), requestAsJSON.toString().c_str());
+#endif
         }
         else if (command.equalsIgnoreCase("stop"))
         {
@@ -83,7 +99,9 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
             motorCmdJSON = R"({"cmd":"motion","stop":1,"clearQ":1})";
 
             // Debug
+#ifdef DEBUG_API_CONTROL
             LOG_I(MODULE_PREFIX, "apiControl: stop motorCmd %s (from params %s)", motorCmdJSON.c_str(), requestAsJSON.toString().c_str());
+#endif
         }
         else if (command.equalsIgnoreCase("disable"))
         {
@@ -91,7 +109,9 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
             motorCmdJSON = R"({"cmd":"motion", "en":0})";
 
             // Debug
+#ifdef DEBUG_API_CONTROL
             LOG_I(MODULE_PREFIX, "apiControl: disableMotors motorCmd %s (from params %s)", motorCmdJSON.c_str(), requestAsJSON.toString().c_str());
+#endif
         }
         else if (command.equalsIgnoreCase("setOrigin"))
         {
@@ -99,28 +119,36 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
             motorCmdJSON = R"({"cmd":"setOrigin"})";
 
             // Debug
+#ifdef DEBUG_API_CONTROL
             LOG_I(MODULE_PREFIX, "apiControl: setOrigin motorCmd %s (from params %s)", motorCmdJSON.c_str(), requestAsJSON.toString().c_str());
+#endif
         }
         else
         {
             rsltStr = "Unknown command";
             rslt = false;
+#ifdef WARN_ON_API_CONTROL_FAIL
             LOG_E(MODULE_PREFIX, "apiControl: UNKNOWN command %s", command.c_str());
+#endif
             return Raft::setJsonErrorResult(reqStr.c_str(), respStr, rsltStr.c_str());
         }
     }
 
     // Send to MotorControl device
-    rslt = sendToMotorControl(motorCmdJSON, respStr);
+    rslt = sendToMotorControl(motorCmdJSON, rsltStr);
 
     // Result
     if (rslt)
     {
         rsltStr = "ok";
+#ifdef DEBUG_API_CONTROL
         LOG_I(MODULE_PREFIX, "apiControl: reqStr %s rslt %s", reqStr.c_str(), rsltStr.c_str());
+#endif
         return Raft::setJsonBoolResult(reqStr.c_str(), respStr, true);
     }
+#ifdef DEBUG_API_CONTROL
     LOG_E(MODULE_PREFIX, "apiControl: FAILED reqStr %s rslt %s", reqStr.c_str(), rsltStr.c_str());
+#endif
     return Raft::setJsonErrorResult(reqStr.c_str(), respStr, rsltStr.c_str());
 }
 
@@ -144,9 +172,12 @@ bool MainSysMod::sendToMotorControl(const String& cmdJSON, String& respStr)
     }
     else
     {
-        // Use getRetCodeStr for consistent, short error messages
-        String errorMsg = Raft::getRetCodeStr(rc);
-        respStr = "{\"rslt\":\"fail\",\"error\":\"" + errorMsg + "\"}";
+        // Use detailed error message if available, otherwise use return code string
+        respStr = (errorMsg.length() > 0) ? errorMsg : Raft::getRetCodeStr(rc);
+#ifdef WARN_ON_API_CONTROL_FAIL
+        LOG_W(MODULE_PREFIX, "sendToMotorControl failed: rc=%s msg=%s", 
+              Raft::getRetCodeStr(rc), respStr.c_str());
+#endif
         return false;
     }
 }

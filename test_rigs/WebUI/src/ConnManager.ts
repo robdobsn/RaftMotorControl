@@ -16,7 +16,7 @@ export default class ConnManager {
   
   private _onSensorConnectionEvent: RaftEventFn | null = null;
   private _onMotorConnectionEvent: RaftEventFn | null = null;
-  private _useSeparateMotorController: boolean = true;
+  private _useSeparateMotorController: boolean = false;
   private _sensorIpAddress: string = '';
 
   public static getInstance(): ConnManager {

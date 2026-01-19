@@ -10,7 +10,7 @@
 #include "RaftKinematicsSystem.h"
 
 // #define DEBUG_RAMPED_BLOCK
-#define DEBUG_COORD_UPDATES
+// #define DEBUG_COORD_UPDATES
 // #define DEBUG_BLOCK_SPLITTER
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -228,11 +228,21 @@ RaftRetCode MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipel
 
     // Convert the move to actuator coordinates
     AxesValues<AxisStepsDataType> actuatorCoords;
-    _pRaftKinematics->ptToActuator(args.getAxesPosConst(), 
+    bool coordsValid = _pRaftKinematics->ptToActuator(args.getAxesPosConst(), 
             actuatorCoords, 
             _axesState, 
             _axesParams,
             args.constrainToBounds());
+    
+    // Check if coordinates are valid
+    if (!coordsValid)
+    {
+        if (respMsg)
+            *respMsg = "OUT_OF_BOUNDS";
+        LOG_W(MODULE_PREFIX, "addToPlanner position out of bounds x=%.2f y=%.2f", 
+                args.getAxesPosConst().getVal(0), args.getAxesPosConst().getVal(1));
+        return RAFT_INVALID_DATA;
+    }
 
     // Plan the move
     RaftRetCode rc = _motionPlanner.moveToRamped(args, actuatorCoords, 
