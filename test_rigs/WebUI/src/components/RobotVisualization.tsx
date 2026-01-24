@@ -166,7 +166,7 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
     let timestamp: number = Date.now();
 
     // Get MT6701 encoder data (joint 1)
-    const mt6701State = deviceManager.getDeviceState('I2CA_6_MT6701');
+    const mt6701State = deviceManager.getDeviceState('1_6');
     if (mt6701State?.deviceAttributes?.angle) {
       const values = mt6701State.deviceAttributes.angle.values;
       if (values.length > 0) {
@@ -203,7 +203,7 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
     }
 
     // Get AS5600 encoder data (joint 2)
-    const as5600State = deviceManager.getDeviceState('I2CA_36_AS5600');
+    const as5600State = deviceManager.getDeviceState('1_36');
     if (as5600State?.deviceAttributes?.angle) {
       const values = as5600State.deviceAttributes.angle.values;
       if (values.length > 0) {

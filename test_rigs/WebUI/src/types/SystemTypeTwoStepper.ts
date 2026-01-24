@@ -16,6 +16,7 @@ export default class SystemTypeTwoStepper implements RaftSystemType {
   firmwareDestName = 'ricfw';
   normalFileDestName = 'fs';
   connectorOptions = { wsSuffix: 'ws', bleConnItvlMs: 50 };
+  SUBSCRIBE_FOR_BINARY_TOPIC = true;
   
   private _onEvent: RaftEventFn | null = null;
   private _systemUtils: RaftSystemUtils | null = null;
@@ -33,7 +34,7 @@ export default class SystemTypeTwoStepper implements RaftSystemType {
   ) => {
     const subscribeRateHz = 10; // 10Hz for motor/encoder data
     try {
-      const topic = 'devjson';
+      const topic = this.SUBSCRIBE_FOR_BINARY_TOPIC ? 'devbin' : 'devjson';
       const subscribeDisable = '{"cmdName":"subscription","action":"update",' +
         '"pubRecs":[' +
         `{"name":"${topic}","rateHz":0}` +
@@ -60,13 +61,19 @@ export default class SystemTypeTwoStepper implements RaftSystemType {
 
   rxOtherMsgType = (payload: Uint8Array, frameTimeMs: number): void => {
     RaftLog.verbose(`rxOtherMsgType payloadLen ${payload.length}`);
-    
-    // Handle JSON messages (not binary)
-    const decoder = new TextDecoder('utf-8');
-    const jsonString = decoder.decode(payload.slice(2));
-    
+       
     // Handle using device manager
-    this._deviceManager.handleClientMsgJson(jsonString);
+    if (this.SUBSCRIBE_FOR_BINARY_TOPIC)
+    {
+      this._deviceManager.handleClientMsgBinary(payload);
+    }
+    else
+    {
+      // Handle JSON messages (not binary)
+      const decoder = new TextDecoder('utf-8');
+      const jsonString = decoder.decode(payload.slice(2));
+      this._deviceManager.handleClientMsgJson(jsonString);
+    }
     
     // Call event handler if registered
     if (this._onEvent) {
@@ -76,7 +83,7 @@ export default class SystemTypeTwoStepper implements RaftSystemType {
           topicIDs: [],
           payload: payload,
           frameTimeMs: frameTimeMs,
-          isBinary: false
+          isBinary: this.SUBSCRIBE_FOR_BINARY_TOPIC
         });
     }
   };
