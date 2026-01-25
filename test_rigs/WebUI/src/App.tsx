@@ -6,9 +6,18 @@ import EncoderDisplay from './components/EncoderDisplay';
 import AngleChart from './components/AngleChart';
 import RobotVisualization from './components/RobotVisualization';
 import ConnManager from './ConnManager';
-import { RaftConnEvent } from '@robdobsn/raftjs';
+import { RaftConnEvent, RaftLog } from '@robdobsn/raftjs';
+import { RaftLogLevel } from '@robdobsn/raftjs/dist/web/RaftLog';
 
 const connManager = ConnManager.getInstance();
+
+export interface AxisConfig {
+  name: string;
+  unitsPerRot: number;
+  stepsPerRot: number;
+  maxSpeedUps: number;
+  maxAccUps2: number;
+}
 
 export interface RobotConfig {
   geometry: string;
@@ -16,6 +25,7 @@ export interface RobotConfig {
   arm2LengthMM: number;
   maxRadiusMM: number;
   originTheta2OffsetDegrees: number;
+  axes?: AxisConfig[];
 }
 
 export default function App() {
@@ -27,6 +37,9 @@ export default function App() {
   const [robotConfig, setRobotConfig] = useState<RobotConfig | null>(null);
 
   useEffect(() => {
+    // Set log level once at startup, before any connections
+    RaftLog.setLogLevel(RaftLogLevel.VERBOSE);
+
     const listener = (
       eventType: string,
       eventEnum: RaftConnEvent,
@@ -58,6 +71,13 @@ export default function App() {
 
     connManager.setSensorConnectionEventListener(listener);
 
+    // Cleanup handler for page unload/refresh
+    const handleBeforeUnload = async () => {
+      await connManager.disconnectSensor();
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
     // Auto-connect if served from device (not localhost)
     const hostname = window.location.hostname;
     const isDevelopment = hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '';
@@ -66,7 +86,9 @@ export default function App() {
     }
 
     return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
       connManager.setSensorConnectionEventListener(() => {});
+      connManager.disconnectSensor();
     };
   }, []);
 

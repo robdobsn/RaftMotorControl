@@ -29,8 +29,8 @@ export default function ConnectionPanel({ connectionStatus, onMotorConnectionCha
     await connManager.connect(ipAddress);
   };
 
-  const handleDisconnect = () => {
-    connManager.disconnect();
+  const handleDisconnect = async () => {
+    await connManager.disconnect();
   };
 
   const fetchRobotSettings = async () => {
@@ -58,13 +58,25 @@ export default function ConnectionPanel({ connectionStatus, onMotorConnectionCha
         
         if (motorControl?.motion && onRobotConfigReceived) {
           const motion = motorControl.motion;
+          
+          // Extract axes configuration if available
+          const axes = motorControl.axes?.map((axis: any) => ({
+            name: axis.name || '',
+            unitsPerRot: axis.params?.unitsPerRot || 360,
+            stepsPerRot: axis.params?.stepsPerRot || 3200,
+            maxSpeedUps: axis.params?.maxSpeedUps || 50,
+            maxAccUps2: axis.params?.maxAccUps2 || 10
+          })) || [];
+          
           const robotConfig = {
             geometry: motion.geom || 'SingleArmSCARA',
             arm1LengthMM: motion.arm1LenMM || 150,
             arm2LengthMM: motion.arm2LenMM || 150,
             maxRadiusMM: motion.maxRadiusMM || 290,
-            originTheta2OffsetDegrees: motion.originTheta2OffsetDegrees || 180
+            originTheta2OffsetDegrees: motion.originTheta2OffsetDegrees || 180,
+            axes: axes
           };
+          console.log('Parsed robot config with axes:', robotConfig);
           onRobotConfigReceived(robotConfig);
         }
       }
@@ -131,6 +143,7 @@ export default function ConnectionPanel({ connectionStatus, onMotorConnectionCha
     if (!motorIpAddress.trim()) return;
     setIsConnectingMotor(true);
     setMotorConnectionStatus(RaftConnEvent.CONN_CONNECTING);
+    
     try {
       await connManager.connectMotor(motorIpAddress.trim());
     } catch (error) {

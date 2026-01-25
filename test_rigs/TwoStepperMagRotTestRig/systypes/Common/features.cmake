@@ -3,10 +3,10 @@ set(IDF_TARGET "esp32s3")
 
 # Raft components
 set(RAFT_COMPONENTS
-    RaftCore@main
-    RaftSysMods@main
-    RaftWebServer@main
-    RaftI2C@main
+    RaftCore@feature-device-man-concurrency
+    RaftSysMods@feature-debug-state-pub-performance
+    RaftWebServer@feature-performance-of-websockets
+    RaftI2C@feature-set-poll-interval
 )
 
 # File system

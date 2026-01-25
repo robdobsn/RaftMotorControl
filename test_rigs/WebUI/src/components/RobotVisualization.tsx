@@ -29,9 +29,10 @@ const SINGLE_ARM_SCARA_CONFIG = {
 };
 
 const XY_CARTESIAN_CONFIG = {
+  // Default values if no robot config available
   // Map 360 degrees to a linear range (e.g., 200mm travel)
-  xRange: 200,      // mm of X travel
-  yRange: 200,      // mm of Y travel
+  xRange: 200,      // mm of X travel (default)
+  yRange: 200,      // mm of Y travel (default)
   scale: 0.8,       // Scale factor for display
 };
 
@@ -55,11 +56,12 @@ const TRAIL_DURATION_MS = 5000; // 5 seconds
 const TRAIL_MAX_POINTS = 100; // Limit number of points
 
 // XY Cartesian: Direct angle to position mapping
-function calculateXYCartesian(angles: JointAngles): CartesianPosition {
-  const { xRange, yRange } = XY_CARTESIAN_CONFIG;
+function calculateXYCartesian(angles: JointAngles, config: { xRange: number; yRange: number } = XY_CARTESIAN_CONFIG): CartesianPosition {
+  const { xRange, yRange } = config;
   
   // Map angle (0-360°) to linear position
   // Center at 0, so range goes from -xRange/2 to +xRange/2
+  // Since unitsPerRot maps 1:1 to mm, one full rotation = xRange mm
   const x = ((angles.joint1 / 360) * xRange) - (xRange / 2);
   const y = ((angles.joint2 / 360) * yRange) - (yRange / 2);
   
@@ -152,6 +154,21 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
       }
       console.log('Using default SingleArmSCARA config:', SINGLE_ARM_SCARA_CONFIG);
       return SINGLE_ARM_SCARA_CONFIG;
+    } else if (selectedGeometry === 'xy_cartesian') {
+      // Use robot config axes for XY Cartesian if available
+      if (robotConfig && robotConfig.axes && robotConfig.axes.length >= 2) {
+        const config = {
+          // Use unitsPerRot from axes configuration
+          // unitsPerRot is in units (which map 1:1 to mm for linear axes)
+          xRange: robotConfig.axes[0]?.unitsPerRot || XY_CARTESIAN_CONFIG.xRange,
+          yRange: robotConfig.axes[1]?.unitsPerRot || XY_CARTESIAN_CONFIG.yRange,
+          scale: 0.8,
+        };
+        console.log('Using robot config for XY Cartesian:', config);
+        return config;
+      }
+      console.log('Using default XY Cartesian config:', XY_CARTESIAN_CONFIG);
+      return XY_CARTESIAN_CONFIG;
     }
     // For other geometries, use defaults
     return SINGLE_ARM_SCARA_CONFIG;
@@ -251,7 +268,7 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
     // Calculate forward kinematics based on selected geometry
     let position: CartesianPosition;
     if (selectedGeometry === 'xy_cartesian') {
-      position = calculateXYCartesian(angles);
+      position = calculateXYCartesian(angles, activeConfig as { xRange: number; yRange: number });
     } else if (selectedGeometry === 'singlearmscara') {
       // SingleArmSCARA has 1:3 gearing - divide measured angles by 3
       const gearRatio = 3;
@@ -349,7 +366,8 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
       
       // Trail positions are already in world coordinates (unscaled mm)
       // Apply the same scaling used by the robot rendering
-      const scale = selectedGeometry === 'xy_cartesian' ? XY_CARTESIAN_CONFIG.scale : activeConfig.scale;
+      // Use activeConfig.scale for all geometries to ensure consistency
+      const scale = (activeConfig as any).scale || 0.8;
       const svgPoint = worldToSVG(point.x * scale, point.y * scale);
       const svgPrevPoint = worldToSVG(prevPoint.x * scale, prevPoint.y * scale);
       
@@ -374,8 +392,11 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
   // Render robot based on selected geometry
   const renderRobot = () => {
     if (selectedGeometry === 'xy_cartesian') {
-      const { xRange, yRange, scale } = XY_CARTESIAN_CONFIG;
-      const position = calculateXYCartesian(jointAngles);
+      // Use activeConfig which may have xRange/yRange from robot axes configuration
+      const xRange = (activeConfig as any).xRange || XY_CARTESIAN_CONFIG.xRange;
+      const yRange = (activeConfig as any).yRange || XY_CARTESIAN_CONFIG.yRange;
+      const scale = (activeConfig as any).scale || XY_CARTESIAN_CONFIG.scale;
+      const position = calculateXYCartesian(jointAngles, activeConfig as { xRange: number; yRange: number });
       
       // Scale position for display
       const displayPos = worldToSVG(position.x * scale, position.y * scale);
@@ -686,28 +707,33 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
                 AS5600 {jointAngles.joint2.toFixed(1)}°, Joint {(jointAngles.joint2 / 3).toFixed(1)}°
               </span>
             </>
+          ) : selectedGeometry === 'xy_cartesian' ? (
+            <>
+              <span className="info-label">Geometry:</span>
+              <span className="info-value">
+                {ROBOT_GEOMETRIES.find(g => g.id === selectedGeometry)?.name}
+                {robotConfig && robotConfig.axes && robotConfig.axes.length >= 2 && 
+                  ` (X: ${(activeConfig as any).xRange}mm/rot, Y: ${(activeConfig as any).yRange}mm/rot)`}
+              </span>
+              
+              <span className="info-label">Axis 0 Angle (MT6701):</span>
+              <span className="info-value">{jointAngles.joint1.toFixed(1)}°</span>
+              
+              <span className="info-label">Axis 1 Angle (AS5600):</span>
+              <span className="info-value">{jointAngles.joint2.toFixed(1)}°</span>
+              
+              <span className="info-label">X Position:</span>
+              <span className="info-value">{endEffectorPos.x.toFixed(1)}mm</span>
+              
+              <span className="info-label">Y Position:</span>
+              <span className="info-value">{endEffectorPos.y.toFixed(1)}mm</span>
+            </>
           ) : (
             <>
               <span className="info-label">Geometry:</span>
               <span className="info-value">
                 {ROBOT_GEOMETRIES.find(g => g.id === selectedGeometry)?.name}
               </span>
-              
-              <span className="info-label">Arm 1 Length:</span>
-              <span className="info-value">{activeConfig.link1Length.toFixed(1)}mm</span>
-              
-              <span className="info-label">Arm 2 Length:</span>
-              <span className="info-value">{activeConfig.link2Length.toFixed(1)}mm</span>
-              
-              {robotConfig && (
-                <>
-                  <span className="info-label">Max Radius:</span>
-                  <span className="info-value">{robotConfig.maxRadiusMM.toFixed(1)}mm</span>
-                  
-                  <span className="info-label">Theta2 Offset:</span>
-                  <span className="info-value">{robotConfig.originTheta2OffsetDegrees.toFixed(1)}°</span>
-                </>
-              )}
               
               <span className="info-label">Joint 1 (MT6701):</span>
               <span className="info-value">{jointAngles.joint1.toFixed(1)}°</span>

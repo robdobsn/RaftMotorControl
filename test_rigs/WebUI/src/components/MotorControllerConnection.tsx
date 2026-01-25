@@ -4,12 +4,21 @@ import { RaftConnEvent } from '@robdobsn/raftjs';
 
 const connManager = ConnManager.getInstance();
 
+export interface AxisConfig {
+  name: string;
+  unitsPerRot: number;
+  stepsPerRot: number;
+  maxSpeedUps: number;
+  maxAccUps2: number;
+}
+
 export interface RobotConfig {
   geometry: string;
   arm1LengthMM: number;
   arm2LengthMM: number;
   maxRadiusMM: number;
   originTheta2OffsetDegrees: number;
+  axes?: AxisConfig[];
 }
 
 interface MotorControllerConnectionProps {
@@ -47,14 +56,25 @@ export default function MotorControllerConnection({ onMotorConnectionChange, onR
         
         if (motorControl?.motion) {
           const motion = motorControl.motion;
+          
+          // Extract axes configuration if available
+          const axes: AxisConfig[] = motorControl.axes?.map((axis: any) => ({
+            name: axis.name || '',
+            unitsPerRot: axis.params?.unitsPerRot || 360,
+            stepsPerRot: axis.params?.stepsPerRot || 3200,
+            maxSpeedUps: axis.params?.maxSpeedUps || 50,
+            maxAccUps2: axis.params?.maxAccUps2 || 10
+          })) || [];
+          
           const robotConfig: RobotConfig = {
             geometry: motion.geom || 'SingleArmSCARA',
             arm1LengthMM: motion.arm1LenMM || 150,
             arm2LengthMM: motion.arm2LenMM || 150,
             maxRadiusMM: motion.maxRadiusMM || 290,
-            originTheta2OffsetDegrees: motion.originTheta2OffsetDegrees || 180
+            originTheta2OffsetDegrees: motion.originTheta2OffsetDegrees || 180,
+            axes: axes
           };
-          console.log('Parsed robot config:', robotConfig);
+          console.log('Parsed robot config with axes:', robotConfig);
           if (onRobotConfigReceived) {
             onRobotConfigReceived(robotConfig);
           }

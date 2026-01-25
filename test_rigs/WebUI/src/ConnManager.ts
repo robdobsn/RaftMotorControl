@@ -86,7 +86,19 @@ export default class ConnManager {
   }
 
   public async connectSensor(ipAddress: string): Promise<boolean> {
+    console.log(`[ConnManager.connectSensor] START ipAddress=${ipAddress}`);
     this._sensorIpAddress = ipAddress;
+    
+    // Force disconnect first to clear any stale state
+    console.log('[ConnManager.connectSensor] Calling disconnect on connector...');
+    try {
+      await this._sensorConnector.disconnect();
+      console.log('[ConnManager.connectSensor] Disconnect completed');
+    } catch (e) {
+      console.warn('[ConnManager.connectSensor] Disconnect error (ignored):', e);
+    }
+    
+    console.log('[ConnManager.connectSensor] Setting event listener...');
     this._sensorConnector.setEventListener((evtType, eventEnum, eventName, eventData) => {
       if (this._onSensorConnectionEvent) {
         this._onSensorConnectionEvent(evtType, eventEnum, eventName, eventData);
@@ -94,16 +106,29 @@ export default class ConnManager {
     });
     
     // Enable auto-reconnect with 60 second retry period
+    console.log('[ConnManager.connectSensor] Setting retry connection...');
     this._sensorConnector.setRetryConnectionIfLost(true, 60);
     
+    // Reinitialize channel to ensure clean state
+    console.log('[ConnManager.connectSensor] Calling initializeChannel...');
     await this._sensorConnector.initializeChannel('WebSocket');
-    return this._sensorConnector.connect(ipAddress);
+    console.log('[ConnManager.connectSensor] Calling connect...');
+    const result = await this._sensorConnector.connect(ipAddress);
+    console.log(`[ConnManager.connectSensor] COMPLETE result=${result}`);
+    return result;
   }
 
   public async connectMotor(ipAddress: string): Promise<boolean> {
     if (!this._useSeparateMotorController) {
       // Use sensor connection
       return this._sensorConnector.isConnected();
+    }
+
+    // Force disconnect first to clear any stale state
+    try {
+      await this._motorConnector.disconnect();
+    } catch (e) {
+      // Ignore disconnect errors
     }
 
     this._motorConnector.setEventListener((evtType, eventEnum, eventName, eventData) => {
@@ -115,6 +140,7 @@ export default class ConnManager {
     // Enable auto-reconnect with 60 second retry period
     this._motorConnector.setRetryConnectionIfLost(true, 60);
     
+    // Reinitialize channel to ensure clean state
     await this._motorConnector.initializeChannel('WebSocket');
     return this._motorConnector.connect(ipAddress);
   }

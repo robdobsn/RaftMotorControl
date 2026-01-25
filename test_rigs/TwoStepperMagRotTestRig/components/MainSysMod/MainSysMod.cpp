@@ -61,7 +61,7 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
     LOG_I(MODULE_PREFIX, "apiControl: requestAsJSON %s", requestAsJSON.toString().c_str());
 #endif
     String motorCmdJSON = "";
-    String command = requestAsJSON.getString("pathSegments[1]", "");
+    String command = requestAsJSON.getString("path[1]", "");
     
 #ifdef DEBUG_INFO_API_CONTROL_TIMINGS
     commandBuildStartUs = micros();
