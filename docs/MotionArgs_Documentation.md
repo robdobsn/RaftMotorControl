@@ -1,223 +1,203 @@
 # MotionArgs Documentation
 
 **Last Updated:** January 26, 2026  
-**Author:** Analysis of RaftMotorControl codebase
+**Version:** 2.0 - Mode-Based Motion Control
+**Author:** Rob Dobson
 
 ## Overview
 
-`MotionArgs` is a packed structure class that encapsulates all parameters needed to define a motion command in the RaftMotorControl system. It serves as the primary interface for specifying how motors should move, with support for both absolute and relative positioning, various speed control methods, and multiple motion control flags.
+`MotionArgs` is a class that encapsulates all parameters needed to define a motion command in the RaftMotorControl system. It provides a simplified, mode-based interface for specifying motor movements with URL-compatible JSON formatting.
 
-The class is designed for binary communication (packed structure) and includes JSON serialization/deserialization capabilities for integration with higher-level control systems.
+The class includes JSON serialization/deserialization capabilities and uses a mode string that indicates the type of motion being requested.
+
+## Core Arguments
+
+### Motion Mode (`mode`)
+
+**Type:** String  
+**Default:** `"abs"` (absolute positioning in machine units - which are generally mm but may be something different for some geometries/machines)
+**JSON Field:** `"mode"`
+
+#### Available Modes
+
+| Mode | Description | Use Case |
+|------|-------------|----------|
+| `"abs"` | Absolute position in units (mm, degrees) | Standard positioning moves |
+| `"rel"` | Relative position in units | Incremental movements |
+| `"pos-abs-steps"` | Absolute position in motor steps | Low-level step control |
+| `"pos-rel-steps"` | Relative position in motor steps | Incremental step control |
+| `"pos-rel-steps-noramp"` | Relative steps, no acceleration | Direct step execution (used by homing) |
+| `"vel"` | Velocity mode in units/sec | Continuous motion (future) |
+| `"vel-steps"` | Velocity mode in steps/sec | Continuous motion (future) |
+
+**Helper Methods:**
+- `isRelative()` - Returns true if mode contains relative positioning
+- `areUnitsSteps()` - Returns true if mode uses steps instead of units
+- `isRamped()` - Returns true unless mode contains "noramp"
+- `isVelocityMode()` - Returns true if mode starts with "vel"
+
+**Examples:**
+```json
+{"mode": "abs"}                    // Move to absolute position in mm
+{"mode": "rel"}                    // Move relative in mm
+{"mode": "pos-rel-steps-noramp"}   // Direct step control for homing
+```
 
 ---
 
-## Structure Version
+## Position Arguments
 
-### `_motionArgsStructVersion`
-- **Type:** `uint8_t`
-- **Default:** `MULTISTEPPER_MOTION_ARGS_BINARY_FORMAT_1` (0)
-- **JSON Field:** N/A (internal versioning)
-- **Usage:** Version tracking for binary communication format
-- **Impact:** Ensures compatibility when structure is transmitted in binary format
+### Position Array (`pos`)
 
----
+**Type:** Array of numbers (nulls allowed)  
+**Default:** Empty array  
+**JSON Field:** `"pos"`
 
-## Motion Coordinate Arguments
+Direct array format for specifying axis positions. Array index corresponds to axis number.
 
-### `_axesPos`
-- **Type:** `AxesValues<AxisPosDataType>`
-- **Default:** Cleared (0 for all axes)
-- **JSON Field:** `"pos"` (array of `{"a": axisIdx, "p": position}`)
-- **Getters/Setters:** `getAxesPos()`, `getAxesPosConst()`, `setAxesPositions()`
-- **Usage:** 
-  - Primary position target for motion commands
-  - Interpreted differently based on `_isRelative` and `_unitsAreSteps` flags
-  - Used by kinematics system to convert to actuator coordinates
-  - In MotionPlanner: Determines step counts for each axis
-  - In MotionBlockManager: Used for coordinate transformation via kinematics
-- **Impact:** 
-  - Core argument that defines where the motion should go
-  - When `_unitsAreSteps=false`: Position in axis units (mm, degrees, etc.)
-  - When `_unitsAreSteps=true`: Position in motor steps
-  - When `_isRelative=true`: Added to current position
-  - When `_isRelative=false`: Absolute target position
+**Format:** `[axis0, axis1, axis2, ...]`
 
-### `_axesSpecified`
-- **Type:** `AxesValues<AxisSpecifiedDataType>`
-- **Default:** All false
-- **JSON Field:** Derived from `"pos"` array (implicit)
-- **Getter:** `getAxesSpecified()`
-- **Usage:**
-  - Tracks which axes have been explicitly specified in the command
-  - Used by MotionPlanner to determine which axes participate in motion
-  - Set automatically when positions are provided
-- **Impact:**
-  - Only specified axes are moved; unspecified axes maintain their position
-  - Critical for multi-axis systems where not all axes move every command
+**Features:**
+- Null values skip that axis (axis maintains current position)
+- Sparse arrays are supported (using null)
+- Units determined by `mode` field (units vs steps)
+- Absolute or relative determined by `mode` field
+
+**Examples:**
+```json
+{"pos": [100, 50]}           // Move axis 0 to 100, axis 1 to 50
+{"pos": [100, 50, null, 25]} // Move axes 0, 1, 3; skip axis 2
+{"pos": [10]}                // Move only axis 0
+```
+
+**Internal Storage:**
+- `_axesPos` - AxesValues<AxisPosDataType> containing position values
+- `_axesSpecified` - AxesValues<AxisSpecifiedDataType> tracking which axes are specified
+
+### Velocity Array (`vel`)
+
+**Type:** Array of numbers  
+**Default:** Empty array  
+**JSON Field:** `"vel"`
+
+### Speed (`speed`)
+
+**Type:** String or Number  
+**Default:** `""` (empty, uses 100% of configured maximum)  
+**JSON Field:** `"speed"`
+
+Unified speed control field that accepts either numeric percentages or strings with embedded units. The system automatically caps speed at the configured maximum.
+
+#### Numeric Format (Percentage)
+```json
+{"speed": 80}      // 80% of configured maximum speed
+{"speed": 50}      // 50% of configured maximum speed
+{"speed": 100}     // 100% of configured maximum speed (default)
+```
+
+#### String Format with Units
+```json
+{"speed": "10mmps"}    // 10 millimeters per second
+{"speed": "500upm"}    // 500 units per minute
+{"speed": "80pc"}      // 80 percent of maximum
+{"speed": "1000sps"}   // 1000 steps per second
+```
+
+#### Supported Unit Suffixes
+| Suffix | Meaning | Conversion |
+|--------|---------|------------|
+| `pc`, `percent` | Percentage of max | Direct percentage |
+| `ups`, `unitsps` | Units per second | Direct rate |
+| `upm`, `unitspm` | Units per minute | Divided by 60 |
+| `mmps` | Millimeters per second | Assumes axis units are mm |
+| `mmpm` | Millimeters per minute | Divided by 60 |
+| `sps` | Steps per second | Direct step rate |
+
+**Speed Calculation Method:**
+```cpp
+double getSpeedUps(double configMaxSpeedUps) const
+```
+- Parses the speed string
+- Converts to units per second
+- Automatically caps at `configMaxSpeedUps` (safety limit)
+- Returns the final speed value
+
+**Examples:**
+```json
+{"cmd":"motion", "mode":"abs", "pos":[100,50], "speed":"10mmps"}
+{"cmd":"motion", "mode":"rel", "pos":[5], "speed":50}
+{"cmd":"motion", "mode":"pos-rel-steps-noramp", "pos":[200], "speed":"100upm"}
+```
 
 ---
 
 ## Motion Control Flags
 
-### `_isRelative`
-- **Type:** `bool`
-- **Default:** `false`
-- **JSON Field:** `"rel"`
-- **Getters/Setters:** `isRelative()`, `setRelative()`
-- **Usage:**
-  - MotionPlanner: Determines if positions are added to current position or used as absolute targets
-  - RaftKinematics: Converts relative positions to absolute before kinematic transformation
-- **Impact:**
-  - `false` (default): Positions are absolute coordinates in the workspace
-  - `true`: Positions are relative offsets from current position
-  - Example: With current position at (10, 20), command with pos=(5, 5):
-    - Relative: Moves to (15, 25)
-    - Absolute: Moves to (5, 5)
-
-### `_rampedMotion`
-- **Type:** `bool`
-- **Default:** `true`
-- **JSON Field:** `"ramped"`
-- **Getters/Setters:** `isRamped()`, `setRamped()`
-- **Usage:**
-  - MotionController: Routes to either `moveToRamped()` or non-ramped block addition
-  - Determines motion planning algorithm
-- **Impact:**
-  - `true` (default): Uses velocity ramping with acceleration/deceleration
-    - Smooth motion with trapezoidal velocity profile
-    - Position specified in axis units (mm, degrees)
-    - Suitable for normal operations
-  - `false`: Direct step-by-step motion without acceleration
-    - Instant start/stop
-    - Position must be specified in steps (`_unitsAreSteps` should be true)
-    - Used for low-level control or testing
+### Don't Split Move (`nosplit`)evel control or testing
 
 ### `_unitsAreSteps`
 - **Type:** `bool`
 - **Default:** `false`
 - **JSON Field:** `"unitsAreSteps"` or `"steps"` (alias)
 - **Getters/Setters:** `areUnitsSteps()`, `setUnitsSteps()`
-- **Usage:**
-  - MotionPlanner: Interprets position values as steps vs. axis units
-- **Impact:**
-  - `false` (default): Positions in axis-defined units (mm, degrees, etc.)
-  - `true`: Positions are raw motor step counts
-  - Typically used with `_rampedMotion=false` for direct stepper control
+**Type:** Boolean  
+**Default:** `false`  
+**JSON Field:** `"nosplit"`
 
-### `_dontSplitMove`
-- **Type:** `bool`
-- **Default:** `false`
-- **JSON Field:** `"nosplit"`
-- **Getters/Setters:** `dontSplitMove()`, `setDoNotSplitMove()`
-- **Usage:**
-  - MotionController: Checked when determining if long moves should be split
-  - Line 283: `if (maxBlockDistMM > 0.01f && !args.dontSplitMove())`
-- **Impact:**
-  - `false` (default): Long moves are split into smaller blocks based on `maxBlockDistMM` parameter
-    - Allows for smoother curves through multiple waypoints
-    - Improves pipeline processing
-    - Prevents buffer overflow on very long moves
-  - `true`: Move is processed as a single block regardless of distance
-    - Useful for moves that must not be interrupted
-    - May be required for certain motion patterns
+Controls whether long moves should be split into smaller blocks.
 
-### `_moveClockwise`
-- **Type:** `bool`
-- **Default:** `false`
-- **JSON Field:** `"cw"`
-- **Getters/Setters:** `isMoveClockwise()`, `setClockwise()`
-- **Usage:**
-  - Defined in structure but not currently used in motion execution code
-  - Reserved for circular/arc motion control
-- **Impact:**
-  - Currently no impact on motor behavior
-  - Intended for future arc interpolation features
-  - When implemented, would control direction of circular moves (CW vs CCW)
+- `false` (default): Long moves are split based on `maxBlockDistMM` parameter for smoother motion
+- `true`: Move is processed as a single block regardless of distance
 
-### `_moveRapid`
-- **Type:** `bool`
-- **Default:** `false`
-- **JSON Field:** `"rapid"`
-- **Getters/Setters:** `isMoveRapid()`, `setMoveRapid()`
-- **Usage:**
-  - Defined in structure but not currently used in motion execution code
-  - Traditionally indicates a G0 rapid positioning move (vs G1 linear move)
-- **Impact:**
-  - Currently no impact on motor behavior
-  - Reserved for future implementation where rapid moves might:
-    - Use different acceleration profiles
-    - Skip certain safety checks
-    - Have higher priority in motion queue
+**Example:**
+```json
+{"cmd":"motion", "mode":"abs", "pos":[100,50], "nosplit":true}
+```
 
-### `_moreMovesComing`
-- **Type:** `bool`
-- **Default:** `false`
-- **JSON Field:** `"more"`
-- **Getters/Setters:** `getMoreMovesComing()`, `setMoreMovesComing()`
-- **Usage:**
-  - MotionPlanner line 213: `block._blockIsFollowed = args.getMoreMovesComing()`
-  - MotionPlanner line 379: Resets debug log counter when false
-  - Set automatically by block splitter for intermediate blocks
-- **Impact:**
-  - Optimization hint for motion pipeline processing
-  - `true`: System expects more motion commands, keeps motors enabled, may defer certain calculations
-  - `false`: Last move in sequence, allows pipeline to optimize for stopping
-  - Critical for smooth continuous motion through multiple waypoints
-  - Affects lookahead optimization in motion planning
+### Clockwise Motion (`cw`)
 
-### `_isHoming`
-- **Type:** `bool`
-- **Default:** `false`
-- **JSON Field:** `"homing"`
-- **Getter:** No public getter (set only via JSON)
-- **Usage:**
-  - Defined in structure but not directly checked in motion execution
-  - Likely intended for future homing sequence identification
-- **Impact:**
-  - Currently no direct impact on motor behavior
-  - Reserved for marking moves as part of homing sequence
-  - Could be used to:
-    - Bypass certain safety checks during homing
-    - Enable special endstop handling
-    - Track homing completion status
+**Type:** Boolean  
+**Default:** `false`  
+**JSON Field:** `"cw"`
 
-### `_enableMotors`
-- **Type:** `bool`
-- **Default:** `true` (motors enabled)
-- **JSON Field:** `"en"`
-- **Getter:** `isEnableMotors()`
-- **Usage:**
-  - MotionController line 199: Checked to disable motors
-  - When false, motors are explicitly disabled and command returns without motion
-- **Impact:**
-  - `true` (default): Normal operation, motors remain energized
-  - `false`: Disables motor power, allowing free movement
-    - Used to conserve power
-    - Allows manual positioning
-    - Command completes immediately without adding motion blocks
+Reserved for future circular/arc motion control. Specifies direction of circular moves.
 
-### `_preClearMotionQueue`
-- **Type:** `bool`
-- **Default:** `false`
-- **JSON Field:** `"clearQ"`
-- **Getter:** `isClearQueue()`
-- **Usage:**
-  - MotionController line 193: `if (args.isClearQueue()) { _blockManager.clear(); }`
-- **Impact:**
-  - `false` (default): New motion is added to existing queue
-  - `true`: Clears all pending motion blocks before processing this command
-    - Emergency queue clearing
-    - Switching between different motion sequences
-    - Cancel pending operations
+### More Moves Coming (`more`)
 
-### `_stopMotion`
-- **Type:** `bool`
-- **Default:** `false`
-- **JSON Field:** `"immediate"` or `"stop"` (alias)
-- **Getter:** `isStopMotion()`
-- **Usage:**
-  - MotionController line 187: `if (args.isStopMotion()) { _rampGenerator.stop(); }`
-- **Impact:**
+**Type:** Boolean  
+**Default:** `false`  
+**JSON Field:** `"more"`
+
+Optimization hint indicating more motion commands will follow.
+
+- `false` (default): Last move in sequence
+- `true`: More moves coming, enables lookahead optimization
+
+**Example:**
+```json
+{"cmd":"motion", "mode":"abs", "pos":[50,25], "more":true}
+{"cmd":"motion", "mode":"abs", "pos":[100,50], "more":false}
+```
+
+### Immediate Execution (`imm`)
+
+**Type:** Boolean  
+**Default:** `false`  
+**JSON Field:** `"imm"`
+
+Stops current motion, clears queue, then executes this motion command.
+
+- `false` (default): Adds to motion queue normally
+- `true`: Emergency execution - stops all motion, clears queue, then executes
+
+**Example:**
+```json
+{"cmd":"motion", "mode":"abs", "pos":[0,0], "imm":true}  // Emergency return to origin
+```
+
+**Implementation:** Calls `_rampGenerator.stop()` and `_blockManager.clear()` before executing the new motion.
+
+### Constrain to Bounds (`constrain`)
   - `false` (default): Normal motion processing
   - `true`: Immediately stops all motor motion
     - Emergency stop functionality
@@ -273,79 +253,38 @@ The class is designed for binary communication (packed structure) and includes J
 - **Impact:**
   - When `_feedrateUnitsPerMin=false` (default):
     - Value is percentage of maximum axis speed (0-100+)
-    - 100 = full speed, 50 = half speed, 200 = double speed (if hardware allows)
-    - Formula: `requestedVelocity *= (feedrate / 100.0)`
-  - When `_feedrateUnitsPerMin=true`:
-    - Value is absolute speed in units per minute
-    - Formula: `ratio = feedrate / 60.0 / masterAxisMaxSpeed`
-    - Used for G-code compatibility (F parameter)
-  - Primary speed control mechanism for normal operations
+**Type:** Boolean  
+**Default:** `false`  
+**JSON Field:** `"constrain"`
 
-### `_feedrateUnitsPerMin`
-- **Type:** `bool`
-- **Default:** `false`
-- **JSON Field:** `"feedPerMin"`
-- **Getter:** `isFeedrateUnitsPerMin()`
-- **Usage:**
-  - MotionPlanner lines 106, 228: Switches feedrate interpretation
-  - Set by `setFeedrateUnitsPerMin()` vs `setFeedratePercent()`
-- **Impact:**
-  - `false` (default): `_feedrate` is percentage (0-100+)
-  - `true`: `_feedrate` is units/minute (absolute speed)
-  - Critical for G-code compatibility where F parameter is in mm/min or degrees/min
+Controls out-of-bounds behavior for workspace limits.
+
+- `false` (default): Out-of-bounds moves return error (RAFT_INVALID_DATA)
+- `true`: Out-of-bounds coordinates are constrained to valid workspace
+
+**Example:**
+```json
+{"cmd":"motion", "mode":"abs", "pos":[250,150], "constrain":true}
+```
 
 ---
 
-## Motion Tracking Arguments
+## Additional Arguments
 
-### `_motionTrackingIdx`
-- **Type:** `uint32_t`
-- **Default:** `0`
-- **JSON Field:** `"idx"`
-- **Getters/Setters:** `getMotionTrackingIndex()`, `setMotionTrackingIndex()`, `isMotionTrackingIndexValid()`
-- **Usage:**
-  - MotionPlanner lines 97, 219: Copied to MotionBlock
-  - MotionBlock stores and tracks the index through execution
-  - RampGenerator line 462-463: (Commented out) Would update last completed command index
-- **Impact:**
-  - When `_motionTrackingIndexValid=false`: No tracking
-  - When `_motionTrackingIndexValid=true`: Index is propagated through motion system
-    - Allows external systems to track which commands have completed
-    - Useful for synchronized operations
-    - Can correlate commands sent with execution completion
-  - Currently framework is in place but completion reporting is disabled in code
+### Motor Current (`motorCurrent`)
 
----
+**Type:** Number  
+**Default:** `0` (no override)  
+**JSON Field:** `"motorCurrent"`
 
-## Endstop Configuration
+Sets motor current as a percentage of maximum for this move (0-100). Zero means use default configuration.
 
-### `_endstops`
-- **Type:** `AxisEndstopChecks`
-- **Default:** All cleared (no endstop checking)
-- **JSON Field:** `"endstops"`
-- **Getters/Setters:** `getEndstopCheck()`, `setEndStops()`, `setTestAllEndStops()`, `setTestNoEndStops()`, `setTestEndStop()`
-- **Usage:**
-  - MotionPlanner lines 94, 216: Copied to MotionBlock via `setEndStopsToCheck()`
-  - RampGenerator: Checks endstops during motion execution
-- **Impact:**
-  - Configures which endstops should be monitored during this move
-  - Each axis can have up to 2 endstops (min/max)
-  - Endstop check types:
-    - `END_STOP_NOT_HIT`: Monitor but expect not to trigger
-    - `END_STOP_HIT`: Expect endstop to trigger
-    - `END_STOP_TOWARDS`: Check only when moving toward endstop
-    - `END_STOP_NONE`: Don't check this endstop
-  - Critical for:
-    - Homing operations
-    - Safety boundaries
-    - Preventing collisions
-  - When endstop triggers:
-    - Motion can be stopped immediately
-    - Homing sequence can detect home position
-    - Error can be reported
+**Example:**
+```json
+{"cmd":"motion", "mode":"abs", "pos":[100,50], "motorCurrent":75}
+```
 
----
-
+### Motion Tracking Index (`idx`)
 ## Reserved/Unused Arguments
 
 ### `_extrudeDistance`
@@ -387,21 +326,16 @@ Some JSON fields support multiple names for compatibility:
 - `"unitsAreSteps"` also accepts `"steps"`
 - `"immediate"` also accepts `"stop"`
 
----
+**Type:** Integer  
+**Default:** `0`  
+**JSON Field:** `"idx"`
 
-## Usage Patterns
+Optional index for tracking motion completion. Allows external systems to correlate commands with execution.
 
-### Basic Absolute Move
+**Example:**
 ```json
-{
-  "pos": [{"a": 0, "p": 100.0}, {"a": 1, "p": 50.0}],
-  "feedrate": 80.0,
-  "ramped": true
-}
+{"cmd":"motion", "mode":"abs", "pos":[100,50], "idx":1234}
 ```
-Moves axis 0 to 100mm, axis 1 to 50mm at 80% speed with acceleration.
-
-### Relative Move
 ```json
 {
   "pos": [{"a": 0, "p": 10.0}],
@@ -418,80 +352,110 @@ Moves axis 0 by 10mm relative to current position at 50% speed.
 }
 ```
 Immediately stops all motion.
+# Endstop Configuration (`endstops`)
 
-### Homing Move with Endstops
+**Type:** Object  
+**Default:** No endstop checking  
+**JSON Field:** `"endstops"`
+
+Configures which endstops should be monitored during motion. Used primarily for homing operations.
+
+**Example:**
 ```json
-{
-  "pos": [{"a": 0, "p": -200.0}],
-  "endstops": [...],
-  "feedrate": 20.0,
-  "homing": true
-}
+{"cmd":"motion", "mode":"abs", "pos":[-200], "endstops": {...}}
 ```
-Moves toward home position slowly, monitoring endstops.
 
-### Non-Ramped Step Move
-```json
-{
-  "pos": [{"a": 0, "p": 100}],
-  "ramped": false,
-  "steps": true
-}
-```
-Moves axis 0 by 100 steps without acceleration.
+### Extrude Distance (`exDist`)
 
-### Speed-Limited Precise Move
-```json
-{
-  "pos": [{"a": 0, "p": 25.5}, {"a": 1, "p": 30.2}],
-  "speed": 500.0,
-  "feedrate": 100.0,
-  "constrain": true
-}
-```
-Precise move with absolute speed limit, constrained to workspace bounds.
+**Type:** Number  
+**Default:** `0`  
+**JSON Field:** `"exDist"`
 
----
-
-## Implementation Notes
-
-1. **Structure Packing**: The class uses `#pragma pack(push, 1)` to ensure consistent binary layout for communication.
-
-2. **Thread Safety**: The structure is not inherently thread-safe. Calling code must manage synchronization.
-
-3. **Validation**: Many fields have "Valid" flags (`_targetSpeedValid`, `_extrudeValid`, etc.) to distinguish between "not set" and "set to default value".
-
-4. **Kinematics Integration**: Position arguments pass through kinematics system which converts from workspace coordinates to actuator coordinates based on the mechanical configuration.
-
-5. **Pipeline Processing**: Multiple motion blocks can be in the pipeline simultaneously, with lookahead optimization considering `_moreMovesComing` flag.
-
-6. **Split Block Handling**: When moves are split, the `_blockMotionArgs` is reused with modified positions while preserving other flags.
-
----
-
-## Related Classes
-
-- **MotionBlock**: Receives processed motion arguments and manages execution
-- **MotionPlanner**: Interprets MotionArgs and creates optimized motion blocks
-- **MotionBlockManager**: Coordinates block creation and splitting
-- **RaftKinematics**: Transforms positions based on mechanical configuration
-- **AxisEndstopChecks**: Detailed endstop configuration
-- **AxesValues<T>**: Template container for per-axis values
-
----
-
-## Future Enhancements
-
-Based on reserved fields, potential future features include:
-
-1. **Arc/Circular Motion**: Using `_moveClockwise` for G2/G3 commands
-2. **Rapid Positioning**: Using `_moveRapid` for optimized G0 moves
-3. **Extrusion Control**: Using `_extrudeDistance` for 3D printing
+Reserved for future 3D printer extruder control. Specifies extrusion amount during coordinated moves.rudeDistance` for 3D printing
 4. **Dynamic Current**: Using `_ampsPercentOfMax` for power optimization
 5. **Motion Tracking**: Enabling completion callbacks via `_motionTrackingIdx`
 
 ---
 
-## Revision History
+### Basic Absolute Move
+```json
+{
+  "cmd": "motion",
+  "mode": "abs",
+  "pos": [100, 50],
+  "speed": 80
+}
+```
+Moves axis 0 to 100mm, axis 1 to 50mm at 80% of maximum speed.
 
-- **Version 0 (MULTISTEPPER_MOTION_ARGS_BINARY_FORMAT_1)**: Initial implementation with core motion control features
+### Relative Move with Units
+```json
+{
+  "cmd": "motion",
+  "mode": "rel",
+  "pos": [10],
+  "speed": "10mmps"
+}
+```
+Moves axis 0 by 10mm relative to current position at 10mm/sec.
+
+### Stop Command
+```json
+{
+  "cmd": "stop"
+}
+```
+Stops all motion immediately and clears queue.
+
+### Stop with Motor Disable
+```json
+{
+  "cmd": "stop",
+  "disableMotors": true
+}
+```
+Stops motion, clears queue, and disables motors.
+
+### Non-Ramped Step Move (Homing)
+```json
+{
+  "cmd": "motion",
+  "mode": "pos-rel-steps-noramp",
+  "pos": [100],
+  "speed": "500upm"
+}
+```
+Moves axis 0 by 100 steps without acceleration at 500 units/min.
+
+### Immediate Execution
+```json
+{
+  "cmd": "motion",
+  "mode": "abs",
+  "pos": [0, 0],
+  "imm": true
+}
+```
+Emergency return to origin - stops current motion, clears queue, executes immediately.
+
+### Multi-Axis with Speed String
+```json
+{
+  "cmd": "motion",
+  "mode": "abs",
+  "pos": [100, 50, null, 25],
+  "speed": "15mmps",
+  "constrain": true
+}
+```
+Moves axes 0, 1, 3 (skips 2) at 15mm/sec, constrains to workspace bounds.
+
+### Velocity Mode (Future)
+```json
+{
+  "cmd": "motion",
+  "mode": "vel",
+  "vel": [10, -5, 0]
+}
+```
+Continuous motion: axis 0 at 10 u/s, axis 1 at -5 u/s, axis 2 stopped

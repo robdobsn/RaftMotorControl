@@ -350,6 +350,31 @@ input[type="number"]::-webkit-outer-spin-button {
   border-radius: 4px;
 }
 
+/* Path Information Display */
+.path-info-display {
+  background: #333;
+  border-radius: 6px;
+  padding: 10px;
+  margin-bottom: 12px;
+  border-left: 3px solid #4a9eff;
+}
+
+.path-info-display .info-section {
+  margin-bottom: 6px;
+  font-size: 0.85rem;
+  line-height: 1.4;
+  color: #e8e8e8;
+}
+
+.path-info-display .info-section:last-child {
+  margin-bottom: 0;
+}
+
+.path-info-display strong {
+  color: #64b5ff;
+  margin-right: 6px;
+}
+
 .execution-progress small {
   font-size: 0.8rem;
 }

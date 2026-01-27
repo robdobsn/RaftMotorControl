@@ -9,8 +9,8 @@
 #include "ExecTimer.h"
 
 #define WARN_ON_API_CONTROL_FAIL
-// #define DEBUG_API_CONTROL
-// #define DEBUG_INFO_API_CONTROL_TIMINGS
+#define DEBUG_API_CONTROL
+#define DEBUG_INFO_API_CONTROL_TIMINGS
 
 MainSysMod::MainSysMod(const char *pModuleName, RaftJsonIF& sysConfig)
     : RaftSysMod(pModuleName, sysConfig)
@@ -42,120 +42,29 @@ RaftRetCode MainSysMod::apiControl(const String &reqStr, String &respStr, const 
 #ifdef DEBUG_INFO_API_CONTROL_TIMINGS
     // Timing measurement start
     uint64_t startTimeUs = micros();
-    uint64_t parseStartUs, commandBuildStartUs, sendStartUs;
+    uint64_t parseStartUs, sendStartUs;
     parseStartUs = micros();
 #endif
 
     // Extract params
-    RaftJson requestAsJSON = RestAPIEndpointManager::getJSONFromRESTRequest(reqStr.c_str());
-
-    // Timing measurement - parse time
-#ifdef DEBUG_INFO_API_CONTROL_TIMINGS
-    uint64_t parseTimeUs = micros() - parseStartUs;
-#endif
-
-    // Handle commands
-    bool rslt = false;
-    String rsltStr = "Failed";
-#ifdef DEBUG_API_CONTROL
-    LOG_I(MODULE_PREFIX, "apiControl: requestAsJSON %s", requestAsJSON.toString().c_str());
-#endif
-    String motorCmdJSON = "";
-    String command = requestAsJSON.getString("path[1]", "");
-    
-#ifdef DEBUG_INFO_API_CONTROL_TIMINGS
-    commandBuildStartUs = micros();
-#endif
-
-    if (!command.isEmpty())
-    {
-        if (command.equalsIgnoreCase("setPos"))
-        {
-            // Get steps for stepper motors
-            double axis0Pos = requestAsJSON.getDouble("params/a0", 0);
-            double axis1Pos = requestAsJSON.getDouble("params/a1", 0);
-            bool unitsAreSteps = requestAsJSON.getBool("params/unitsAreSteps", false);
-            double speedUps = requestAsJSON.getDouble("params/speedUps", 100);
-            bool stopAndClearBeforeMove = requestAsJSON.getBool("params/stopAndClear", false);
-            bool noSplit = requestAsJSON.getBool("params/noSplit", true);
-
-            // Debug
-#ifdef DEBUG_API_CONTROL
-            LOG_I(MODULE_PREFIX, "apiControl: setPos axis0Pos %f axis1Pos %f unitsAreSteps %d speedUps %f", axis0Pos, axis1Pos, unitsAreSteps, speedUps);
-#endif
-            // Form the JSON command to send to MotorControl using snprintf (faster than string replace)
-            char jsonBuffer[256];
-            snprintf(jsonBuffer, sizeof(jsonBuffer),
-                "{\"cmd\":\"motion\",\"stop\":%d,\"clearQ\":%d,\"rel\":0,\"nosplit\":%d,\"steps\":%d,\"feedrate\":%.2f,\"pos\":[{\"a\":0,\"p\":%.2f},{\"a\":1,\"p\":%.2f}]}",
-                stopAndClearBeforeMove ? 1 : 0,
-                stopAndClearBeforeMove ? 1 : 0,
-                noSplit ? 1 : 0,
-                unitsAreSteps ? 1 : 0,
-                speedUps,
-                axis0Pos,
-                axis1Pos);
-            motorCmdJSON = jsonBuffer;
-
-            // Debug
-#ifdef DEBUG_API_CONTROL
-            LOG_I(MODULE_PREFIX, "apiControl: setPos motorCmd %s (from params %s)", motorCmdJSON.c_str(), requestAsJSON.toString().c_str());
-#endif
-        }
-        else if (command.equalsIgnoreCase("stop"))
-        {
-            // Form the JSON command to send to MotorControl
-            motorCmdJSON = R"({"cmd":"motion","stop":1,"clearQ":1})";
-
-            // Debug
-#ifdef DEBUG_API_CONTROL
-            LOG_I(MODULE_PREFIX, "apiControl: stop motorCmd %s (from params %s)", motorCmdJSON.c_str(), requestAsJSON.toString().c_str());
-#endif
-        }
-        else if (command.equalsIgnoreCase("disable"))
-        {
-            // Form the JSON command to send to MotorControl
-            motorCmdJSON = R"({"cmd":"motion", "en":0})";
-
-            // Debug
-#ifdef DEBUG_API_CONTROL
-            LOG_I(MODULE_PREFIX, "apiControl: disableMotors motorCmd %s (from params %s)", motorCmdJSON.c_str(), requestAsJSON.toString().c_str());
-#endif
-        }
-        else if (command.equalsIgnoreCase("setOrigin"))
-        {
-            // Form the JSON command to send to MotorControl
-            motorCmdJSON = R"({"cmd":"setOrigin"})";
-
-            // Debug
-#ifdef DEBUG_API_CONTROL
-            LOG_I(MODULE_PREFIX, "apiControl: setOrigin motorCmd %s (from params %s)", motorCmdJSON.c_str(), requestAsJSON.toString().c_str());
-#endif
-        }
-        else
-        {
-            rsltStr = "Unknown command";
-            rslt = false;
-#ifdef WARN_ON_API_CONTROL_FAIL
-            LOG_E(MODULE_PREFIX, "apiControl: UNKNOWN command %s", command.c_str());
-#endif
-            return Raft::setJsonErrorResult(reqStr.c_str(), respStr, rsltStr.c_str());
-        }
-    }
+    RaftJson requestAsJSON = RestAPIEndpointManager::getJSONFromRESTRequest(reqStr.c_str(), RestAPIEndpointManager::PARAMS_ONLY);
 
     // Timing measurement - command build time
 #ifdef DEBUG_INFO_API_CONTROL_TIMINGS
-    uint64_t commandBuildTimeUs = micros() - commandBuildStartUs;
+    uint64_t parseTimeUs = micros() - parseStartUs;
     sendStartUs = micros();
 #endif
 
     // Send to MotorControl device
-    rslt = sendToMotorControl(motorCmdJSON, rsltStr);
+    String rsltStr;
+    bool rslt = sendToMotorControl(requestAsJSON.c_str(), rsltStr);
+
 #ifdef DEBUG_INFO_API_CONTROL_TIMINGS
     uint64_t sendTimeUs = micros() - sendStartUs;
     // Log timing information
     uint64_t totalTimeUs = micros() - startTimeUs;
-    LOG_I(MODULE_PREFIX, "apiControl TIMING: total=%lluus parse=%lluus build=%lluus send=%lluus cmd=%s",
-          totalTimeUs, parseTimeUs, commandBuildTimeUs, sendTimeUs, command.c_str());
+    LOG_I(MODULE_PREFIX, "apiControl TIMING: total=%lluus parse=%lluus send=%lluus params %s requestAsJSON %s",
+          totalTimeUs, parseTimeUs, sendTimeUs, reqStr.c_str(), requestAsJSON.c_str());
 #endif
 
     // Result

@@ -160,34 +160,82 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
     return points;
   };
 
-  // Scale normalized points to fit within robot workspace
-  const scalePathToWorkspace = (normalizedPoints: PathPoint[]): PathPoint[] => {
+  // Get workspace dimensions based on robot configuration
+  const getWorkspaceDimensions = (): { width: number; height: number; description: string } => {
     if (!robotConfig) {
-      // Default to a small workspace if no config
-      const defaultRadius = 100;
-      return normalizedPoints.map(p => ({
-        a0: (p.a0 - 0.5) * defaultRadius * 2,
-        a1: (p.a1 - 0.5) * defaultRadius * 2,
-      }));
+      return { width: 200, height: 200, description: 'Default 200mm x 200mm' };
     }
 
-    // For SCARA, use the smaller of maxRadiusMM or sum of arm lengths
-    const arm1Len = robotConfig.arm1LengthMM || 150;
-    const arm2Len = robotConfig.arm2LengthMM || 150;
-    const maxRadius = robotConfig.maxRadiusMM || Math.min(290, arm1Len + arm2Len);
+    const geomLower = robotConfig.geometry.toLowerCase();
     
-    // Scale to 90% of workspace to leave some margin
-    const workspaceSize = maxRadius * 2 * 0.9;
+    if (geomLower.includes('cartesian') || geomLower.includes('xyz')) {
+      // For XY Cartesian, use axes configuration if available
+      if (robotConfig.axes && robotConfig.axes.length >= 2) {
+        const xRange = robotConfig.axes[0]?.unitsPerRot || 360;
+        const yRange = robotConfig.axes[1]?.unitsPerRot || 360;
+        return { 
+          width: xRange * 0.9, 
+          height: yRange * 0.9,
+          description: `${(xRange * 0.9).toFixed(0)}mm x ${(yRange * 0.9).toFixed(0)}mm (90% of axis range)` 
+        };
+      }
+      return { width: 180, height: 180, description: '180mm x 180mm (default)' };
+    } else {
+      // For SCARA, use maxRadiusMM
+      const arm1Len = robotConfig.arm1LengthMM || 150;
+      const arm2Len = robotConfig.arm2LengthMM || 150;
+      const maxRadius = robotConfig.maxRadiusMM || Math.min(290, arm1Len + arm2Len);
+      const workspaceSize = maxRadius * 0.9;
+      return { 
+        width: workspaceSize * 2, 
+        height: workspaceSize * 2,
+        description: `Radius ${workspaceSize.toFixed(0)}mm (90% of max ${maxRadius.toFixed(0)}mm)` 
+      };
+    }
+  };
+
+  // Get path-specific information
+  const getPathInfo = (patternType: PatternType): string => {
+    const { width, height } = getWorkspaceDimensions();
+    
+    switch (patternType) {
+      case 'circle':
+        const radius = Math.min(width, height) / 2;
+        return `Circle: Radius ${radius.toFixed(1)}mm, Center at origin (0, 0)`;
+      case 'rectangle':
+        return `Rectangle: ${width.toFixed(1)}mm x ${height.toFixed(1)}mm, Center at origin (0, 0)`;
+      case 'figure8':
+        return `Figure-8: Width ${width.toFixed(1)}mm, Height ${height.toFixed(1)}mm, Center at origin (0, 0)`;
+      case 'star':
+        const starRadius = Math.min(width, height) / 2;
+        return `Star: Radius ${starRadius.toFixed(1)}mm (5-pointed), Center at origin (0, 0)`;
+      case 'lissajous1':
+        return `Lissajous (1:1): ${width.toFixed(1)}mm x ${height.toFixed(1)}mm, δ=π/2`;
+      case 'lissajous2':
+        return `Lissajous (3:2): ${width.toFixed(1)}mm x ${height.toFixed(1)}mm, δ=0`;
+      case 'lissajous3':
+        return `Lissajous (5:4): ${width.toFixed(1)}mm x ${height.toFixed(1)}mm, δ=π/2`;
+      default:
+        return `Size: ${width.toFixed(1)}mm x ${height.toFixed(1)}mm`;
+    }
+  };
+
+  // Scale normalized points to fit within robot workspace
+  const scalePathToWorkspace = (normalizedPoints: PathPoint[]): PathPoint[] => {
+    const { width, height } = getWorkspaceDimensions();
 
     return normalizedPoints.map(p => ({
-      a0: (p.a0 - 0.5) * workspaceSize,
-      a1: (p.a1 - 0.5) * workspaceSize,
+      a0: (p.a0 - 0.5) * width,
+      a1: (p.a1 - 0.5) * height,
     }));
   };
 
   // Execute a single movement command
   const sendMoveCommand = async (point: PathPoint, speedValue: number): Promise<void> => {
-    const command = `motors/setPos?a0=${point.a0.toFixed(2)}&a1=${point.a1.toFixed(2)}&speedUps=${speedValue}&stopAndClear=false&noSplit=true`;
+    // Build command using modern pos=[x,y] array format (backend auto-detects arrays/numbers)
+    // Speed is sent as percentage (100 = 100% of max speed)
+    const speedPercent = Math.round(speedValue * 100);
+    const command = `motors?cmd=motion&mode=abs&speed=${speedPercent}&pos=[${point.a0.toFixed(2)},${point.a1.toFixed(2)}]&imm=0&nosplit=1`;
     try {
       await connManager.getMotorConnector().sendRICRESTMsg(command, {});
       console.log('Move command sent:', command);
@@ -250,7 +298,7 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
     
     // Send stop command to motors
     try {
-      await connManager.getMotorConnector().sendRICRESTMsg('motors/stop', {});
+      await connManager.getMotorConnector().sendRICRESTMsg('motors?cmd=stop&disableMotors=true', {});
       console.log('Stop command sent');
     } catch (error) {
       console.error('Failed to send stop command:', error);
@@ -347,6 +395,23 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
             />
           </div>
         </div>
+
+        {/* Path Information Display */}
+        {connectorReady && selectedPattern && (
+          <div className="path-info-display">
+            <div className="info-section">
+              <strong>Workspace:</strong> {getWorkspaceDimensions().description}
+            </div>
+            <div className="info-section">
+              <strong>Path Details:</strong> {getPathInfo(selectedPattern)}
+            </div>
+            {selectedPatternDef && (
+              <div className="info-section">
+                <strong>Description:</strong> {selectedPatternDef.description}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Control Buttons */}
         <div className="btn-group-custom">

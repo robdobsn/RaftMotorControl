@@ -56,6 +56,10 @@ public:
     /// @param pauseIt true to pause, false to resume
     virtual void pause(bool pauseIt) override;
 
+    /// @brief Stop all motion immediately (clears queue and stops ramp generator)
+    /// @param disableMotors If true, disable motors after stopping
+    void stopAll(bool disableMotors = false);
+
     /// @brief Check if the motion controller is paused
     /// @return true if paused
     virtual bool isPaused() const override

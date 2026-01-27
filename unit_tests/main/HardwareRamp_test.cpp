@@ -104,8 +104,8 @@ TEST_CASE("test_MotorControl", "[MotorControl]")
         motorControl.loop();
         if (progressCount == 100)
         {
-            // Motion command
-            String moveCmd = R"({"cmd":"motion","rel":1,"nosplit":1,"speed":1,"speedOk":1,"pos":[{"a":0,"p":1}]})";
+            // Motion command using new format
+            String moveCmd = R"({"cmd":"motion","mode":"rel","nosplit":true,"speed":"1upm","pos":[1]})";
             LOG_I(MODULE_PREFIX, "Start move X to 1000");
             motorControl.sendCmdJSON(moveCmd.c_str());
         }

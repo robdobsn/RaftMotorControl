@@ -10,135 +10,180 @@
 
 // #define DEBUG_MOTION_ARGS
 
-/// @brief Get field definitions for JSON serialization
-/// @return std::vector<MotionArgs::FieldDefType>
-std::vector<MotionArgs::FieldDefType> MotionArgs::getFieldDefs()
-{
-    std::vector<FieldDefType> fieldDefs;
-    fieldDefs.push_back(FieldDefType("rel", &_isRelative, "bool"));
-    fieldDefs.push_back(FieldDefType("ramped", &_rampedMotion, "bool"));
-    fieldDefs.push_back(FieldDefType("unitsAreSteps", &_unitsAreSteps, "bool", {"steps"}));
-    fieldDefs.push_back(FieldDefType("nosplit", &_dontSplitMove, "bool"));
-    fieldDefs.push_back(FieldDefType("exDistOk", &_extrudeValid, "bool"));
-    fieldDefs.push_back(FieldDefType("speedOk", &_targetSpeedValid, "bool"));
-    fieldDefs.push_back(FieldDefType("cw", &_moveClockwise, "bool"));
-    fieldDefs.push_back(FieldDefType("rapid", &_moveRapid, "bool"));
-    fieldDefs.push_back(FieldDefType("more", &_moreMovesComing, "bool"));
-    fieldDefs.push_back(FieldDefType("homing", &_isHoming, "bool"));
-    fieldDefs.push_back(FieldDefType("idxOk", &_motionTrackingIndexValid, "bool"));
-    fieldDefs.push_back(FieldDefType("feedPerMin", &_feedrateUnitsPerMin, "bool"));
-    fieldDefs.push_back(FieldDefType("speed", &_targetSpeed, "double"));
-    fieldDefs.push_back(FieldDefType("exDist", &_extrudeDistance, "double"));
-    fieldDefs.push_back(FieldDefType("feedrate", &_feedrate, "double"));
-    fieldDefs.push_back(FieldDefType("idx", &_motionTrackingIdx, "double"));
-    fieldDefs.push_back(FieldDefType("en", &_enableMotors, "bool"));
-    fieldDefs.push_back(FieldDefType("ampsPCofMax", &_ampsPercentOfMax, "double"));
-    fieldDefs.push_back(FieldDefType("clearQ", &_preClearMotionQueue, "bool"));
-    fieldDefs.push_back(FieldDefType("immediate", &_stopMotion, "bool", {"stop"}));
-    fieldDefs.push_back(FieldDefType("constrain", &_constrainToBounds, "bool"));
-    return fieldDefs;
-}
-
 void MotionArgs::fromJSON(const char* jsonStr)
 {
     // Get json
     RaftJson cmdJson(jsonStr);
     clear();
 
-    // Get field definitions
-    std::vector<FieldDefType> fieldDefs = getFieldDefs();
+    // Get mode (default to "abs" if not specified)
+    _mode = cmdJson.getString("mode", "abs");
 
-    // Get fields
-    for (auto &fieldDef : fieldDefs)
+    // Get speed (can be numeric or string)
+    int arrayLen = 0;
+    if (cmdJson.getType("speed", arrayLen) == RaftJson::RAFT_JSON_STRING)
     {
-        // Check if value is present (primary name or aliases)
-        String fieldToCheck = fieldDef._name;
-        if (!cmdJson.contains(fieldToCheck.c_str()))
-        {
-            // Check aliases
-            bool found = false;
-            for (const auto& alias : fieldDef._aliases)
-            {
-                if (cmdJson.contains(alias.c_str()))
-                {
-                    fieldToCheck = alias;
-                    found = true;
-                    break;
-                }
-            }
-            if (!found)
-                continue;
-        }
+        _speed = cmdJson.getString("speed", "");
+    }
+    else if (cmdJson.getType("speed", arrayLen) == RaftJson::RAFT_JSON_NUMBER)
+    {
+        // Numeric speed is interpreted as percentage
+        double speedVal = cmdJson.getDouble("speed", 100.0);
+        _speed = String(speedVal);
+    }
 
-        // Get value
-        if (fieldDef._dataType.equalsIgnoreCase("bool"))
-        {
-            bool fieldVal = cmdJson.getBool(fieldToCheck.c_str(), 0);
-            *((bool*)fieldDef._pValue) = fieldVal;
-        }
-        else if (fieldDef._dataType.equalsIgnoreCase("double"))
-        {
-            double fieldVal = cmdJson.getDouble(fieldToCheck.c_str(), 0);
-            *((double*)fieldDef._pValue) = fieldVal;
-        }
+    // Get motor current
+    _motorCurrent = cmdJson.getDouble("motorCurrent", 0);
+
+    // Get boolean flags
+    _dontSplitMove = cmdJson.getBool("nosplit", false);
+    _moveClockwise = cmdJson.getBool("cw", false);
+    _moveRapid = cmdJson.getBool("rapid", false);
+    _moreMovesComing = cmdJson.getBool("more", false);
+    _constrainToBounds = cmdJson.getBool("constrain", false);
+    _immediateExecution = cmdJson.getBool("imm", false);
+
+    // Get extrude distance (if present)
+    if (cmdJson.contains("exDist"))
+    {
+        _extrudeDistance = cmdJson.getDouble("exDist", 0);
+        _extrudeValid = true;
+    }
+
+    // Get motion tracking index (if present)
+    if (cmdJson.contains("idx"))
+    {
+        _motionTrackingIdx = cmdJson.getLong("idx", 0);
+        _motionTrackingIndexValid = true;
     }
 
     // Extract endstops
     _endstops.fromJSON(cmdJson, "endstops");
 
-    // Extract position
-    std::vector<String> posList;
-    cmdJson.getArrayElems("pos", posList);
+    // Extract position or velocity array
+    const char* arrayName = isVelocityMode() ? "vel" : "pos";
+    std::vector<String> valueList;
+    cmdJson.getArrayElems(arrayName, valueList);
+    
     _axesPos.clear();
-    for (const RaftJson pos : posList)
+    _velocities.clear();
+    _axesSpecified.clear();
+    
+    // Parse array format: [100.0, 50.0, null, 25.0]
+    for (size_t axisIdx = 0; axisIdx < valueList.size() && axisIdx < MULTISTEPPER_MAX_AXES; axisIdx++)
     {
-        int32_t axisIdx = pos.getLong("a", -1);
-        double axisPos = pos.getDouble("p", 0);        
+        RaftJson valueJson(valueList[axisIdx].c_str());
+        int arrayLen = 0;
+        if (valueJson.getType("", arrayLen) == RaftJson::RAFT_JSON_NUMBER)
+        {
+            double axisValue = valueJson.getDouble("", 0);
+            if (isVelocityMode())
+            {
+                _velocities.setVal(axisIdx, axisValue);
+            }
+            else
+            {
+                _axesPos.setVal(axisIdx, axisValue);
+            }
+            _axesSpecified.setVal(axisIdx, true);
 #ifdef DEBUG_MOTION_ARGS
-        LOG_I(MODULE_PREFIX, "fromJSON %s pos %s axisIdx: %d, axisPos: %.2f", cmdJson.getJsonDoc(), pos.getJsonDoc(), axisIdx, axisPos);
+            LOG_I(MODULE_PREFIX, "fromJSON %s[%d] = %.2f", arrayName, axisIdx, axisValue);
 #endif
-        _axesPos.setVal(axisIdx, axisPos);
-        _axesSpecified.setVal(axisIdx, true);
+        }
+        // null or non-numeric values mean axis not specified
     }
 }
 
 String MotionArgs::toJSON()
 {
-    // Get field definitions
-    std::vector<FieldDefType> fieldDefs = getFieldDefs();
-
     // Output string
-    String jsonStr;
+    String jsonStr = "\"mode\":\"" + _mode + "\"";
 
-    // Expand fields
-    for (auto &fieldDef : fieldDefs)
+    // Speed (if specified)
+    if (_speed.length() > 0)
     {
-        // Get value
-        if (fieldDef._dataType.equalsIgnoreCase("bool"))
+        // Check if speed is pure numeric (percentage)
+        bool isNumeric = true;
+        for (size_t i = 0; i < _speed.length(); i++)
         {
-            jsonStr += "\"" + fieldDef._name + "\":" + String(*((bool*)fieldDef._pValue)) + ",";
+            if (!isdigit(_speed[i]) && _speed[i] != '.' && _speed[i] != '-')
+            {
+                isNumeric = false;
+                break;
+            }
         }
-        else if (fieldDef._dataType.equalsIgnoreCase("double"))
+        
+        if (isNumeric)
         {
-            jsonStr += "\"" + fieldDef._name + "\":" + String(*((double*)fieldDef._pValue)) + ",";
+            jsonStr += ",\"speed\":" + _speed;
+        }
+        else
+        {
+            jsonStr += ",\"speed\":\"" + _speed + "\"";
         }
     }
 
-    // Expand endstops
-    jsonStr += _endstops.toJSON("endstops");
+    // Motor current (if non-zero)
+    if (_motorCurrent > 0)
+    {
+        jsonStr += ",\"motorCurrent\":" + String(_motorCurrent);
+    }
 
-    // Expand position
-    jsonStr += ",\"pos\":[";
+    // Boolean flags (only output if true)
+    if (_dontSplitMove)
+        jsonStr += ",\"nosplit\":true";
+    if (_moveClockwise)
+        jsonStr += ",\"cw\":true";
+    if (_moveRapid)
+        jsonStr += ",\"rapid\":true";
+    if (_moreMovesComing)
+        jsonStr += ",\"more\":true";
+    if (_constrainToBounds)
+        jsonStr += ",\"constrain\":true";
+    if (_immediateExecution)
+        jsonStr += ",\"imm\":true";
+
+    // Extrude distance (if valid)
+    if (_extrudeValid)
+    {
+        jsonStr += ",\"exDist\":" + String(_extrudeDistance);
+    }
+
+    // Motion tracking index (if valid)
+    if (_motionTrackingIndexValid)
+    {
+        jsonStr += ",\"idx\":" + String(_motionTrackingIdx);
+    }
+
+    // Endstops
+    String endstopsStr = _endstops.toJSON("endstops");
+    if (endstopsStr.length() > 0)
+    {
+        jsonStr += "," + endstopsStr;
+    }
+
+    // Position or velocity array (simplified format)
+    const char* arrayName = isVelocityMode() ? "vel" : "pos";
+    AxesValues<AxisPosDataType>& values = isVelocityMode() ? _velocities : _axesPos;
+    
+    jsonStr += ",\"" + String(arrayName) + "\":[";
     bool firstAxis = true;
     for (int32_t axisIdx = 0; axisIdx < MULTISTEPPER_MAX_AXES; axisIdx++)
     {
         if (!firstAxis)
-        {
             jsonStr += ",";
-        }
         firstAxis = false;
-        jsonStr += "{\"a\":" + String(axisIdx) + ",\"p\":" + String(_axesPos.getVal(axisIdx)) + "}";
+        
+        if (_axesSpecified.getVal(axisIdx))
+        {
+            jsonStr += String(values.getVal(axisIdx));
+        }
+        else
+        {
+            jsonStr += "null";
+        }
     }
     jsonStr += "]";
+    
     return "{" + jsonStr + "}";
 }

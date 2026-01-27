@@ -67,7 +67,7 @@ AxesValues<AxisStepsDataType> MotionPlanner::moveToNonRamped(MotionArgs &args,
             if (args.isRelative())
                 steps = args.getAxesPosConst().getVal(axisIdx);
             else
-                steps = args.getAxesPosConst().getVal(axisIdx) - axesState.getUnitsFromOrigin(axisIdx);
+                steps = args.getAxesPosConst().getVal(axisIdx) - axesState.getStepsFromOrigin(axisIdx);
         }
 
         // Set steps to target
@@ -96,20 +96,9 @@ AxesValues<AxisStepsDataType> MotionPlanner::moveToNonRamped(MotionArgs &args,
     // Set numbered command index if present
     block.setMotionTrackingIndex(args.getMotionTrackingIndex());
 
-    // Compute the requestedVelocity
-    AxisSpeedDataType requestedVelocity = lowestMaxStepRatePerSecForAnyAxis;
-    if (args.isTargetSpeedValid() && (requestedVelocity > args.getTargetSpeed()))
-        requestedVelocity = args.getTargetSpeed();
-
-    // Feedrate percent (scale calculated velocities by this amount)
-    double feedrateAsRatioToMax = args.getFeedrate() / 100.0;
-    if (args.isFeedrateUnitsPerMin())
-    {
-        feedrateAsRatioToMax = 1.0;
-        if (axesParams.masterAxisMaxSpeed() != 0)
-            feedrateAsRatioToMax = args.getFeedrate() / 60.0 / axesParams.masterAxisMaxSpeed();
-    }
-    requestedVelocity *= feedrateAsRatioToMax;
+    // Compute the requested velocity using new speed parsing
+    // Speed is automatically capped by config max
+    AxisSpeedDataType requestedVelocity = args.getSpeedUps(lowestMaxStepRatePerSecForAnyAxis);
     block._requestedSpeed = requestedVelocity;
 
     // Prepare for stepping
@@ -218,24 +207,12 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
     // Set motion tracking index if present
     block.setMotionTrackingIndex(args.getMotionTrackingIndex());
 
-    // Compute the requestedVelocity from the first primary axis
-    AxisSpeedDataType requestedVelocity = axesParams.getMaxSpeedUps(firstPrimaryAxis);
-    if (args.isTargetSpeedValid() && (requestedVelocity > args.getTargetSpeed()))
-        requestedVelocity = args.getTargetSpeed();
-
-    // Feedrate percent (scale calculated velocities by this amount)
-    double feedrateAsRatioToMax = args.getFeedrate() / 100.0;
-    if (args.isFeedrateUnitsPerMin())
-    {
-        feedrateAsRatioToMax = 1.0;
-        if (axesParams.masterAxisMaxSpeed() != 0)
-            feedrateAsRatioToMax = args.getFeedrate() / 60.0 / axesParams.masterAxisMaxSpeed();
-    }
-    requestedVelocity *= feedrateAsRatioToMax;
+    // Compute the requested velocity using new speed parsing
+    // Speed is automatically capped by config max
+    AxisSpeedDataType requestedVelocity = args.getSpeedUps(axesParams.getMaxSpeedUps(firstPrimaryAxis));
 
 #ifdef DEBUG_REQUESTED_VELOCITY
-    LOG_I(MODULE_PREFIX, "maxSpeed %0.2f targetSpeed %0.2f feedrate %0.2f requestedVelocity %0.2f", axesParams.getMaxSpeedUps(firstPrimaryAxis), 
-            args.getTargetSpeed(), args.getFeedrate(), requestedVelocity);
+    LOG_I(MODULE_PREFIX, "maxSpeed %0.2f requestedVelocity %0.2f", axesParams.getMaxSpeedUps(firstPrimaryAxis), requestedVelocity);
 #endif
 
     // Find the unit vectors for the primary axes and check the feedrate

@@ -12,8 +12,8 @@
 #include "Logger.h"
 #include "HomingPattern.h"
 
-// #define DEBUG_MOTOR_CMD_JSON
-// #define DEBUG_SEND_CMD_TIMINGS
+#define DEBUG_MOTOR_CMD_JSON
+#define DEBUG_SEND_CMD_TIMINGS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -219,6 +219,10 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
     uint64_t parseTimeUs = micros() - parseStartUs;
 #endif
 
+#ifdef DEBUG_MOTOR_CMD_JSON
+        LOG_I(MODULE_PREFIX, "sendCmdJSON cmd %s", cmd.c_str());
+#endif
+
     if (cmd.equalsIgnoreCase("motion"))
     {
 #ifdef DEBUG_SEND_CMD_TIMINGS
@@ -231,8 +235,7 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
         moveToStartUs = micros();
 #endif
 #ifdef DEBUG_MOTOR_CMD_JSON
-        String cmdStr = motionArgs.toJSON();
-        LOG_I(MODULE_PREFIX, "sendCmdJSON %s", cmdStr.c_str());
+        LOG_I(MODULE_PREFIX, "sendCmdJSON motion %s", motionArgs.toJSON().c_str());
 #endif
         RaftRetCode rc = _motionController.moveTo(motionArgs, respMsg);
 #ifdef DEBUG_SEND_CMD_TIMINGS
@@ -247,6 +250,14 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
                   respMsg && respMsg->length() > 0 ? respMsg->c_str() : Raft::getRetCodeStr(rc));
         }
         return rc;
+    }
+    else if (cmd.equalsIgnoreCase("stop"))
+    {
+        // Stop motion: halt ramp generator and clear motion queue
+        // Optional: disable motors if "disableMotors" is true
+        bool disableMotors = jsonInfo.getBool("disableMotors", false);
+        _motionController.stopAll(disableMotors);
+        return RAFT_OK;
     }
     else if (cmd.equalsIgnoreCase("setOrigin"))
     {

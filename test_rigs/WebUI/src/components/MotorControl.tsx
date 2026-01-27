@@ -26,21 +26,40 @@ export default function MotorControl({ motorConnectionReady }: MotorControlProps
     const speed = motorNum === 1 ? motor1Speed : motor2Speed;
     const steps = 200; // One full rotation at 200 steps/rev
     const dirValue = direction === 'cw' ? 1 : -1;
-    sendCommand(`motor/${motorNum}/move?steps=${steps * dirValue}&speed=${speed}`);
+    const axisIdx = motorNum - 1; // Convert motor number to axis index (0 or 1)
+    
+    // Build command: relative move in steps using modern pos=[x,y] array format
+    // Speed is sent as percentage (100 = 100% of max speed)
+    const speedPercent = Math.round(speed * 100);
+    // Build pos array with null for other axis
+    const pos = axisIdx === 0 ? `[${steps * dirValue},null]` : `[null,${steps * dirValue}]`;
+    const command = `motors?cmd=motion&mode=pos-rel-steps&speed=${speedPercent}&pos=${pos}&nosplit=1`;
+    sendCommand(command);
   };
 
   const stopMotor = (motorNum: number) => {
-    sendCommand(`motor/${motorNum}/stop`);
+    // Stop command stops all motors
+    sendCommand('motors?cmd=stop&disableMotors=false');
   };
 
   const goToPosition = (motorNum: number) => {
     const position = motorNum === 1 ? motor1Position : motor2Position;
     const speed = motorNum === 1 ? motor1Speed : motor2Speed;
-    sendCommand(`motor/${motorNum}/goto?pos=${position}&speed=${speed}`);
+    const axisIdx = motorNum - 1; // Convert motor number to axis index (0 or 1)
+    
+    // Build command: absolute move to position using modern pos=[x,y] array format
+    // Speed is sent as percentage (100 = 100% of max speed)
+    const speedPercent = Math.round(speed * 100);
+    // Build pos array with null for other axis
+    const pos = axisIdx === 0 ? `[${position},null]` : `[null,${position}]`;
+    const command = `motors?cmd=motion&mode=abs&speed=${speedPercent}&pos=${pos}&nosplit=1`;
+    sendCommand(command);
   };
 
   const homeMotor = (motorNum: number) => {
-    sendCommand(`motor/${motorNum}/home`);
+    // Start homing pattern
+    const command = 'motors?cmd=startPattern&pattern=homing&forMs=30000';
+    sendCommand(command);
   };
 
   return (

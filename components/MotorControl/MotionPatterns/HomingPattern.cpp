@@ -238,11 +238,9 @@ void HomingPattern::sendRotate(int axis, int dir)
 
     MotionArgs args;
     args.clear();
-    args.setFeedrateUnitsPerMin(_feedrate);
-    args.setRelative(true);
+    args.setMode("pos-rel-steps-noramp");  // Relative steps, no ramping
+    args.setSpeed(String(_feedrate) + "upm");  // Units per minute
     args.setDoNotSplitMove(true);
-    args.setRamped(false);
-    args.setUnitsSteps(true);
 
     AxesValues<AxisPosDataType>& axisVals = args.getAxesPos();
     axisVals.setVal(axis, steps);
@@ -258,8 +256,8 @@ void HomingPattern::sendMoveTo(int axis, double pos, bool homing)
 {
     MotionArgs args;
     args.clear();
-    args.setFeedrateUnitsPerMin(_feedrate);
-    args.setRelative(false);
+    args.setMode("abs");  // Absolute position in units
+    args.setSpeed(String(_feedrate) + "upm");  // Units per minute
 
     AxesValues<AxisPosDataType>& posVals = args.getAxesPos();
     posVals.setVal(axis, pos);
@@ -326,8 +324,8 @@ void HomingPattern::sendMoveToOrigin()
     // Move all axes to origin
     MotionArgs args;
     args.clear();
-    args.setFeedrateUnitsPerMin(_feedrate);
-    args.setRelative(false);
+    args.setMode("abs");  // Absolute position in units
+    args.setSpeed(String(_feedrate) + "upm");  // Units per minute
 
     AxesValues<AxisPosDataType>& posVals = args.getAxesPos();
     for (int i = 0; i < _numAxes; i++)

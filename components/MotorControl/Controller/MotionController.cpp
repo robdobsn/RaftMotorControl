@@ -183,27 +183,11 @@ RaftRetCode MotionController::moveTo(MotionArgs &args, String* respMsg)
             args.toJSON().c_str());
 #endif
 
-    // Handle stop
-    if (args.isStopMotion())
+    // Handle immediate execution (stop current motion, clear queue, then execute this motion)
+    if (args.isImmediateExecution())
     {
         _rampGenerator.stop();
-    }
-    
-    // Handle clear queue
-    if (args.isClearQueue())
-    {
         _blockManager.clear();
-    }
-
-    // Handle disable motors
-    if (!args.isEnableMotors())
-    {
-        _motorEnabler.enableMotors(false, false);
-#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
-        uint64_t totalTimeUs = micros() - startTimeUs;
-        LOG_I(MODULE_PREFIX, "moveTo TIMING: total=%lluus cmd=disableMotors", totalTimeUs);
-#endif
-        return RAFT_OK;
     }
 
     // Check motion type
@@ -235,6 +219,26 @@ void MotionController::pause(bool pauseIt)
     _rampGenerator.pause(pauseIt);
     // _trinamicsController.pause(pauseIt);
     _isPaused = pauseIt;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Stop all motion immediately (clears queue and stops ramp generator)
+/// @param disableMotors If true, disable motors after stopping
+void MotionController::stopAll(bool disableMotors)
+{
+    // Stop the ramp generator (halts current step generation)
+    _rampGenerator.stop();
+    
+    // Clear the motion queue (removes all pending motion blocks)
+    _blockManager.clear();
+    
+    // Optionally disable motors
+    if (disableMotors)
+    {
+        _motorEnabler.enableMotors(false, false);
+    }
+    
+    _isPaused = false;  // Not paused, fully stopped
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

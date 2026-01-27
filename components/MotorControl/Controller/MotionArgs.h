@@ -23,136 +23,179 @@ public:
     {
         clear();
     }
+    
     void clear()
     {
-        // Versioning - as this structure might be used in a binary
-        // fashion
+        // Versioning
         _motionArgsStructVersion = MULTISTEPPER_MOTION_ARGS_BINARY_FORMAT_1;
 
+        // Motion mode (default to absolute position in units)
+        _mode = "abs";
+
+        // Speed (empty means use 100% of config max)
+        _speed = "";
+
+        // Motor current (0 means use default)
+        _motorCurrent = 0;
+
         // Flags
-        _isRelative = false;
-        _rampedMotion = true;
-        _unitsAreSteps = false;
         _dontSplitMove = false;
         _extrudeValid = false;
-        _targetSpeedValid = false;
         _moveClockwise = false;
         _moveRapid = false;
         _moreMovesComing = false;
         _motionTrackingIndexValid = false;
-        _isHoming = false;
-        _feedrateUnitsPerMin = false;
-        _enableMotors = true;
-        _preClearMotionQueue = false;
-        _stopMotion = false; 
-        _constrainToBounds = false;    
+        _constrainToBounds = false;
+        _immediateExecution = false;
 
-        // Reset values to sensible levels
-        _targetSpeed = 0;
-        _feedrate = 100.0;
+        // Reset values
         _extrudeDistance = 1;
         _motionTrackingIdx = 0;
         _axesPos.clear();
+        _velocities.clear();
+        _axesSpecified.clear();
     }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Motion Mode
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    void setMode(const String& mode) { _mode = mode; }
+    String getMode() const { return _mode; }
+    
+    bool isRelative() const
+    {
+        return _mode == "rel" || _mode == "pos-rel-steps" || _mode == "pos-rel-steps-noramp";
+    }
+    
+    bool areUnitsSteps() const
+    {
+        return _mode.startsWith("pos-") && _mode.indexOf("steps") >= 0;
+    }
+    
+    bool isRamped() const
+    {
+        return _mode.indexOf("noramp") < 0;  // Ramped unless mode contains "noramp"
+    }
+    
+    bool isVelocityMode() const
+    {
+        return _mode.startsWith("vel-");
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Speed Control
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    void setSpeed(const String& speed) { _speed = speed; }
+    String getSpeed() const { return _speed; }
+
+    /// @brief Parse speed string and calculate actual speed value
+    /// @param configMaxSpeedUps Maximum configured speed in units/sec for the axis
+    /// @return Speed in units/sec, automatically capped by configMaxSpeedUps
+    double getSpeedUps(double configMaxSpeedUps) const
+    {
+        // Empty speed means use 100% of config max
+        if (_speed.length() == 0)
+            return configMaxSpeedUps;
+
+        // Check if numeric (percentage)
+        bool isNumeric = true;
+        for (size_t i = 0; i < _speed.length(); i++)
+        {
+            if (!isdigit(_speed[i]) && _speed[i] != '.' && _speed[i] != '-')
+            {
+                isNumeric = false;
+                break;
+            }
+        }
+
+        double requestedSpeed;
+        
+        if (isNumeric)
+        {
+            // Numeric value is percentage
+            double percent = _speed.toDouble();
+            requestedSpeed = configMaxSpeedUps * (percent / 100.0);
+        }
+        else
+        {
+            // Parse string with units
+            double value = _speed.toDouble();  // Extract numeric part
+            
+            if (_speed.endsWith("pc") || _speed.endsWith("percent"))
+            {
+                requestedSpeed = configMaxSpeedUps * (value / 100.0);
+            }
+            else if (_speed.endsWith("ups") || _speed.endsWith("unitsps"))
+            {
+                requestedSpeed = value;
+            }
+            else if (_speed.endsWith("upm") || _speed.endsWith("unitspm"))
+            {
+                requestedSpeed = value / 60.0;
+            }
+            else if (_speed.endsWith("mmps"))
+            {
+                requestedSpeed = value;  // Assumes axis units are mm
+            }
+            else if (_speed.endsWith("mmpm"))
+            {
+                requestedSpeed = value / 60.0;  // Assumes axis units are mm
+            }
+            else if (_speed.endsWith("sps"))
+            {
+                requestedSpeed = value;  // Steps per second (caller handles conversion)
+            }
+            else
+            {
+                // Unknown suffix, treat as percentage
+                requestedSpeed = configMaxSpeedUps * (value / 100.0);
+            }
+        }
+        
+        // Always cap by configuration maximum (safety limit)
+        if (requestedSpeed > configMaxSpeedUps)
+            requestedSpeed = configMaxSpeedUps;
+            
+        return requestedSpeed;
+    }
+
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // Motor Current
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+    void setMotorCurrent(double current) { _motorCurrent = current; }
+    double getMotorCurrent() const { return _motorCurrent; }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Motion Flags
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    void setRamped(bool flag)
-    {
-        _rampedMotion = flag;
-    }
-    bool isRamped() const
-    {
-        return _rampedMotion;
-    }
-    void setRelative(bool flag)
-    {
-        _isRelative = flag;
-    }
-    bool isRelative() const
-    {
-        return _isRelative;
-    }
-    void setDoNotSplitMove(bool flag)
-    {
-        _dontSplitMove = flag;
-    }
-    bool dontSplitMove() const
-    {
-        return _dontSplitMove;
-    }
-    void setMoveRapid(bool flag)
-    {
-        _moveRapid = flag;
-    }
-    bool isMoveRapid()
-    {
-        return _moveRapid;
-    }
-    void setClockwise(bool flag)
-    {
-        _moveClockwise = flag;
-    }
-    bool isMoveClockwise()
-    {
-        return _moveClockwise;
-    }
-    void setUnitsSteps(bool flag)
-    {
-        _unitsAreSteps = flag;
-    }
-    bool areUnitsSteps()
-    {
-        return _unitsAreSteps;
-    }
-    bool isEnableMotors() const
-    {
-        return _enableMotors;
-    }
-    bool isClearQueue() const
-    {
-        return _preClearMotionQueue;
-    }
-    bool isStopMotion() const
-    {
-        return _stopMotion;
-    }
-    bool constrainToBounds() const
-    {
-        return _constrainToBounds;
-    }
+    void setDoNotSplitMove(bool flag) { _dontSplitMove = flag; }
+    bool dontSplitMove() const { return _dontSplitMove; }
+    
+    void setMoveRapid(bool flag) { _moveRapid = flag; }
+    bool isMoveRapid() const { return _moveRapid; }
+    
+    void setClockwise(bool flag) { _moveClockwise = flag; }
+    bool isMoveClockwise() const { return _moveClockwise; }
+    
+    void setConstrainToBounds(bool flag) { _constrainToBounds = flag; }
+    bool constrainToBounds() const { return _constrainToBounds; }
+    
+    void setImmediateExecution(bool flag) { _immediateExecution = flag; }
+    bool isImmediateExecution() const { return _immediateExecution; }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get axis positions
-    /// @return AxesValues<AxisPosDataType>
-    /// @note The values may be modified by the kinematics so this cannot be const
-    AxesValues<AxisPosDataType>& getAxesPos()
-    {
-        return _axesPos;
-    }
-
+    // Axis Positions
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get Axis positions const
-    /// @return const AxesValues<AxisPosDataType>&
-    const AxesValues<AxisPosDataType>& getAxesPosConst() const
-    {
-        return _axesPos;
-    }
 
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Get axes specified (which axes are specified in the command)
-    /// @return AxesValues<AxisSpecifiedDataType>
-    /// @note The values may be modified by the kinematics so this cannot be const
-    AxesValues<AxisSpecifiedDataType>& getAxesSpecified()
-    {
-        return _axesSpecified;
-    }
-
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// @brief Set axes positions
-    /// @param axisPositions AxesValues<AxisPosDataType>
+    AxesValues<AxisPosDataType>& getAxesPos() { return _axesPos; }
+    const AxesValues<AxisPosDataType>& getAxesPosConst() const { return _axesPos; }
+    
+    AxesValues<AxisSpecifiedDataType>& getAxesSpecified() { return _axesSpecified; }
+    
     void setAxesPositions(const AxesValues<AxisPosDataType>& axisPositions)
     {
         _axesPos = axisPositions;
@@ -161,45 +204,11 @@ public:
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Target speed
+    // Velocities (for velocity mode)
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    void setTargetSpeed(AxisSpeedDataType targetSpeed)
-    {
-        _targetSpeed = targetSpeed;
-        _targetSpeedValid = true;
-    }
-    bool isTargetSpeedValid() const
-    {
-        return _targetSpeedValid;
-    }
-    AxisSpeedDataType getTargetSpeed() const
-    {
-        return _targetSpeed;
-    }
-
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Feedrate percent
-    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-    void setFeedratePercent(double feedrate)
-    {
-        _feedrate = feedrate;
-        _feedrateUnitsPerMin = false;
-    }
-    void setFeedrateUnitsPerMin(double feedrate)
-    {
-        _feedrate = feedrate;
-        _feedrateUnitsPerMin = true;
-    }
-    double getFeedrate() const
-    {
-        return _feedrate;
-    }
-    bool isFeedrateUnitsPerMin() const
-    {
-        return _feedrateUnitsPerMin;
-    }
+    AxesValues<AxisPosDataType>& getVelocities() { return _velocities; }
+    const AxesValues<AxisPosDataType>& getVelocitiesConst() const { return _velocities; }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Extrusion
@@ -210,17 +219,11 @@ public:
         _extrudeDistance = extrude;
         _extrudeValid = true;
     }
-    bool isExtrudeValid() const
-    {
-        return _extrudeValid;
-    }
-    AxisDistDataType getExtrudeDist() const
-    {
-        return _extrudeDistance;
-    }    
+    bool isExtrudeValid() const { return _extrudeValid; }
+    AxisDistDataType getExtrudeDist() const { return _extrudeDistance; }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Motion tracking
+    // Motion Tracking
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     void setMotionTrackingIndex(uint32_t motionTrackingIdx)
@@ -228,129 +231,82 @@ public:
         _motionTrackingIdx = motionTrackingIdx;
         _motionTrackingIndexValid = true;
     }
-    bool isMotionTrackingIndexValid() const
-    {
-        return _motionTrackingIndexValid;
-    }
-    uint32_t getMotionTrackingIndex() const
-    {
-        return _motionTrackingIdx;
-    }
+    bool isMotionTrackingIndexValid() const { return _motionTrackingIndexValid; }
+    uint32_t getMotionTrackingIndex() const { return _motionTrackingIdx; }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // Hint that more movement is expected (allows optimization of pipeline processing)
+    // More Moves Coming Hint
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    void setMoreMovesComing(bool moreMovesComing)
-    {
-        _moreMovesComing = moreMovesComing;
-    }
-    bool getMoreMovesComing() const
-    {
-        return _moreMovesComing;
-    }
+    void setMoreMovesComing(bool moreMovesComing) { _moreMovesComing = moreMovesComing; }
+    bool getMoreMovesComing() const { return _moreMovesComing; }
 
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
-    // End stops
-    ///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // End Stops
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-    void setEndStops(AxisEndstopChecks endstops)
-    {
-        _endstops = endstops;
-    }
+    void setEndStops(AxisEndstopChecks endstops) { _endstops = endstops; }
+    const AxisEndstopChecks& getEndstopCheck() const { return _endstops; }
+    
     void setTestAllEndStops()
     {
         _endstops.all();
         LOG_I("MotionArgs", "Test all endstops");
     }
-
-    void setTestNoEndStops()
-    {
-        _endstops.clear();
-    }
-
-    void setTestEndStopsDefault()
-    {
-        _endstops.clear();
-    }
-
+    void setTestNoEndStops() { _endstops.clear(); }
+    void setTestEndStopsDefault() { _endstops.clear(); }
     void setTestEndStop(int axisIdx, int endStopIdx, AxisEndstopChecks::AxisMinMaxEnum checkType)
     {
         _endstops.set(axisIdx, endStopIdx, checkType);
     }
 
-    const AxisEndstopChecks &getEndstopCheck() const
-    {
-        return _endstops;
-    }
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    // JSON Serialization
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     void fromJSON(const char* jsonStr);
     String toJSON();
 
 private:
-
     // Version of this structure
     uint8_t _motionArgsStructVersion = 0;
 
+    // Motion mode: "abs", "rel", "pos-abs-steps", "pos-rel-steps", 
+    // "pos-abs-steps-noramp", "pos-rel-steps-noramp", "vel", "vel-steps"
+    String _mode = "abs";
+
+    // Speed: numeric (percentage) or string with units ("10mmps", "500upm", "80pc", etc.)
+    String _speed = "";
+
+    // Motor current as percentage of max
+    double _motorCurrent = 0;
+
     // Flags
-    bool _isRelative = false;
-    bool _rampedMotion = true;
-    bool _unitsAreSteps = false;
     bool _dontSplitMove = false;
     bool _extrudeValid = false;
-    bool _targetSpeedValid = false;
     bool _moveClockwise = false;
     bool _moveRapid = false;
     bool _moreMovesComing = false;
-    bool _isHoming = false;
     bool _motionTrackingIndexValid = false;
-    bool _feedrateUnitsPerMin = false;
-    bool _enableMotors = false;
-    bool _preClearMotionQueue = false;
-    bool _stopMotion = false;
     bool _constrainToBounds = false;
-
-    // Boolean flags
-    class FieldDefType {
-    public:
-        FieldDefType(const char* name, void* pValue, const char* dataType, std::vector<String> aliases = {})
-        {
-            _name = name;
-            _pValue = pValue;
-            _dataType = dataType;
-            _aliases = aliases;
-        }
-        String _name;
-        void* _pValue;
-        String _dataType;
-        std::vector<String> _aliases;
-    };
-    std::vector<FieldDefType> getFieldDefs();
-
-    // Target speed (like an absolute feedrate)
-    double _targetSpeed = 0;
+    bool _immediateExecution = false;  // Stop, clear queue, then execute this motion
 
     // Extrude distance
     double _extrudeDistance = 0;
 
-    // Feedrate is a percentage (unless _feedrateUnitsPerMin is set)
-    double _feedrate = 100;
-
-    // Current as percentage of max current
-    double _ampsPercentOfMax = 0;
-
-    // Motion tracking index - used to track execution of motion requests
+    // Motion tracking index
     uint32_t _motionTrackingIdx = 0;
 
     // End stops
     AxisEndstopChecks _endstops;
 
-    // Coords
-    // When _unitsAreSteps flag is true these represent the position in steps
-    // When _unitsAreSteps flag is false units are axes units (defined in axes config)
+    // Position coordinates (for position modes)
     AxesValues<AxisPosDataType> _axesPos;
 
-    // When used as a command argument some axes may not be specified
+    // Velocities (for velocity modes)
+    AxesValues<AxisPosDataType> _velocities;
+
+    // Axes specified flags
     AxesValues<AxisSpecifiedDataType> _axesSpecified;
 
     // Debug

@@ -2,7 +2,7 @@ dependencies:
   idf:
     source:
       type: idf
-    version: 5.5.1
+    version: 5.5.2
   joltwallet/littlefs:
     component_hash: 1808d73e99168f6f3c26dd31799a248484762b3a320ec4962dec11a145f4277f
     dependencies:
@@ -17,5 +17,5 @@ direct_dependencies:
 - idf
 - joltwallet/littlefs
 manifest_hash: dd5885df67fa72b61e63e31c91d03d864527cb0e9e96091b389fc2ce404da641
-target: esp32
+target: esp32s3
 version: 2.0.0

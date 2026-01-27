@@ -61,14 +61,88 @@ raft b -i
 
 ## API Commands
 
-The UI sends REST commands to the firmware via WebSocket:
+The UI sends REST commands to the firmware via WebSocket. The commands are routed through MainSysMod to the MotorControl device.
 
-- `motor/1/move?steps=200&speed=50` - Move motor 1
-- `motor/1/goto?pos=1000&speed=75` - Go to position
-- `motor/1/stop` - Emergency stop
-- `motor/1/home` - Home motor
+### Command Format
 
-Adjust these commands in `MotorControl.tsx` to match your firmware API.
+Commands use URL query parameter format that gets converted to JSON:
+
+```
+motors?cmd=<command>&param1=value1&param2=value2...
+```
+
+### Supported Commands
+
+#### Motion Command
+```
+motors?cmd=motion&mode=<mode>&speed=<speed>&pos0=<pos0>&pos1=<pos1>&nosplit=1
+```
+- **mode**: `abs` (absolute), `rel` (relative), `pos-abs-steps` (absolute steps), `pos-rel-steps` (relative steps)
+- **speed**: Speed in units per minute (e.g., `3000upm`)
+- **pos0**, **pos1**: Target positions for each axis
+- **nosplit**: `1` to disable path splitting, `0` to allow splitting
+- **imm**: `1` to stop and clear queue first, `0` for normal queuing
+
+Examples:
+```
+motors?cmd=motion&mode=abs&speed=3000upm&pos0=100&pos1=200&nosplit=1
+motors?cmd=motion&mode=pos-rel-steps&speed=1200upm&pos0=200&pos1=-200&nosplit=1
+```
+
+#### Stop Command
+```
+motors?cmd=stop&disableMotors=<true|false>
+```
+- **disableMotors**: `true` to disable motors after stopping, `false` to keep enabled
+
+Example:
+```
+motors?cmd=stop&disableMotors=false
+```
+
+#### Set Origin Command
+```
+motors?cmd=setOrigin
+```
+Sets current position as origin (0, 0).
+
+#### Homing Pattern Command
+```
+motors?cmd=startPattern&pattern=homing&forMs=30000
+```
+- **pattern**: Pattern name (e.g., `homing`)
+- **forMs**: Maximum runtime in milliseconds
+
+#### Stop Pattern Command
+```
+motors?cmd=stopPattern
+```
+Stops currently running motion pattern.
+
+#### Max Current Command
+```
+motors?cmd=maxCurrent&axisIdx=0&maxCurrentA=1.5
+```
+- **axisIdx**: Axis index (0 or 1)
+- **maxCurrentA**: Maximum current in amps
+
+#### Motor Off Timer Command
+```
+motors?cmd=offAfter&offAfterS=10
+```
+- **offAfterS**: Time in seconds before motors turn off after movement
+
+### Command Processing Flow
+
+1. WebUI sends REST command via WebSocket (e.g., `motors?cmd=motion&mode=abs&speed=3000upm&pos0=100&pos1=200`)
+2. WebServer receives and forwards to ProtocolExchange
+3. ProtocolExchange decodes and routes to RestAPIEndpointManager
+4. RestAPIEndpointManager matches "motors" endpoint to MainSysMod
+5. MainSysMod converts REST parameters to JSON using `getJSONFromRESTRequest()`
+6. MainSysMod sends JSON to MotorControl device via DeviceManager
+7. MotorControl executes the command
+
+See [WebSocket_to_MotorControl_Communication.md](../../docs/WebSocket_to_MotorControl_Communication.md) for detailed architecture.
 
 ## Build Optimization
 
