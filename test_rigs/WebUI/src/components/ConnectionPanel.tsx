@@ -60,13 +60,17 @@ export default function ConnectionPanel({ connectionStatus, onMotorConnectionCha
           const motion = motorControl.motion;
           
           // Extract axes configuration if available
-          const axes = motorControl.axes?.map((axis: any) => ({
-            name: axis.name || '',
-            unitsPerRot: axis.params?.unitsPerRot || 360,
-            stepsPerRot: axis.params?.stepsPerRot || 3200,
-            maxSpeedUps: axis.params?.maxSpeedUps || 50,
-            maxAccUps2: axis.params?.maxAccUps2 || 10
-          })) || [];
+          const axes = motorControl.axes?.map((axis: any) => {
+            console.log('[CONFIG] Axis params:', axis.name, axis.params);
+            return {
+              name: axis.name || '',
+              unitsPerRot: axis.params?.unitsPerRot || 360,
+              stepsPerRot: axis.params?.stepsPerRot || 3200,
+              maxSpeedUps: axis.params?.maxSpeedUps || 50,
+              maxAccUps2: axis.params?.maxAccUps2 || 10,
+              gearFactor: axis.params?.gearFactor || 1
+            };
+          }) || [];
           
           const robotConfig = {
             geometry: motion.geom || 'SingleArmSCARA',

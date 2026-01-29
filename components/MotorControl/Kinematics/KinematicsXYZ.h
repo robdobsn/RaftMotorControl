@@ -12,6 +12,8 @@
 #include "AxesParams.h"
 
 // #define DEBUG_KINEMATICS_XYZ
+// #define DEBUG_KINEMATICS_XYZ_BOUNDS
+// #define WARN_KINEMATICS_XYZ_OUT_OF_BOUNDS
 
 class KinematicsXYZ : public RaftKinematics
 {
@@ -36,28 +38,50 @@ public:
     /// @param outActuator Output actuator in absolute steps from origin
     /// @param curAxesState Current position (in both units and steps from origin)
     /// @param axesParams Axes parameters
-    /// @param constrainToBounds Constrain out of bounds (if not constrained then return false if the point is OOB and OOB is not allowed)
+    /// @param args Motion arguments (includes out of bounds action)
     /// @return false if out of bounds or invalid
     virtual bool ptToActuator(const AxesValues<AxisPosDataType>& targetPt,
                               AxesValues<AxisStepsDataType>& outActuator,
                               const AxesState& curAxesState,
                               const AxesParams& axesParams,
-                              bool constrainToBounds) const override final
+                              OutOfBoundsAction outOfBoundsAction) const override final
     {
-        // Check machine bounds
+        // Check machine bounds (only checks axes with explicitly set bounds)
         AxesValues<AxisPosDataType> targetPtCopy = targetPt;
         bool pointIsValid = axesParams.ptInBounds(targetPt);
+        
         if (!pointIsValid)
         {
-            if (constrainToBounds)
+            // Bounds are set AND point is outside them
+            switch (outOfBoundsAction)
             {
-                // Constrain to bounds
-                axesParams.constrainPtToBounds(targetPtCopy);
-            }
-            else if (!axesParams.allowOutOfBounds())
-            {
-                LOG_I(MODULE_PREFIX, "ptToActuator FAIL out of bounds");
-                return false;
+                case OutOfBoundsAction::ALLOW:
+                    // Allow out of bounds, no modification
+#ifdef DEBUG_KINEMATICS_XYZ_BOUNDS
+                    LOG_I(MODULE_PREFIX, "ptToActuator: OOB allowed X=%.2f Y=%.2f", 
+                          targetPt.getVal(0), targetPt.getVal(1));
+#endif
+                    break;
+                    
+                case OutOfBoundsAction::CLAMP:
+                    // Constrain to bounds
+                    axesParams.constrainPtToBounds(targetPtCopy);
+#ifdef DEBUG_KINEMATICS_XYZ_BOUNDS
+                    LOG_I(MODULE_PREFIX, "ptToActuator: OOB clamped from (%.2f,%.2f) to (%.2f,%.2f)", 
+                          targetPt.getVal(0), targetPt.getVal(1),
+                          targetPtCopy.getVal(0), targetPtCopy.getVal(1));
+#endif
+                    break;
+                    
+                case OutOfBoundsAction::DISCARD:
+                case OutOfBoundsAction::USE_DEFAULT:  // Should not happen after getEffective()
+                default:
+                    // Reject the move
+#ifdef WARN_KINEMATICS_XYZ_OUT_OF_BOUNDS
+                    LOG_W(MODULE_PREFIX, "ptToActuator FAIL out of bounds X=%.2f Y=%.2f", 
+                          targetPt.getVal(0), targetPt.getVal(1));
+#endif
+                    return false;
             }
         }
 

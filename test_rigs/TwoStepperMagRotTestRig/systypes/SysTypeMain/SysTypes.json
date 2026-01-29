@@ -42,10 +42,13 @@
           }
         },
         "motion": {
-          "geom": "XYZ",
+          "geom": "SingleArmSCARA",
           "blockDistMM": 10,
           "homeBeforeMove": 0,
           "maxJunctionDeviationMM": 0.05,
+          "arm1LenMM": 150,
+          "arm2LenMM": 150,
+          "maxRadiusMM": 290,
           "originTheta2OffsetDegrees": 180
         },
         "ramp": {
@@ -64,6 +67,7 @@
             "params": {
                 "unitsPerRot": 360,
                 "stepsPerRot": 3200,
+                "gearFactor": 1,
                 "maxSpeedUps": 50,
                 "maxAccUps2": 10
             },
@@ -105,6 +109,7 @@
             "params": {
                 "unitsPerRot": 360,
                 "stepsPerRot": 3200,
+                "gearFactor": 1,
                 "maxSpeedUps": 50,
                 "maxAccUps2": 10
             },
@@ -114,7 +119,7 @@
               "addr": 1,
               "stepPin": "17",
               "dirnPin": "18",
-              "invDirn": 0,
+              "invDirn": 1,
               "writeOnly": 0,
               "extSenseOhms": 0.15,
               "extVRef": 0,

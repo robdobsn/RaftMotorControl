@@ -17,9 +17,9 @@
 #define WARN_KINEMATICS_SA_SCARA_POS_OUT_OF_BOUNDS
 
 // Debug
-// #define DEBUG_KINEMATICS_SA_SCARA
-// #define DEBUG_KINEMATICS_SA_SCARA_SETUP
-// #define DEBUG_KINEMATICS_SA_SCARA_RELATIVE_ANGLE
+#define DEBUG_KINEMATICS_SA_SCARA
+#define DEBUG_KINEMATICS_SA_SCARA_SETUP
+#define DEBUG_KINEMATICS_SA_SCARA_RELATIVE_ANGLE
 
 class KinematicsSingleArmSCARA : public RaftKinematics
 {
@@ -52,13 +52,13 @@ public:
     /// @param outActuator Output actuator in absolute steps from origin
     /// @param curAxesState Current position (in both units and steps from origin)
     /// @param axesParams Axes parameters
-    /// @param constrainToBounds Constrain out of bounds (if not constrained then return false if the point is out of bounds)
+    /// @param args Motion arguments (includes out of bounds action)
     /// @return false if out of bounds or invalid
     virtual bool ptToActuator(const AxesValues<AxisPosDataType>& targetPt,
                               AxesValues<AxisStepsDataType>& outActuator,
                               const AxesState& curAxesState,
                               const AxesParams& axesParams,
-                              bool constrainToBounds) const override final
+                              OutOfBoundsAction outOfBoundsAction) const override final
     {
         // Convert the current position to angles wrapped 0..360 degrees
         AxesValues<AxisCalcDataType> curAngles;
@@ -412,7 +412,7 @@ public:
 
             // Try inverse kinematics
             AxesValues<AxisStepsDataType> actuatorCoords;
-            bool valid = ptToActuator(testPt, actuatorCoords, testState, axesParams, false);
+            bool valid = ptToActuator(testPt, actuatorCoords, testState, axesParams, OutOfBoundsAction::ALLOW);
             
             if (!valid)
             {

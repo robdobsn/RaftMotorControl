@@ -71,6 +71,10 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
             a1: 0.5 + 0.5 * Math.sin(angle),
           });
         }
+        // Close the circle by adding the first point at the end
+        if (points.length > 0) {
+          points.push({ ...points[0] });
+        }
         break;
 
       case 'rectangle':
@@ -91,6 +95,10 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
         for (let i = 0; i < pointsPerSide; i++) {
           points.push({ a0: 0, a1: 1 - i / pointsPerSide });
         }
+        // Close the rectangle by adding the first point at the end
+        if (points.length > 0) {
+          points.push({ ...points[0] });
+        }
         break;
 
       case 'lissajous1':
@@ -101,6 +109,10 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
             a0: 0.5 + 0.5 * Math.sin(t),
             a1: 0.5 + 0.5 * Math.sin(t + Math.PI / 2),
           });
+        }
+        // Close the lissajous curve
+        if (points.length > 0) {
+          points.push({ ...points[0] });
         }
         break;
 
@@ -113,6 +125,10 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
             a1: 0.5 + 0.5 * Math.sin(2 * t),
           });
         }
+        // Close the lissajous curve
+        if (points.length > 0) {
+          points.push({ ...points[0] });
+        }
         break;
 
       case 'lissajous3':
@@ -124,6 +140,10 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
             a1: 0.5 + 0.5 * Math.sin(4 * t + Math.PI / 2),
           });
         }
+        // Close the lissajous curve
+        if (points.length > 0) {
+          points.push({ ...points[0] });
+        }
         break;
 
       case 'figure8':
@@ -133,6 +153,10 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
             a0: 0.5 + 0.5 * Math.sin(t),
             a1: 0.5 + 0.25 * Math.sin(2 * t),
           });
+        }
+        // Close the figure-8
+        if (points.length > 0) {
+          points.push({ ...points[0] });
         }
         break;
 
@@ -277,6 +301,13 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
             await new Promise(resolve => setTimeout(resolve, delayMs));
           }
         }
+      }
+
+      // Return to origin after completing all repetitions
+      if (!executionRef.current.shouldStop) {
+        await new Promise(resolve => setTimeout(resolve, delayMs));
+        await sendMoveCommand({ a0: 0, a1: 0 }, speed);
+        console.log('Returned to origin (0, 0)');
       }
 
       if (!executionRef.current.shouldStop) {

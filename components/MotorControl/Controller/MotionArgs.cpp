@@ -40,7 +40,17 @@ void MotionArgs::fromJSON(const char* jsonStr)
     _moveClockwise = cmdJson.getBool("cw", false);
     _moveRapid = cmdJson.getBool("rapid", false);
     _moreMovesComing = cmdJson.getBool("more", false);
-    _constrainToBounds = cmdJson.getBool("constrain", false);
+    
+    // Parse outOfBounds string value
+    String oobStr = cmdJson.getString("outOfBounds", "");
+    if (oobStr == "allow" || oobStr == "ok")
+        _outOfBoundsAction = OutOfBoundsAction::ALLOW;
+    else if (oobStr == "clamp" || oobStr == "constrain")
+        _outOfBoundsAction = OutOfBoundsAction::CLAMP;
+    else if (oobStr == "discard" || oobStr == "reject")
+        _outOfBoundsAction = OutOfBoundsAction::DISCARD;
+    // If not specified, USE_DEFAULT (inherits from SysType)
+    
     _immediateExecution = cmdJson.getBool("imm", false);
 
     // Get extrude distance (if present)
@@ -72,6 +82,9 @@ void MotionArgs::fromJSON(const char* jsonStr)
     // Parse array format: [100.0, 50.0, null, 25.0]
     for (size_t axisIdx = 0; axisIdx < valueList.size() && axisIdx < MULTISTEPPER_MAX_AXES; axisIdx++)
     {
+#ifdef DEBUG_MOTION_ARGS
+        LOG_I(MODULE_PREFIX, "fromJSON %s[%d] valueString='%s'", arrayName, axisIdx, valueList[axisIdx].c_str());
+#endif
         RaftJson valueJson(valueList[axisIdx].c_str());
         int arrayLen = 0;
         if (valueJson.getType("", arrayLen) == RaftJson::RAFT_JSON_NUMBER)
@@ -138,8 +151,16 @@ String MotionArgs::toJSON()
         jsonStr += ",\"rapid\":true";
     if (_moreMovesComing)
         jsonStr += ",\"more\":true";
-    if (_constrainToBounds)
-        jsonStr += ",\"constrain\":true";
+    if (_outOfBoundsAction != OutOfBoundsAction::USE_DEFAULT)
+    {
+        jsonStr += ",\"outOfBounds\":";
+        if (_outOfBoundsAction == OutOfBoundsAction::ALLOW)
+            jsonStr += "\"allow\"";
+        else if (_outOfBoundsAction == OutOfBoundsAction::CLAMP)
+            jsonStr += "\"clamp\"";
+        else
+            jsonStr += "\"discard\"";
+    }
     if (_immediateExecution)
         jsonStr += ",\"imm\":true";
 

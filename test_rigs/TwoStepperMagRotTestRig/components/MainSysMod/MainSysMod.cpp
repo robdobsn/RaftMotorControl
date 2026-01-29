@@ -7,10 +7,13 @@
 #include "RaftCore.h"
 #include "MainSysMod.h"
 #include "ExecTimer.h"
+#include "DeviceTypeRecords_generated.h"
+#include "DevicePollRecords_generated.h"
 
 #define WARN_ON_API_CONTROL_FAIL
 #define DEBUG_API_CONTROL
 #define DEBUG_INFO_API_CONTROL_TIMINGS
+// #define DEBUG_SENSOR_DEVICE_CALLBACK
 
 MainSysMod::MainSysMod(const char *pModuleName, RaftJsonIF& sysConfig)
     : RaftSysMod(pModuleName, sysConfig)
@@ -23,6 +26,8 @@ MainSysMod::~MainSysMod()
 
 void MainSysMod::setup()
 {
+    // Register for sensor data
+    registerForSensorData();
 }
 
 void MainSysMod::loop()
@@ -124,4 +129,77 @@ RaftDevice* MainSysMod::getMotorDevice() const
     if (!pMotor)
         return nullptr;
     return pMotor;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Register for data from magnetic encoder devices
+void MainSysMod::registerForSensorData()
+{
+    // Get device manager
+    DeviceManager* pDevMan = getSysManager()->getDeviceManager();
+    if (!pDevMan)
+        return;
+
+    // Get MotorControl device to send sensor data to
+    RaftDevice* pMotorControl = getMotorDevice();
+
+    // Register for device data notifications from MT6701 (Joint 1)
+    pDevMan->registerForDeviceData("I2CA_6@0", 
+        [this, pMotorControl](uint32_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo) {
+
+            // Decode device data
+            poll_MT6701 deviceData;
+            DeviceTypeRecordDecodeFn pDecodeFn = deviceTypeRecords.getPollDecodeFn(deviceTypeIdx);
+            if (pDecodeFn)
+            {
+                pDecodeFn(data.data(), data.size(), &deviceData, sizeof(deviceData), 1, _decodeStateMT6701);
+                _mt6701Angle = deviceData.angle;
+                _mt6701LastUpdateMs = millis();
+
+#ifdef DEBUG_SENSOR_DEVICE_CALLBACK
+                LOG_I(MODULE_PREFIX, "MT6701 callback: angle=%.2f", deviceData.angle);
+#endif
+
+                // Set named value in MotorControl
+                if (pMotorControl)
+                {
+                    char valStr[50];
+                    snprintf(valStr, sizeof(valStr), "%.2f", deviceData.angle);
+                    pMotorControl->setNamedValue("sensor1", valStr, true);
+                }
+            }
+        },
+        50  // Update rate ms
+    );
+
+    // Register for device data notifications from AS5600 (Joint 2)
+    pDevMan->registerForDeviceData("I2CA_36@0", 
+        [this, pMotorControl](uint32_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo) {
+
+            // Decode device data
+            poll_AS5600 deviceData;
+            DeviceTypeRecordDecodeFn pDecodeFn = deviceTypeRecords.getPollDecodeFn(deviceTypeIdx);
+            if (pDecodeFn)
+            {
+                pDecodeFn(data.data(), data.size(), &deviceData, sizeof(deviceData), 1, _decodeStateAS5600);
+                _as5600Angle = deviceData.angle;
+                _as5600LastUpdateMs = millis();
+
+#ifdef DEBUG_SENSOR_DEVICE_CALLBACK
+                LOG_I(MODULE_PREFIX, "AS5600 callback: angle=%.2f", deviceData.angle);
+#endif
+
+                // Set named value in MotorControl
+                if (pMotorControl)
+                {
+                    char valStr[50];
+                    snprintf(valStr, sizeof(valStr), "%.2f", deviceData.angle);
+                    pMotorControl->setNamedValue("sensor2", valStr, true);
+                }
+            }
+        },
+        50  // Update rate ms
+    );
+
+    LOG_I(MODULE_PREFIX, "Registered for magnetic encoder data (MT6701 @ 0x06, AS5600 @ 0x36)");
 }

@@ -29,13 +29,13 @@ public:
     /// @param outActuator Output actuator in absolute steps from origin
     /// @param curAxesState Current position (in both units and steps from origin)
     /// @param axesParams Axes parameters
-    /// @param constrainToBounds Constrain out of bounds (if not constrained then return false if the point is out of bounds)
+    /// @param args Motion arguments (includes out of bounds action)
     /// @return false if out of bounds or invalid
     virtual bool ptToActuator(const AxesValues<AxisPosDataType>& targetPt,
                               AxesValues<AxisStepsDataType>& outActuator,
                               const AxesState& curAxesState,
                               const AxesParams& axesParams,
-                              bool constrainToBounds) const = 0;
+                              OutOfBoundsAction outOfBoundsAction) const = 0;
 
     /// @brief Convert actuator steps to a point in cartesian
     /// @param targetActuator Target actuator steps

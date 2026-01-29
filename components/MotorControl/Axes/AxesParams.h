@@ -108,7 +108,12 @@ public:
 
     bool allowOutOfBounds() const
     {
-        return _allowOutOfBounds;
+        return _outOfBoundsDefault == OutOfBoundsAction::ALLOW;
+    }
+    
+    OutOfBoundsAction getOutOfBoundsDefault() const
+    {
+        return _outOfBoundsDefault;
     }
 
     AxisPosDataType getMaxJunctionDeviationMM() const
@@ -147,15 +152,24 @@ public:
         _maxBlockDistMM = config.getDouble("motion/blockDistMM", _maxBlockDistanceMM_default);
         _maxJunctionDeviationMM = config.getDouble("motion/maxJunctionDeviationMM", maxJunctionDeviationMM_default);
         _homingNeededBeforeAnyMove = config.getBool("motion/homeBeforeMove", true);
-        _allowOutOfBounds = config.getBool("motion/allowOutOfBounds", false);
+        
+        // Parse outOfBounds string
+        String oobStr = config.getString("motion/outOfBounds", "discard");
+        if (oobStr == "allow" || oobStr == "ok")
+            _outOfBoundsDefault = OutOfBoundsAction::ALLOW;
+        else if (oobStr == "clamp" || oobStr == "constrain")
+            _outOfBoundsDefault = OutOfBoundsAction::CLAMP;
+        else
+            _outOfBoundsDefault = OutOfBoundsAction::DISCARD;
 
 #ifdef DEBUG_AXES_PARAMS
         // Debug
-        LOG_I(MODULE_PREFIX, "setupAxes geom %s blockDistMM %0.2f (0=no-max) homeBefMove %s jnDev %0.2fmm allowOOB %s",
+        LOG_I(MODULE_PREFIX, "setupAxes geom %s blockDistMM %0.2f (0=no-max) homeBefMove %s jnDev %0.2fmm outOfBounds %s",
                _geometry.c_str(), _maxBlockDistMM,
                _homingNeededBeforeAnyMove ? "Y" : "N",
                _maxJunctionDeviationMM,
-                _allowOutOfBounds ? "Y" : "N");
+                _outOfBoundsDefault == OutOfBoundsAction::ALLOW ? "allow" :
+                _outOfBoundsDefault == OutOfBoundsAction::CLAMP ? "clamp" : "discard");
 #endif
         
         // Extract sub-system elements
@@ -254,7 +268,7 @@ private:
     double _maxBlockDistMM = _maxBlockDistanceMM_default;
     bool _homingNeededBeforeAnyMove = true;
     double _maxJunctionDeviationMM = maxJunctionDeviationMM_default;
-    bool _allowOutOfBounds = false;
+    OutOfBoundsAction _outOfBoundsDefault = OutOfBoundsAction::DISCARD;
 
     // Axis parameters
     std::vector<AxisParams> _axisParams;

@@ -30,6 +30,12 @@ protected:
     // Loop (called frequently)
     virtual void loop() override final;
 
+    // Get sensor angles (for access by other modules)
+    float getMT6701Angle() const { return _mt6701Angle; }
+    float getAS5600Angle() const { return _as5600Angle; }
+    uint32_t getMT6701LastUpdateMs() const { return _mt6701LastUpdateMs; }
+    uint32_t getAS5600LastUpdateMs() const { return _as5600LastUpdateMs; }
+
 private:
     // Add REST API endpoints
     virtual void addRestAPIEndpoints(RestAPIEndpointManager &endpointManager) override final;
@@ -42,10 +48,23 @@ private:
 
     // Get motor device
     RaftDevice* getMotorDevice() const;
+
+    // Register for sensor data
+    void registerForSensorData();
     
     // Debug
     static constexpr const char *MODULE_PREFIX = "MainSysMod";
 
     // Example of how to control loop rate
     uint32_t _lastLoopMs = 0;
+
+    // Sensor data from magnetic encoders
+    float _mt6701Angle = 0.0f;
+    float _as5600Angle = 0.0f;
+    uint32_t _mt6701LastUpdateMs = 0;
+    uint32_t _as5600LastUpdateMs = 0;
+
+    // Decode states for sensor data
+    RaftBusDeviceDecodeState _decodeStateMT6701;
+    RaftBusDeviceDecodeState _decodeStateAS5600;
 };

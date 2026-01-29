@@ -75,18 +75,18 @@ motors?cmd=<command>&param1=value1&param2=value2...
 
 #### Motion Command
 ```
-motors?cmd=motion&mode=<mode>&speed=<speed>&pos0=<pos0>&pos1=<pos1>&nosplit=1
+motors?cmd=motion&mode=<mode>&speed=<speed>&pos=[<pos0>,<pos1>]&nosplit=1
 ```
 - **mode**: `abs` (absolute), `rel` (relative), `pos-abs-steps` (absolute steps), `pos-rel-steps` (relative steps)
-- **speed**: Speed in units per minute (e.g., `3000upm`)
-- **pos0**, **pos1**: Target positions for each axis
+- **speed**: Speed in units per minute (e.g., `3000upm`) or percent of max (e.g., `80`)
+- **pos**: Position array for axes (use `null` to skip an axis), e.g. `[100,200]` or `[100,null]`
 - **nosplit**: `1` to disable path splitting, `0` to allow splitting
 - **imm**: `1` to stop and clear queue first, `0` for normal queuing
 
 Examples:
 ```
-motors?cmd=motion&mode=abs&speed=3000upm&pos0=100&pos1=200&nosplit=1
-motors?cmd=motion&mode=pos-rel-steps&speed=1200upm&pos0=200&pos1=-200&nosplit=1
+motors?cmd=motion&mode=abs&speed=3000upm&pos=[100,200]&nosplit=1
+motors?cmd=motion&mode=pos-rel-steps&speed=1200upm&pos=[200,-200]&nosplit=1
 ```
 
 #### Stop Command
@@ -134,7 +134,7 @@ motors?cmd=offAfter&offAfterS=10
 
 ### Command Processing Flow
 
-1. WebUI sends REST command via WebSocket (e.g., `motors?cmd=motion&mode=abs&speed=3000upm&pos0=100&pos1=200`)
+1. WebUI sends REST command via WebSocket (e.g., `motors?cmd=motion&mode=abs&speed=3000upm&pos=[100,200]`)
 2. WebServer receives and forwards to ProtocolExchange
 3. ProtocolExchange decodes and routes to RestAPIEndpointManager
 4. RestAPIEndpointManager matches "motors" endpoint to MainSysMod

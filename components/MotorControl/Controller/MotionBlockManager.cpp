@@ -104,11 +104,11 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args, uint32_t numBloc
     {
         // Calculate start actuator coordinates (from current position)
         bool startValid = _pRaftKinematics->ptToActuator(_axesState.getUnitsFromOrigin(), 
-                _startActuatorCoords, _axesState, _axesParams, false);
+                _startActuatorCoords, _axesState, _axesParams, OutOfBoundsAction::ALLOW);
         
         // Calculate end actuator coordinates (final target)
         bool endValid = _pRaftKinematics->ptToActuator(_finalTargetPos, 
-                _endActuatorCoords, _axesState, _axesParams, true);
+                _endActuatorCoords, _axesState, _axesParams, args.getEffectiveOutOfBoundsAction(_axesParams.getOutOfBoundsDefault()));
         
         _useActuatorInterpolation = (startValid && endValid);
         
@@ -152,14 +152,14 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args, uint32_t numBloc
             // Near boundaries - validate only the endpoint to choose IK solution
             _pRaftKinematics->setPreferAlternateSolution(false);
             AxesValues<AxisStepsDataType> unusedSteps;
-            bool primaryEndpointValid = _pRaftKinematics->ptToActuator(_finalTargetPos, unusedSteps, _axesState, _axesParams, true);
+            bool primaryEndpointValid = _pRaftKinematics->ptToActuator(_finalTargetPos, unusedSteps, _axesState, _axesParams, args.getEffectiveOutOfBoundsAction(_axesParams.getOutOfBoundsDefault()));
             
             if (!primaryEndpointValid)
             {
                 // Try alternate solution
                 LOG_I(MODULE_PREFIX, "Primary IK solution invalid at endpoint, testing alternate...");
                 _pRaftKinematics->setPreferAlternateSolution(true);
-                bool alternateEndpointValid = _pRaftKinematics->ptToActuator(_finalTargetPos, unusedSteps, _axesState, _axesParams, true);
+                bool alternateEndpointValid = _pRaftKinematics->ptToActuator(_finalTargetPos, unusedSteps, _axesState, _axesParams, args.getEffectiveOutOfBoundsAction(_axesParams.getOutOfBoundsDefault()));
                 
                 if (alternateEndpointValid)
                 {
@@ -235,7 +235,7 @@ RaftRetCode MotionBlockManager::addRampedBlockSingle(const MotionArgs& args, uin
     // Calculate start actuator coordinates (IK #1)
     AxesValues<AxisStepsDataType> startActuatorCoords;
     bool startValid = _pRaftKinematics->ptToActuator(_axesState.getUnitsFromOrigin(), 
-            startActuatorCoords, _axesState, _axesParams, false);
+            startActuatorCoords, _axesState, _axesParams, OutOfBoundsAction::ALLOW);
     
     if (!startValid)
     {
@@ -248,7 +248,7 @@ RaftRetCode MotionBlockManager::addRampedBlockSingle(const MotionArgs& args, uin
     // Calculate end actuator coordinates (IK #2)
     AxesValues<AxisStepsDataType> endActuatorCoords;
     bool endValid = _pRaftKinematics->ptToActuator(args.getAxesPosConst(), 
-            endActuatorCoords, _axesState, _axesParams, true);
+            endActuatorCoords, _axesState, _axesParams, args.getEffectiveOutOfBoundsAction(_axesParams.getOutOfBoundsDefault()));
     
     if (!endValid)
     {
@@ -511,7 +511,7 @@ RaftRetCode MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipel
                 actuatorCoords, 
                 _axesState, 
                 _axesParams,
-                args.constrainToBounds());
+                args.getEffectiveOutOfBoundsAction(_axesParams.getOutOfBoundsDefault()));
     }
 #ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
     uint64_t ikTimeUs = micros() - ikStartUs;

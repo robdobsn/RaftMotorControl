@@ -12,6 +12,7 @@
 #include "AxesValues.h"
 #include "MotorControlMsgFormats.h"
 #include "AxisEndstopChecks.h"
+#include "MotorControlTypes.h"
 
 // This must be packed as it is used for binary communication
 #pragma pack(push, 1)
@@ -45,7 +46,7 @@ public:
         _moveRapid = false;
         _moreMovesComing = false;
         _motionTrackingIndexValid = false;
-        _constrainToBounds = false;
+        _outOfBoundsAction = OutOfBoundsAction::USE_DEFAULT;
         _immediateExecution = false;
 
         // Reset values
@@ -181,8 +182,14 @@ public:
     void setClockwise(bool flag) { _moveClockwise = flag; }
     bool isMoveClockwise() const { return _moveClockwise; }
     
-    void setConstrainToBounds(bool flag) { _constrainToBounds = flag; }
-    bool constrainToBounds() const { return _constrainToBounds; }
+    void setOutOfBoundsAction(OutOfBoundsAction action) { _outOfBoundsAction = action; }
+    OutOfBoundsAction getOutOfBoundsAction() const { return _outOfBoundsAction; }
+    
+    OutOfBoundsAction getEffectiveOutOfBoundsAction(OutOfBoundsAction defaultAction) const
+    {
+        return (_outOfBoundsAction == OutOfBoundsAction::USE_DEFAULT) ? 
+            defaultAction : _outOfBoundsAction;
+    }
     
     void setImmediateExecution(bool flag) { _immediateExecution = flag; }
     bool isImmediateExecution() const { return _immediateExecution; }
@@ -288,7 +295,7 @@ private:
     bool _moveRapid = false;
     bool _moreMovesComing = false;
     bool _motionTrackingIndexValid = false;
-    bool _constrainToBounds = false;
+    OutOfBoundsAction _outOfBoundsAction = OutOfBoundsAction::USE_DEFAULT;
     bool _immediateExecution = false;  // Stop, clear queue, then execute this motion
 
     // Extrude distance

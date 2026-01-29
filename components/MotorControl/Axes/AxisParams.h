@@ -12,6 +12,7 @@
 #include "Logger.h"
 #include "RaftUtils.h"
 #include "AxesValues.h"
+#include "MotorControlTypes.h"
 
 // This class holds the parameters for a single axis of a machine which may be driven by a stepper or servo
 // The parameters are used to convert between machine units and steps using kinematics which are specific to
@@ -50,6 +51,10 @@ public:
     // Min and max values for the axis in units
     AxisPosDataType _minUnits;
     AxisPosDataType _maxUnits;
+    
+    // Flags indicating if bounds were explicitly set
+    bool _minUnitsSet;
+    bool _maxUnitsSet;
 
     // Axis type
     bool _isPrimaryAxis;
@@ -73,6 +78,8 @@ public:
         _maxRPM = maxRPM_default;
         _minUnits = 0;
         _maxUnits = 0;
+        _minUnitsSet = false;
+        _maxUnitsSet = false;
         _isPrimaryAxis = true;
         _isDominantAxis = false;
         _isServoAxis = false;
@@ -87,14 +94,19 @@ public:
 
     bool ptInBounds(const AxisPosDataType &val) const
     {
-        return (val >= _minUnits) && ((_maxUnits == 0) || (val <= _maxUnits));
+        // Only check bounds that were explicitly set
+        if (_minUnitsSet && val < _minUnits)
+            return false;
+        if (_maxUnitsSet && val > _maxUnits)
+            return false;
+        return true;  // No bounds set or within bounds
     }
 
     AxisPosDataType getNearestInBoundsValue(AxisPosDataType val) const
     {
-        if (val < _minUnits)
+        if (_minUnitsSet && val < _minUnits)
             return _minUnits;
-        if ((_maxUnits != 0) && (val > _maxUnits))
+        if (_maxUnitsSet && val > _maxUnits)
             return _maxUnits;
         return val;
     }
@@ -107,8 +119,15 @@ public:
         _stepsPerRot = AxisStepsFactorDataType(config.getDouble("stepsPerRot", AxisParams::stepsPerRot_default));
         _unitsPerRot = AxisPosFactorDataType(config.getDouble("unitsPerRot", AxisParams::posUnitsPerRot_default));
         _maxRPM = AxisRPMDataType(config.getDouble("maxRPM", AxisParams::maxRPM_default));
-        _minUnits = AxisPosDataType(config.getDouble("minUnits", 0));
-        _maxUnits = AxisPosDataType(config.getDouble("maxUnits", 0));
+        
+        // Check if bounds were explicitly set and parse them
+        _minUnitsSet = config.contains("minUnits");
+        _maxUnitsSet = config.contains("maxUnits");
+        if (_minUnitsSet)
+            _minUnits = AxisPosDataType(config.getDouble("minUnits", 0));
+        if (_maxUnitsSet)
+            _maxUnits = AxisPosDataType(config.getDouble("maxUnits", 0));
+            
         _isDominantAxis = config.getBool("isDominantAxis", 0);
         _isPrimaryAxis = config.getBool("isPrimaryAxis", 1);
         _isServoAxis = config.getBool("isServoAxis", 0);

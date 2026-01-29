@@ -4,6 +4,9 @@ import { RobotConfig } from '../App';
 
 const connManager = ConnManager.getInstance();
 
+// Debug flag - set to true to log sensor readings and computed angles
+const DEBUG_ANGLE_LOGGING = true;
+
 interface RobotVisualizationProps {
   lastUpdate: number;
   robotConfig: RobotConfig | null;
@@ -23,8 +26,8 @@ const SINGLE_ARM_SCARA_CONFIG = {
   link1Length: 150, // Length of first link in mm
   link2Length: 150, // Length of second link in mm
   scale: 0.8,       // Scale factor for display
-  invertJoint1: true,  // Joint 1 (shoulder) rotation direction - INVERTED
-  invertJoint2: false, // Joint 2 (elbow) rotation direction - NOT inverted
+  invertJoint1: false, // Both joints report absolute angles from X-axis
+  invertJoint2: false, // Both joints report absolute angles from X-axis
   invertAngleDirection: true, // Anti-clockwise positive (0° at +X axis, positive CCW)
 };
 
@@ -52,8 +55,8 @@ interface PositionHistoryPoint {
   timestamp: number;
 }
 
-const TRAIL_DURATION_MS = 5000; // 5 seconds
-const TRAIL_MAX_POINTS = 100; // Limit number of points
+const DEFAULT_TRAIL_DURATION_MS = 5000; // 5 seconds default fade
+const TRAIL_MAX_POINTS = 2000; // Limit number of points (increased for longer trails)
 
 // XY Cartesian: Direct angle to position mapping
 function calculateXYCartesian(angles: JointAngles, config: { xRange: number; yRange: number } = XY_CARTESIAN_CONFIG): CartesianPosition {
@@ -116,12 +119,17 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
   const [jointAngles, setJointAngles] = useState<JointAngles>({ joint1: 0, joint2: 0 });
   const [endEffectorPos, setEndEffectorPos] = useState<CartesianPosition>({ x: 0, y: 0 });
   const [positionHistory, setPositionHistory] = useState<PositionHistoryPoint[]>([]);
+  const [trailFadeDuration, setTrailFadeDuration] = useState<number>(DEFAULT_TRAIL_DURATION_MS);
   
   // Track rotations for multi-turn encoders (needed for geared systems)
   const [joint1Rotations, setJoint1Rotations] = useState<number>(0);
   const [joint2Rotations, setJoint2Rotations] = useState<number>(0);
   const [prevJoint1Angle, setPrevJoint1Angle] = useState<number | null>(null);
   const [prevJoint2Angle, setPrevJoint2Angle] = useState<number | null>(null);
+  
+  // Refs for angle unwrapping to handle sensor wraparound at 0°/360° boundary
+  const prevTheta2MotorRef = React.useRef<number | null>(null);
+  const theta2AccumulatorRef = React.useRef<number>(0);
 
   // Update selected geometry when robot config is first received
   useEffect(() => {
@@ -145,8 +153,8 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
           link1Length: robotConfig.arm1LengthMM,
           link2Length: robotConfig.arm2LengthMM,
           scale: 0.8,
-          invertJoint1: true,  // SingleArmSCARA inverts joint 1
-          invertJoint2: false, // SingleArmSCARA does not invert joint 2
+          invertJoint1: false, // Both joints report absolute angles from X-axis
+          invertJoint2: false, // Both joints report absolute angles from X-axis
           invertAngleDirection: true, // SingleArmSCARA uses anti-clockwise positive
         };
         console.log('Using robot config for SingleArmSCARA:', config);
@@ -270,13 +278,37 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
     if (selectedGeometry === 'xy_cartesian') {
       position = calculateXYCartesian(angles, activeConfig as { xRange: number; yRange: number });
     } else if (selectedGeometry === 'singlearmscara') {
-      // SingleArmSCARA has 1:3 gearing - divide measured angles by 3
-      const gearRatio = 3;
+      // Get gear factors from axes config (defaults to 1 if not specified)
+      const gearFactor1 = robotConfig?.axes?.[0]?.gearFactor || 1;
+      const gearFactor2 = robotConfig?.axes?.[1]?.gearFactor || 1;
+      
+      // Sensor readings are physical shaft angles
+      // Modulo to [0, 360) range (handling negatives: -1° → 359°, -360° → 0°)
+      const normalizeAngle = (angle: number): number => {
+        return ((angle % 360) + 360) % 360;
+      };
+      
+      const sensorAngle1 = angles.joint1 / gearFactor1;
+      const sensorAngle2 = angles.joint2 / gearFactor2;
+      
+      // Kinematic angles: Apply same transformation as firmware
+      // Firmware adds originTheta2OffsetDegrees (180°) to joint2
+      // At origin (0,0): θ1 ≈ 0°, θ2 ≈ 180° (arms doubled back)
+      const theta1 = normalizeAngle(sensorAngle1);
+      const theta2 = normalizeAngle(sensorAngle2 + 180);
+      
       const gearAdjustedAngles = {
-        joint1: angles.joint1 / gearRatio,
-        joint2: angles.joint2 / gearRatio
+        joint1: theta1,
+        joint2: theta2
       };
       position = calculateSCARAKinematics(gearAdjustedAngles, activeConfig);
+      
+      // Debug logging
+      if (DEBUG_ANGLE_LOGGING) {
+        // Show raw sensor with multi-turn tracking and the normalized angle used for kinematics
+        const rawSensor2 = normalizeAngle(angles.joint2 / gearFactor2);
+        console.log(`[ANGLE_DEBUG] Sensor: MT6701=${angles.joint1.toFixed(2)}° AS5600=${angles.joint2.toFixed(2)}° (mod360=${rawSensor2.toFixed(2)}°) | Computed: θ1=${theta1.toFixed(2)}° θ2=${theta2.toFixed(2)}° | Position: (${position.x.toFixed(2)}, ${position.y.toFixed(2)})mm`);
+      }
     } else {
       position = { x: 0, y: 0 };
     }
@@ -291,7 +323,10 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
       };
       
       // Filter out old points and add new one
-      const filtered = prev.filter((p) => timestamp - p.timestamp < TRAIL_DURATION_MS);
+      // Only filter by time if fade is enabled (trailFadeDuration > 0)
+      const filtered = trailFadeDuration > 0 
+        ? prev.filter((p) => timestamp - p.timestamp < trailFadeDuration)
+        : prev;
       
       // Only add if position has changed significantly (more than 0.5mm)
       const lastPoint = filtered[filtered.length - 1];
@@ -349,7 +384,10 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
       
       const prevPoint = positionHistory[index - 1];
       const age = latestTimestamp - point.timestamp;
-      const opacity = Math.max(0, 1 - (age / TRAIL_DURATION_MS));
+      // If fade is disabled (duration = 0), use full opacity
+      const opacity = trailFadeDuration > 0 
+        ? Math.max(0, 1 - (age / trailFadeDuration))
+        : 1;
       
       // Skip if opacity is too low (trail has expired)
       if (opacity < 0.01) return null;
@@ -495,8 +533,19 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
     }
     
     if (selectedGeometry === 'singlearmscara') {
-      // For SingleArmSCARA, apply 1:3 gearing to joint angles for display
-      const displayAngles = { joint1: jointAngles.joint1 / 3, joint2: jointAngles.joint2 / 3 };
+      // Get gear factors from axes config (defaults to 1 if not specified)
+      const gearFactor1 = robotConfig?.axes?.[0]?.gearFactor || 1;
+      const gearFactor2 = robotConfig?.axes?.[1]?.gearFactor || 1;
+      
+      // Normalize angle to [0, 360) range (handling negatives properly)
+      const normalizeAngle = (angle: number): number => {
+        return ((angle % 360) + 360) % 360;
+      };
+      
+      const theta1 = normalizeAngle(jointAngles.joint1 / gearFactor1);
+      const theta2 = normalizeAngle(jointAngles.joint2 / gearFactor2 + 180);
+      
+      const displayAngles = { joint1: theta1, joint2: theta2 };
       const positions = calculateSCARAJointPositions(displayAngles, activeConfig);
       
       const base = worldToSVG(positions.base.x, positions.base.y);
@@ -699,12 +748,12 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
               
               <span className="info-label">Angle 1:</span>
               <span className="info-value">
-                MT6701 {jointAngles.joint1.toFixed(1)}°, Joint {(jointAngles.joint1 / 3).toFixed(1)}°
+                MT6701 {jointAngles.joint1.toFixed(1)}°, Joint {(((jointAngles.joint1 / (robotConfig?.axes?.[0]?.gearFactor || 1)) % 360 + 360) % 360).toFixed(1)}° (gear:{robotConfig?.axes?.[0]?.gearFactor || 1})
               </span>
               
               <span className="info-label">Angle 2:</span>
               <span className="info-value">
-                AS5600 {jointAngles.joint2.toFixed(1)}°, Joint {(jointAngles.joint2 / 3).toFixed(1)}°
+                AS5600 {jointAngles.joint2.toFixed(1)}°, Joint {(((jointAngles.joint2 / (robotConfig?.axes?.[1]?.gearFactor || 1)) % 360 + 360) % 360).toFixed(1)}° (gear:{robotConfig?.axes?.[1]?.gearFactor || 1})
               </span>
             </>
           ) : selectedGeometry === 'xy_cartesian' ? (
@@ -716,17 +765,15 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
                   ` (X: ${(activeConfig as any).xRange}mm/rot, Y: ${(activeConfig as any).yRange}mm/rot)`}
               </span>
               
-              <span className="info-label">Axis 0 Angle (MT6701):</span>
-              <span className="info-value">{jointAngles.joint1.toFixed(1)}°</span>
+              <span className="info-label">Axes Angles:</span>
+              <span className="info-value">
+                A0: {jointAngles.joint1.toFixed(1)}° (MT6701), A1: {jointAngles.joint2.toFixed(1)}° (AS5600)
+              </span>
               
-              <span className="info-label">Axis 1 Angle (AS5600):</span>
-              <span className="info-value">{jointAngles.joint2.toFixed(1)}°</span>
-              
-              <span className="info-label">X Position:</span>
-              <span className="info-value">{endEffectorPos.x.toFixed(1)}mm</span>
-              
-              <span className="info-label">Y Position:</span>
-              <span className="info-value">{endEffectorPos.y.toFixed(1)}mm</span>
+              <span className="info-label">Position:</span>
+              <span className="info-value">
+                X: {endEffectorPos.x.toFixed(1)}mm, Y: {endEffectorPos.y.toFixed(1)}mm
+              </span>
             </>
           ) : (
             <>
@@ -743,9 +790,36 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
             </>
           )}
           
-          <span className="info-label">End Effector:</span>
-          <span className="info-value">
-            X: {endEffectorPos.x.toFixed(1)}mm, Y: {endEffectorPos.y.toFixed(1)}mm
+          <span className="info-label">Trail Fade:</span>
+          <span className="info-value" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+            <input
+              type="range"
+              min="0"
+              max="100000"
+              step="500"
+              value={trailFadeDuration}
+              onChange={(e) => setTrailFadeDuration(parseInt(e.target.value))}
+              style={{ flex: 1, minWidth: '80px' }}
+              title={trailFadeDuration === 0 ? 'No fade' : `${(trailFadeDuration / 1000).toFixed(1)}s`}
+            />
+            <span style={{ minWidth: '35px', fontSize: '0.85em' }}>
+              {trailFadeDuration === 0 ? 'Off' : `${(trailFadeDuration / 1000).toFixed(1)}s`}
+            </span>
+            <button
+              onClick={() => setPositionHistory([])}
+              style={{
+                padding: '2px 8px',
+                fontSize: '0.8em',
+                border: '1px solid #ccc',
+                borderRadius: '3px',
+                background: '#f8f9fa',
+                cursor: 'pointer',
+                whiteSpace: 'nowrap'
+              }}
+              title="Clear trail"
+            >
+              Clear
+            </button>
           </span>
         </div>
       </div>

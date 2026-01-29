@@ -46,15 +46,12 @@
           "blockDistMM": 10,
           "homeBeforeMove": 0,
           "maxJunctionDeviationMM": 0.05,
-          "arm1LenMM": 150,
-          "arm2LenMM": 150,
-          "maxRadiusMM": 290,
           "originTheta2OffsetDegrees": 180
         },
         "ramp": {
           "rampTimerEn": true,
           "rampTimerUs": 20,
-          "pipelineLen": 100
+          "pipelineLen": 250
         },
         "motorEn": {
           "stepEnablePin": "4",
@@ -65,10 +62,10 @@
           {
             "name": "s0",
             "params": {
-                "unitsPerRot": 100,
-                "stepsPerRot": 12800,
+                "unitsPerRot": 360,
+                "stepsPerRot": 3200,
                 "maxSpeedUps": 50,
-                "maxAccUps2": 50
+                "maxAccUps2": 10
             },
             "driver": {
               "driver": "TMC2209",
@@ -106,10 +103,10 @@
           {
             "name": "s1",
             "params": {
-                "unitsPerRot": 100,
-                "stepsPerRot": 12800,
+                "unitsPerRot": 360,
+                "stepsPerRot": 3200,
                 "maxSpeedUps": 50,
-                "maxAccUps2": 50
+                "maxAccUps2": 10
             },
             "driver": {
               "driver": "TMC2209",
@@ -262,7 +259,7 @@
         "maxConn": 4,
         "pcol": "RICSerial",
         "pfix": "ws",
-        "pingMs": 30000,
+        "pingMs": 1000,
         "txQueueMax": 20
       }
     ]
