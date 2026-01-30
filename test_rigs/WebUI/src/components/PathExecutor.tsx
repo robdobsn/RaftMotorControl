@@ -1,8 +1,10 @@
 import React, { useState, useRef } from 'react';
 import ConnManager from '../ConnManager';
 import { RobotConfig } from '../App';
+import { getRobotGeometry } from '../utils/RobotGeometry';
 
 const connManager = ConnManager.getInstance();
+const robotGeometry = getRobotGeometry();
 
 interface PathExecutorProps {
   motorConnectionReady: boolean;
@@ -184,43 +186,9 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
     return points;
   };
 
-  // Get workspace dimensions based on robot configuration
-  const getWorkspaceDimensions = (): { width: number; height: number; description: string } => {
-    if (!robotConfig) {
-      return { width: 200, height: 200, description: 'Default 200mm x 200mm' };
-    }
-
-    const geomLower = robotConfig.geometry.toLowerCase();
-    
-    if (geomLower.includes('cartesian') || geomLower.includes('xyz')) {
-      // For XY Cartesian, use axes configuration if available
-      if (robotConfig.axes && robotConfig.axes.length >= 2) {
-        const xRange = robotConfig.axes[0]?.unitsPerRot || 360;
-        const yRange = robotConfig.axes[1]?.unitsPerRot || 360;
-        return { 
-          width: xRange * 0.9, 
-          height: yRange * 0.9,
-          description: `${(xRange * 0.9).toFixed(0)}mm x ${(yRange * 0.9).toFixed(0)}mm (90% of axis range)` 
-        };
-      }
-      return { width: 180, height: 180, description: '180mm x 180mm (default)' };
-    } else {
-      // For SCARA, use maxRadiusMM
-      const arm1Len = robotConfig.arm1LengthMM || 150;
-      const arm2Len = robotConfig.arm2LengthMM || 150;
-      const maxRadius = robotConfig.maxRadiusMM || Math.min(290, arm1Len + arm2Len);
-      const workspaceSize = maxRadius * 0.9;
-      return { 
-        width: workspaceSize * 2, 
-        height: workspaceSize * 2,
-        description: `Radius ${workspaceSize.toFixed(0)}mm (90% of max ${maxRadius.toFixed(0)}mm)` 
-      };
-    }
-  };
-
   // Get path-specific information
   const getPathInfo = (patternType: PatternType): string => {
-    const { width, height } = getWorkspaceDimensions();
+    const { width, height } = robotGeometry.getWorkspaceDimensions();
     
     switch (patternType) {
       case 'circle':
@@ -246,7 +214,7 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
 
   // Scale normalized points to fit within robot workspace
   const scalePathToWorkspace = (normalizedPoints: PathPoint[]): PathPoint[] => {
-    const { width, height } = getWorkspaceDimensions();
+    const { width, height } = robotGeometry.getWorkspaceDimensions();
 
     return normalizedPoints.map(p => ({
       a0: (p.a0 - 0.5) * width,
@@ -431,7 +399,7 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
         {connectorReady && selectedPattern && (
           <div className="path-info-display">
             <div className="info-section">
-              <strong>Workspace:</strong> {getWorkspaceDimensions().description}
+              <strong>Workspace:</strong> {robotGeometry.getWorkspaceDimensions().description}
             </div>
             <div className="info-section">
               <strong>Path Details:</strong> {getPathInfo(selectedPattern)}

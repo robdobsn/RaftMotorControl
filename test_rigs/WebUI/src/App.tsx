@@ -6,10 +6,12 @@ import EncoderDisplay from './components/EncoderDisplay';
 import AngleChart from './components/AngleChart';
 import RobotVisualization from './components/RobotVisualization';
 import ConnManager from './ConnManager';
-import { RaftConnEvent, RaftLog } from '@robdobsn/raftjs';
+import { RaftConnEvent, RaftUpdateEvent, RaftPublishEvent, RaftLog } from '@robdobsn/raftjs';
 import { RaftLogLevel } from '@robdobsn/raftjs/dist/web/RaftLog';
+import { getRobotGeometry } from './utils/RobotGeometry';
 
 const connManager = ConnManager.getInstance();
+const robotGeometry = getRobotGeometry();
 
 export interface AxisConfig {
   name: string;
@@ -17,6 +19,7 @@ export interface AxisConfig {
   stepsPerRot: number;
   maxSpeedUps: number;
   maxAccUps2: number;
+  gearFactor: number;
 }
 
 export interface RobotConfig {
@@ -42,7 +45,7 @@ export default function App() {
 
     const listener = (
       eventType: string,
-      eventEnum: RaftConnEvent,
+      eventEnum: RaftConnEvent | RaftUpdateEvent | RaftPublishEvent,
       eventName: string,
       data?: object | string | null
     ) => {

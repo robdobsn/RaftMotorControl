@@ -63,7 +63,16 @@ private:
     float _as5600Angle = 0.0f;
     uint32_t _mt6701LastUpdateMs = 0;
     uint32_t _as5600LastUpdateMs = 0;
-
+    // Accumulated angles with wrap-around detection
+    float _mt6701AccumulatedAngle = 0.0f;
+    float _as5600AccumulatedAngle = 0.0f;
+    float _mt6701PrevRawAngle = 0.0f;
+    float _as5600PrevRawAngle = 0.0f;
+    bool _mt6701FirstReading = true;
+    bool _as5600FirstReading = true;    
+    // Sensor angle logging
+    static constexpr uint32_t SENSOR_ANGLE_LOG_INTERVAL_MS = 500;
+    uint32_t _lastSensorAngleLogMs = 0;
     // Decode states for sensor data
     RaftBusDeviceDecodeState _decodeStateMT6701;
     RaftBusDeviceDecodeState _decodeStateAS5600;

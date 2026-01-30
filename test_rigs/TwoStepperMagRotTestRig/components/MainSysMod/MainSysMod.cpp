@@ -7,8 +7,15 @@
 #include "RaftCore.h"
 #include "MainSysMod.h"
 #include "ExecTimer.h"
+#include "DeviceTypeRecords.h"
+#pragma GCC diagnostic push
+#pragma GCC diagnostic ignored "-Wunused-variable"
 #include "DeviceTypeRecords_generated.h"
 #include "DevicePollRecords_generated.h"
+#pragma GCC diagnostic pop
+
+// #define INVERT_MT6701_ANGLE
+// #define INVERT_AS5600_ANGLE
 
 #define WARN_ON_API_CONTROL_FAIL
 #define DEBUG_API_CONTROL
@@ -32,6 +39,13 @@ void MainSysMod::setup()
 
 void MainSysMod::loop()
 {
+    // Periodic sensor angle logging
+    if (Raft::isTimeout(millis(), _lastSensorAngleLogMs, SENSOR_ANGLE_LOG_INTERVAL_MS))
+    {
+        _lastSensorAngleLogMs = millis();
+        LOG_I(MODULE_PREFIX, "Sensor Angles: MT6701=%.2f° (%.2f°) AS5600=%.2f° (%.2f°)", 
+              _mt6701AccumulatedAngle, _mt6701Angle, _as5600AccumulatedAngle, _as5600Angle);
+    }
 }
 
 void MainSysMod::addRestAPIEndpoints(RestAPIEndpointManager &endpointManager)
@@ -140,12 +154,9 @@ void MainSysMod::registerForSensorData()
     if (!pDevMan)
         return;
 
-    // Get MotorControl device to send sensor data to
-    RaftDevice* pMotorControl = getMotorDevice();
-
     // Register for device data notifications from MT6701 (Joint 1)
     pDevMan->registerForDeviceData("I2CA_6@0", 
-        [this, pMotorControl](uint32_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo) {
+        [this](uint32_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo) {
 
             // Decode device data
             poll_MT6701 deviceData;
@@ -153,20 +164,40 @@ void MainSysMod::registerForSensorData()
             if (pDecodeFn)
             {
                 pDecodeFn(data.data(), data.size(), &deviceData, sizeof(deviceData), 1, _decodeStateMT6701);
-                _mt6701Angle = deviceData.angle;
+                double mt6701Angle = deviceData.angle;
+#ifdef INVERT_MT6701_ANGLE
+                mt6701Angle = 360.0f - mt6701Angle;
+#endif
+                _mt6701Angle = mt6701Angle;
                 _mt6701LastUpdateMs = millis();
 
-#ifdef DEBUG_SENSOR_DEVICE_CALLBACK
-                LOG_I(MODULE_PREFIX, "MT6701 callback: angle=%.2f", deviceData.angle);
-#endif
-
-                // Set named value in MotorControl
-                if (pMotorControl)
+                // Handle wrap-around detection and accumulation
+                if (_mt6701FirstReading)
                 {
-                    char valStr[50];
-                    snprintf(valStr, sizeof(valStr), "%.2f", deviceData.angle);
-                    pMotorControl->setNamedValue("sensor1", valStr, true);
+                    _mt6701AccumulatedAngle = mt6701Angle;
+                    _mt6701PrevRawAngle = mt6701Angle;
+                    _mt6701FirstReading = false;
                 }
+                else
+                {
+                    float delta = mt6701Angle - _mt6701PrevRawAngle;
+                    // Detect wrap from ~360 to ~0 (forward)
+                    if (delta < -180.0f)
+                    {
+                        _mt6701AccumulatedAngle += 360.0f;
+                    }
+                    // Detect wrap from ~0 to ~360 (backward)
+                    else if (delta > 180.0f)
+                    {
+                        _mt6701AccumulatedAngle -= 360.0f;
+                    }
+                    _mt6701AccumulatedAngle += delta;
+                    _mt6701PrevRawAngle = mt6701Angle;
+                }
+
+#ifdef DEBUG_SENSOR_DEVICE_CALLBACK
+                LOG_I(MODULE_PREFIX, "MT6701 callback: angle=%.2f accumulated=%.2f", mt6701Angle, _mt6701AccumulatedAngle);
+#endif
             }
         },
         50  // Update rate ms
@@ -174,7 +205,7 @@ void MainSysMod::registerForSensorData()
 
     // Register for device data notifications from AS5600 (Joint 2)
     pDevMan->registerForDeviceData("I2CA_36@0", 
-        [this, pMotorControl](uint32_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo) {
+        [this](uint32_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo) {
 
             // Decode device data
             poll_AS5600 deviceData;
@@ -182,20 +213,40 @@ void MainSysMod::registerForSensorData()
             if (pDecodeFn)
             {
                 pDecodeFn(data.data(), data.size(), &deviceData, sizeof(deviceData), 1, _decodeStateAS5600);
-                _as5600Angle = deviceData.angle;
+                double as5600Angle = deviceData.angle;
+#ifdef INVERT_AS5600_ANGLE
+                as5600Angle = 360.0f - as5600Angle;
+#endif
+                _as5600Angle = as5600Angle;
                 _as5600LastUpdateMs = millis();
 
-#ifdef DEBUG_SENSOR_DEVICE_CALLBACK
-                LOG_I(MODULE_PREFIX, "AS5600 callback: angle=%.2f", deviceData.angle);
-#endif
-
-                // Set named value in MotorControl
-                if (pMotorControl)
+                // Handle wrap-around detection and accumulation
+                if (_as5600FirstReading)
                 {
-                    char valStr[50];
-                    snprintf(valStr, sizeof(valStr), "%.2f", deviceData.angle);
-                    pMotorControl->setNamedValue("sensor2", valStr, true);
+                    _as5600AccumulatedAngle = as5600Angle;
+                    _as5600PrevRawAngle = as5600Angle;
+                    _as5600FirstReading = false;
                 }
+                else
+                {
+                    float delta = as5600Angle - _as5600PrevRawAngle;
+                    // Detect wrap from ~360 to ~0 (forward)
+                    if (delta < -180.0f)
+                    {
+                        _as5600AccumulatedAngle += 360.0f;
+                    }
+                    // Detect wrap from ~0 to ~360 (backward)
+                    else if (delta > 180.0f)
+                    {
+                        _as5600AccumulatedAngle -= 360.0f;
+                    }
+                    _as5600AccumulatedAngle += delta;
+                    _as5600PrevRawAngle = as5600Angle;
+                }
+
+#ifdef DEBUG_SENSOR_DEVICE_CALLBACK
+                LOG_I(MODULE_PREFIX, "AS5600 callback: angle=%.2f accumulated=%.2f", as5600Angle, _as5600AccumulatedAngle);
+#endif
             }
         },
         50  // Update rate ms

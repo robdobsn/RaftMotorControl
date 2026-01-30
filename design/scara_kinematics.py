@@ -6,6 +6,8 @@ where both theta1 and theta2 are measured from positive X-axis
 """
 
 import math
+import argparse
+import sys
 
 class SCARAKinematics:
     def __init__(self, L1, L2):
@@ -219,5 +221,130 @@ def compare_with_firmware():
     print("-" * 80)
 
 
+def cli_forward_kinematics(args):
+    """CLI command for forward kinematics"""
+    robot = SCARAKinematics(args.L1, args.L2)
+    
+    # Apply offset to theta2 if specified
+    theta2_adjusted = args.theta2 - args.offset
+    
+    x, y = robot.forward_kinematics(args.theta1, theta2_adjusted)
+    
+    print(f"SCARA Forward Kinematics")
+    print(f"  Arm lengths: L1={args.L1}mm, L2={args.L2}mm")
+    print(f"  Origin offset: {args.offset}°")
+    print(f"  Input angles: θ1={args.theta1:.2f}°, θ2={args.theta2:.2f}°")
+    print(f"  Adjusted θ2: {theta2_adjusted:.2f}° (after applying offset)")
+    print(f"  End effector position: x={x:.2f}mm, y={y:.2f}mm")
+    print(f"  Distance from origin: {math.sqrt(x*x + y*y):.2f}mm")
+
+
+def cli_inverse_kinematics(args):
+    """CLI command for inverse kinematics"""
+    robot = SCARAKinematics(args.L1, args.L2)
+    
+    solutions = robot.inverse_kinematics(args.x, args.y)
+    
+    print(f"SCARA Inverse Kinematics")
+    print(f"  Arm lengths: L1={args.L1}mm, L2={args.L2}mm")
+    print(f"  Origin offset: {args.offset}°")
+    print(f"  Target position: x={args.x:.2f}mm, y={args.y:.2f}mm")
+    print(f"  Distance from origin: {math.sqrt(args.x**2 + args.y**2):.2f}mm")
+    print(f"  Reachable range: {robot.min_radius:.2f}mm to {robot.max_radius:.2f}mm")
+    print()
+    
+    if solutions is None:
+        print("  ERROR: Position is unreachable!")
+        sys.exit(1)
+    
+    sol1, sol2 = solutions
+    
+    print("  Solution 1 (elbow up):")
+    print(f"    θ1={sol1[0]:.2f}°, θ2={sol1[1]:.2f}°")
+    # Apply offset to theta2 for firmware
+    theta2_with_offset = (sol1[1] + args.offset) % 360
+    print(f"    With offset: θ1={sol1[0]:.2f}°, θ2={theta2_with_offset:.2f}° (for firmware)")
+    
+    # Verify solution
+    x_check, y_check = robot.forward_kinematics(sol1[0], sol1[1])
+    error = math.sqrt((x_check - args.x)**2 + (y_check - args.y)**2)
+    print(f"    Verification: ({x_check:.2f}, {y_check:.2f}) - error: {error:.4f}mm")
+    print()
+    
+    print("  Solution 2 (elbow down):")
+    print(f"    θ1={sol2[0]:.2f}°, θ2={sol2[1]:.2f}°")
+    # Apply offset to theta2 for firmware
+    theta2_with_offset = (sol2[1] + args.offset) % 360
+    print(f"    With offset: θ1={sol2[0]:.2f}°, θ2={theta2_with_offset:.2f}° (for firmware)")
+    
+    # Verify solution
+    x_check, y_check = robot.forward_kinematics(sol2[0], sol2[1])
+    error = math.sqrt((x_check - args.x)**2 + (y_check - args.y)**2)
+    print(f"    Verification: ({x_check:.2f}, {y_check:.2f}) - error: {error:.4f}mm")
+
+
+def main():
+    """Main CLI entry point"""
+    parser = argparse.ArgumentParser(
+        description='SCARA robot kinematics calculator',
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Forward kinematics (angles to position)
+  %(prog)s forward 330.46 29.54
+  %(prog)s f 45 135 --L1 150 --L2 150
+  
+  # Inverse kinematics (position to angles)
+  %(prog)s inverse 261 0
+  %(prog)s i 200 100 --offset 180
+  
+  # Run comparison test
+  %(prog)s test
+        """
+    )
+    
+    # Global arguments
+    parser.add_argument('--L1', type=float, default=100.0,
+                       help='Length of first arm in mm (default: 100)')
+    parser.add_argument('--L2', type=float, default=100.0,
+                       help='Length of second arm in mm (default: 100)')
+    parser.add_argument('--offset', type=float, default=180.0,
+                       help='Origin theta2 offset in degrees (default: 180)')
+    
+    subparsers = parser.add_subparsers(dest='command', help='Command to run')
+    
+    # Forward kinematics command
+    fk_parser = subparsers.add_parser('forward', aliases=['f'],
+                                      help='Compute forward kinematics (angles → position)')
+    fk_parser.add_argument('theta1', type=float,
+                          help='Joint 1 angle in degrees (from +X axis)')
+    fk_parser.add_argument('theta2', type=float,
+                          help='Joint 2 angle in degrees (from +X axis)')
+    
+    # Inverse kinematics command
+    ik_parser = subparsers.add_parser('inverse', aliases=['i'],
+                                      help='Compute inverse kinematics (position → angles)')
+    ik_parser.add_argument('x', type=float,
+                          help='Target X position in mm')
+    ik_parser.add_argument('y', type=float,
+                          help='Target Y position in mm')
+    
+    # Test command
+    test_parser = subparsers.add_parser('test',
+                                       help='Run comparison test with firmware data')
+    
+    args = parser.parse_args()
+    
+    if args.command in ('forward', 'f'):
+        cli_forward_kinematics(args)
+    elif args.command in ('inverse', 'i'):
+        cli_inverse_kinematics(args)
+    elif args.command == 'test':
+        compare_with_firmware()
+    else:
+        parser.print_help()
+        sys.exit(1)
+
+
 if __name__ == "__main__":
-    compare_with_firmware()
+    main()

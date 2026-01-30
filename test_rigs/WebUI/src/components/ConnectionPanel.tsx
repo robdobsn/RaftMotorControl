@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import ConnManager from '../ConnManager';
 import { RaftConnEvent, RaftSystemInfo } from '@robdobsn/raftjs';
+import { getRobotGeometry } from '../utils/RobotGeometry';
 
 const connManager = ConnManager.getInstance();
+const robotGeometry = getRobotGeometry();
 
 interface ConnectionPanelProps {
   connectionStatus: RaftConnEvent;
@@ -81,6 +83,11 @@ export default function ConnectionPanel({ connectionStatus, onMotorConnectionCha
             axes: axes
           };
           console.log('Parsed robot config with axes:', robotConfig);
+          
+          // Configure the global geometry instance
+          robotGeometry.configure(robotConfig);
+          console.log('Configured global RobotGeometry instance');
+          
           onRobotConfigReceived(robotConfig);
         }
       }
