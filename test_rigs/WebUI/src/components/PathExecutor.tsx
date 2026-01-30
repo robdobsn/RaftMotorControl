@@ -188,7 +188,7 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
 
   // Get path-specific information
   const getPathInfo = (patternType: PatternType): string => {
-    const { width, height } = robotGeometry.getWorkspaceDimensions();
+    const { width, height } = robotGeometry.getPatternWorkspaceDimensions();
     
     switch (patternType) {
       case 'circle':
@@ -214,7 +214,8 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
 
   // Scale normalized points to fit within robot workspace
   const scalePathToWorkspace = (normalizedPoints: PathPoint[]): PathPoint[] => {
-    const { width, height } = robotGeometry.getWorkspaceDimensions();
+    // Use pattern workspace dimensions which account for circular SCARA workspace
+    const { width, height } = robotGeometry.getPatternWorkspaceDimensions();
 
     return normalizedPoints.map(p => ({
       a0: (p.a0 - 0.5) * width,
@@ -357,7 +358,7 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
               className="form-range form-range-sm"
               id="pointsSlider"
               min="20"
-              max="200"
+              max="1000"
               step="10"
               value={pointsPerPath}
               onChange={(e) => setPointsPerPath(parseInt(e.target.value))}

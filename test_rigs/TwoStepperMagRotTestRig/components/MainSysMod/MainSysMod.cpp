@@ -18,9 +18,10 @@
 // #define INVERT_AS5600_ANGLE
 
 #define WARN_ON_API_CONTROL_FAIL
-#define DEBUG_API_CONTROL
-#define DEBUG_INFO_API_CONTROL_TIMINGS
+// #define DEBUG_API_CONTROL
+// #define DEBUG_INFO_API_CONTROL_TIMINGS
 // #define DEBUG_SENSOR_DEVICE_CALLBACK
+// #define DEBUG_SENSOR_ANGLES
 
 MainSysMod::MainSysMod(const char *pModuleName, RaftJsonIF& sysConfig)
     : RaftSysMod(pModuleName, sysConfig)
@@ -43,8 +44,10 @@ void MainSysMod::loop()
     if (Raft::isTimeout(millis(), _lastSensorAngleLogMs, SENSOR_ANGLE_LOG_INTERVAL_MS))
     {
         _lastSensorAngleLogMs = millis();
+#ifdef DEBUG_SENSOR_ANGLES
         LOG_I(MODULE_PREFIX, "Sensor Angles: MT6701=%.2f° (%.2f°) AS5600=%.2f° (%.2f°)", 
               _mt6701AccumulatedAngle, _mt6701Angle, _as5600AccumulatedAngle, _as5600Angle);
+#endif
     }
 }
 

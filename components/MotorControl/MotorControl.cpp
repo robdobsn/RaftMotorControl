@@ -12,8 +12,8 @@
 #include "Logger.h"
 #include "HomingPattern.h"
 
-#define DEBUG_MOTOR_CMD_JSON
-#define DEBUG_SEND_CMD_TIMINGS
+// #define DEBUG_MOTOR_CMD_JSON
+// #define DEBUG_SEND_CMD_TIMINGS
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor

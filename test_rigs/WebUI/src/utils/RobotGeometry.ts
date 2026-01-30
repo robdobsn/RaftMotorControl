@@ -249,6 +249,38 @@ export class RobotGeometry {
   }
 
   /**
+   * Get usable workspace dimensions for patterns
+   * For circular workspaces (SCARA), returns dimensions that ensure rectangles fit within the circle
+   */
+  public getPatternWorkspaceDimensions(): WorkspaceDimensions {
+    if (!this.robotConfig) {
+      return { width: 200, height: 200, description: 'Default 200mm x 200mm' };
+    }
+
+    const geomLower = this.robotConfig.geometry.toLowerCase();
+    
+    if (geomLower.includes('cartesian') || geomLower.includes('xyz')) {
+      // For Cartesian, same as regular workspace
+      return this.getWorkspaceDimensions();
+    } else {
+      // For SCARA circular workspace, ensure rectangles fit within the circle
+      // Maximum square inscribed in a circle: side = radius * sqrt(2)
+      // Scaling works as: (normalized - 0.5) * width maps [0,1] to [-width/2, +width/2]
+      const arm1Len = this.robotConfig.arm1LengthMM || 150;
+      const arm2Len = this.robotConfig.arm2LengthMM || 150;
+      const maxRadius = this.robotConfig.maxRadiusMM || Math.min(290, arm1Len + arm2Len);
+      const workspaceRadius = maxRadius * 0.9; // 10% margin from max radius
+      // For a square to fit in a circle: side = radius * sqrt(2)
+      const maxRectSide = workspaceRadius * Math.sqrt(2);
+      return { 
+        width: maxRectSide, 
+        height: maxRectSide,
+        description: `Max rect ${maxRectSide.toFixed(0)}mm x ${maxRectSide.toFixed(0)}mm in radius ${workspaceRadius.toFixed(0)}mm` 
+      };
+    }
+  }
+
+  /**
    * Normalize angle to 0-360 range, handling negatives
    */
   public normalizeAngle(angle: number): number {
