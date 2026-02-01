@@ -164,23 +164,44 @@ export default function PathExecutor({ motorConnectionReady, robotConfig, onPath
         break;
 
       case 'star':
-        const starPoints = 5;
+        // 5-pointed star: distribute points evenly across all 10 edges
+        const starVertices = 5;
         const outerRadius = 0.5;
         const innerRadius = 0.2;
-        for (let i = 0; i < starPoints * 2; i++) {
-          const angle = (i / (starPoints * 2)) * 2 * Math.PI - Math.PI / 2;
+        
+        // Generate the 10 vertices of the star (alternating outer/inner)
+        const vertices: PathPoint[] = [];
+        for (let i = 0; i < starVertices * 2; i++) {
+          const angle = (i / (starVertices * 2)) * 2 * Math.PI - Math.PI / 2;
           const radius = i % 2 === 0 ? outerRadius : innerRadius;
-          points.push({
+          vertices.push({
             a0: 0.5 + radius * Math.cos(angle),
             a1: 0.5 + radius * Math.sin(angle),
           });
         }
-        // Close the star
-        const firstAngle = -Math.PI / 2;
-        points.push({
-          a0: 0.5 + outerRadius * Math.cos(firstAngle),
-          a1: 0.5 + outerRadius * Math.sin(firstAngle),
-        });
+        
+        // Interpolate points along each edge
+        const numEdges = vertices.length;
+        const pointsPerEdge = Math.max(1, Math.floor(numPoints / numEdges));
+        
+        for (let edge = 0; edge < numEdges; edge++) {
+          const start = vertices[edge];
+          const end = vertices[(edge + 1) % numEdges];
+          
+          // Don't include the last point of each edge (it's the start of the next)
+          for (let p = 0; p < pointsPerEdge; p++) {
+            const t = p / pointsPerEdge;
+            points.push({
+              a0: start.a0 + t * (end.a0 - start.a0),
+              a1: start.a1 + t * (end.a1 - start.a1),
+            });
+          }
+        }
+        
+        // Close the star by adding the first point at the end
+        if (points.length > 0) {
+          points.push({ ...points[0] });
+        }
         break;
     }
 
