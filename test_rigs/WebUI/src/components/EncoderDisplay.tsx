@@ -1,7 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import ConnManager from '../ConnManager';
+import { getRobotGeometry } from '../utils/RobotGeometry';
 
 const connManager = ConnManager.getInstance();
+const robotGeometry = getRobotGeometry();
 
 interface EncoderDisplayProps {
   lastUpdate: number;
@@ -13,6 +15,20 @@ export default function EncoderDisplay({ lastUpdate }: EncoderDisplayProps) {
   const [publishedPos, setPublishedPos] = useState<{ x: number | null; y: number | null; z: number | null }>({ x: null, y: null, z: null });
   const [motorBusy, setMotorBusy] = useState<boolean | null>(null);
   const [motorPaused, setMotorPaused] = useState<boolean | null>(null);
+  const [invertJoint1, setInvertJoint1] = useState<boolean>(robotGeometry.shouldInvertJoint1Sensor());
+  const [invertJoint2, setInvertJoint2] = useState<boolean>(robotGeometry.shouldInvertJoint2Sensor());
+
+  const handleInvertJoint1Change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setInvertJoint1(checked);
+    robotGeometry.setInvertJoint1Sensor(checked);
+  };
+
+  const handleInvertJoint2Change = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const checked = e.target.checked;
+    setInvertJoint2(checked);
+    robotGeometry.setInvertJoint2Sensor(checked);
+  };
 
   useEffect(() => {
     const deviceManager = connManager.getConnector().getSystemType()?.deviceMgrIF;
@@ -62,7 +78,29 @@ export default function EncoderDisplay({ lastUpdate }: EncoderDisplayProps) {
 
   return (
     <div className="panel panel-compact">
-      <h2>Current Position</h2>
+      <h2 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+        <span>Current Position</span>
+        <span style={{ display: 'flex', gap: '12px', fontSize: '0.75rem', fontWeight: 'normal' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={invertJoint1}
+              onChange={handleInvertJoint1Change}
+              style={{ cursor: 'pointer' }}
+            />
+            Inv J1
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
+            <input
+              type="checkbox"
+              checked={invertJoint2}
+              onChange={handleInvertJoint2Change}
+              style={{ cursor: 'pointer' }}
+            />
+            Inv J2
+          </label>
+        </span>
+      </h2>
       <div className="encoder-display-compact">
         <div className="encoder-value-compact">
           <span className="label">MT6701:</span>

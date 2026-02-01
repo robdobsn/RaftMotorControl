@@ -135,10 +135,10 @@ export default function RobotVisualization({ lastUpdate, robotConfig, expectedPa
     if (mt6701State?.deviceAttributes?.angle) {
       const values = mt6701State.deviceAttributes.angle.values;
       if (values.length > 0) {
-        // Get raw angle and apply angle direction convention
+        // Get raw angle and apply per-sensor inversion
         let rawAngle = values[values.length - 1];
-        if (robotGeometry.shouldInvertAngleDirection()) {
-          // For anti-clockwise positive: invert the angle
+        if (robotGeometry.shouldInvertJoint1Sensor()) {
+          // Invert the angle for this sensor
           rawAngle = 360 - rawAngle;
           if (rawAngle >= 360) rawAngle -= 360;
         }
@@ -160,10 +160,10 @@ export default function RobotVisualization({ lastUpdate, robotConfig, expectedPa
     if (as5600State?.deviceAttributes?.angle) {
       const values = as5600State.deviceAttributes.angle.values;
       if (values.length > 0) {
-        // Get raw angle and apply angle direction convention
+        // Get raw angle and apply per-sensor inversion
         let rawAngle = values[values.length - 1];
-        if (robotGeometry.shouldInvertAngleDirection()) {
-          // For anti-clockwise positive: invert the angle
+        if (robotGeometry.shouldInvertJoint2Sensor()) {
+          // Invert the angle for this sensor
           rawAngle = 360 - rawAngle;
           if (rawAngle >= 360) rawAngle -= 360;
         }

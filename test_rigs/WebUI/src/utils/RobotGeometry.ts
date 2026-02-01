@@ -41,6 +41,8 @@ interface SCARAConfig {
   invertJoint1: boolean;
   invertJoint2: boolean;
   invertAngleDirection: boolean;
+  invertJoint1Sensor: boolean;
+  invertJoint2Sensor: boolean;
 }
 
 interface CartesianConfig {
@@ -56,7 +58,9 @@ const DEFAULT_SCARA_CONFIG: SCARAConfig = {
   scale: 0.8,
   invertJoint1: false,
   invertJoint2: false,
-  invertAngleDirection: true,
+  invertAngleDirection: false,
+  invertJoint1Sensor: false,
+  invertJoint2Sensor: false,
 };
 
 const DEFAULT_CARTESIAN_CONFIG: CartesianConfig = {
@@ -87,7 +91,9 @@ export class RobotGeometry {
         scale: 0.8,
         invertJoint1: false,
         invertJoint2: false,
-        invertAngleDirection: true,
+        invertAngleDirection: false,
+        invertJoint1Sensor: this.scaraConfig.invertJoint1Sensor,
+        invertJoint2Sensor: this.scaraConfig.invertJoint2Sensor,
       };
     } else if (geomLower.includes('cartesian') || geomLower.includes('xyz')) {
       this.geometryType = 'xy_cartesian';
@@ -305,6 +311,40 @@ export class RobotGeometry {
       return this.scaraConfig.invertAngleDirection;
     }
     return false;
+  }
+
+  /**
+   * Check if joint 1 sensor should be inverted
+   */
+  public shouldInvertJoint1Sensor(): boolean {
+    if (this.geometryType === 'singlearmscara') {
+      return this.scaraConfig.invertJoint1Sensor;
+    }
+    return false;
+  }
+
+  /**
+   * Check if joint 2 sensor should be inverted
+   */
+  public shouldInvertJoint2Sensor(): boolean {
+    if (this.geometryType === 'singlearmscara') {
+      return this.scaraConfig.invertJoint2Sensor;
+    }
+    return false;
+  }
+
+  /**
+   * Set joint 1 sensor inversion
+   */
+  public setInvertJoint1Sensor(invert: boolean): void {
+    this.scaraConfig.invertJoint1Sensor = invert;
+  }
+
+  /**
+   * Set joint 2 sensor inversion
+   */
+  public setInvertJoint2Sensor(invert: boolean): void {
+    this.scaraConfig.invertJoint2Sensor = invert;
   }
 
   /**
