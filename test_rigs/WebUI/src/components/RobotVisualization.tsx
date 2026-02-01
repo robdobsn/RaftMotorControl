@@ -41,6 +41,8 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
   const [jointAngles, setJointAngles] = useState<JointAngles>({ joint1: 0, joint2: 0 });
   const [endEffectorPos, setEndEffectorPos] = useState<CartesianPosition>({ x: 0, y: 0 });
   const [positionHistory, setPositionHistory] = useState<PositionHistoryPoint[]>([]);
+  const [publishedPositionHistory, setPublishedPositionHistory] = useState<PositionHistoryPoint[]>([]);
+  const [publishedPos, setPublishedPos] = useState<CartesianPosition>({ x: 0, y: 0 });
   const [trailFadeDuration, setTrailFadeDuration] = useState<number>(DEFAULT_TRAIL_DURATION_MS);
   
   // Refs for angle unwrapping to handle sensor wraparound at 0°/360° boundary
@@ -71,6 +73,53 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
       angleTracker.configure('1_36', gearFactor2);
     }
   }, [robotConfig]);
+
+  // Read published position data from MotorControl device (device key: 0_0 for direct connection)
+  useEffect(() => {
+    const deviceManager = connManager.getConnector().getSystemType()?.deviceMgrIF;
+    if (!deviceManager) return;
+
+    // MotorControl uses DEVICE_CONN_MODE_DIRECT (0) with address 0, so key is "0_0"
+    const motorControlState = deviceManager.getDeviceState('0_0');
+    if (!motorControlState?.deviceAttributes) return;
+
+    const pos0Attr = motorControlState.deviceAttributes.pos0;
+    const pos1Attr = motorControlState.deviceAttributes.pos1;
+    
+    if (pos0Attr?.values?.length > 0 && pos1Attr?.values?.length > 0) {
+      const x = pos0Attr.values[pos0Attr.values.length - 1];
+      const y = pos1Attr.values[pos1Attr.values.length - 1];
+      const timestamp = Date.now();
+      
+      setPublishedPos({ x, y });
+      
+      // Add to published position history
+      setPublishedPositionHistory((prev) => {
+        const newPoint: PositionHistoryPoint = { x, y, timestamp };
+        
+        // Filter out old points if fade is enabled
+        const filtered = trailFadeDuration > 0 
+          ? prev.filter((p) => timestamp - p.timestamp < trailFadeDuration)
+          : prev;
+        
+        // Only add if position has changed significantly (more than 0.5mm)
+        const lastPoint = filtered[filtered.length - 1];
+        if (!lastPoint || 
+            Math.abs(lastPoint.x - x) > 0.5 || 
+            Math.abs(lastPoint.y - y) > 0.5) {
+          const updated = [...filtered, newPoint];
+          
+          // Limit total points
+          if (updated.length > TRAIL_MAX_POINTS) {
+            return updated.slice(updated.length - TRAIL_MAX_POINTS);
+          }
+          return updated;
+        }
+        
+        return filtered;
+      });
+    }
+  }, [lastUpdate, trailFadeDuration]);
 
   useEffect(() => {
     const deviceManager = connManager.getConnector().getSystemType()?.deviceMgrIF;
@@ -280,6 +329,58 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
     return lines.length > 0 ? <g>{lines}</g> : null;
   };
 
+  // Render published position trail (red) from MotorControl device
+  const renderPublishedTrail = () => {
+    if (publishedPositionHistory.length < 2) return null;
+    
+    // Use the latest point's timestamp as "now" instead of Date.now()
+    const latestTimestamp = publishedPositionHistory.length > 0 ? publishedPositionHistory[publishedPositionHistory.length - 1].timestamp : Date.now();
+    
+    // Create path segments with varying opacity based on age
+    const lines = publishedPositionHistory.map((point, index) => {
+      if (index === 0) return null; // Skip first point (no line to draw)
+      
+      const prevPoint = publishedPositionHistory[index - 1];
+      const age = latestTimestamp - point.timestamp;
+      // If fade is disabled (duration = 0), use full opacity
+      const opacity = trailFadeDuration > 0 
+        ? Math.max(0, 1 - (age / trailFadeDuration))
+        : 1;
+      
+      // Skip if opacity is too low (trail has expired)
+      if (opacity < 0.01) return null;
+      
+      // Skip drawing if there's a large time gap (>1 second) between consecutive points
+      const timeDiff = point.timestamp - prevPoint.timestamp;
+      if (timeDiff > 1000) return null;
+      
+      // Skip if there's a large spatial gap between consecutive points (>50mm)
+      const distSq = Math.pow(point.x - prevPoint.x, 2) + Math.pow(point.y - prevPoint.y, 2);
+      if (distSq > 2500) return null; // 50mm * 50mm = 2500
+      
+      // Published positions are already in world coordinates (unscaled mm)
+      const scale = robotGeometry.getScale();
+      const svgPoint = worldToSVG(point.x * scale, point.y * scale);
+      const svgPrevPoint = worldToSVG(prevPoint.x * scale, prevPoint.y * scale);
+      
+      return (
+        <line
+          key={`pub-trail-${point.timestamp}-${index}`}
+          x1={svgPrevPoint.x}
+          y1={svgPrevPoint.y}
+          x2={svgPoint.x}
+          y2={svgPoint.y}
+          stroke="#ff5252"
+          strokeWidth="2"
+          strokeLinecap="round"
+          opacity={opacity * 0.8}
+        />
+      );
+    }).filter(line => line !== null);
+    
+    return lines.length > 0 ? <g>{lines}</g> : null;
+  };
+
   // Render robot based on selected geometry
   const renderRobot = () => {
     if (selectedGeometry === 'xy_cartesian') {
@@ -436,6 +537,7 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
 
           {/* Robot */}
           {renderTrail()}
+          {renderPublishedTrail()}
           {renderRobot()}
         </svg>
       </div>
@@ -515,6 +617,7 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
               onClick={() => {
                 angleTracker.reset();
                 setPositionHistory([]);
+                setPublishedPositionHistory([]);
               }}
               style={{
                 padding: '4px 12px',
@@ -548,7 +651,7 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
               {trailFadeDuration === 0 ? 'Off' : `${(trailFadeDuration / 1000).toFixed(1)}s`}
             </span>
             <button
-              onClick={() => setPositionHistory([])}
+              onClick={() => { setPositionHistory([]); setPublishedPositionHistory([]); }}
               style={{
                 padding: '2px 8px',
                 fontSize: '0.8em',
