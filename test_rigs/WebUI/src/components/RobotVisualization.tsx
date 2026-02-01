@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import ConnManager from '../ConnManager';
-import { RobotConfig } from '../App';
+import { RobotConfig, ExpectedPathPoint } from '../App';
 import { getRobotGeometry, JointAngles, CartesianPosition } from '../utils/RobotGeometry';
 import { getSensorAngleTracker } from '../utils/SensorAngleTracker';
 import SCARAVisualization from './SCARAVisualization';
@@ -16,6 +16,7 @@ const DEBUG_ANGLE_LOGGING = true;
 interface RobotVisualizationProps {
   lastUpdate: number;
   robotConfig: RobotConfig | null;
+  expectedPath?: ExpectedPathPoint[];
 }
 
 // Placeholder geometry types - expand based on your robot configurations
@@ -36,7 +37,7 @@ interface PositionHistoryPoint {
 const DEFAULT_TRAIL_DURATION_MS = 5000; // 5 seconds default fade
 const TRAIL_MAX_POINTS = 2000; // Limit number of points (increased for longer trails)
 
-export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVisualizationProps) {
+export default function RobotVisualization({ lastUpdate, robotConfig, expectedPath }: RobotVisualizationProps) {
   const [selectedGeometry, setSelectedGeometry] = useState<string>('singlearmscara');
   const [jointAngles, setJointAngles] = useState<JointAngles>({ joint1: 0, joint2: 0 });
   const [endEffectorPos, setEndEffectorPos] = useState<CartesianPosition>({ x: 0, y: 0 });
@@ -381,6 +382,96 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
     return lines.length > 0 ? <g>{lines}</g> : null;
   };
 
+  // Render expected path from PathExecutor (blue, thin line with arrow at start)
+  const renderExpectedPath = () => {
+    if (!expectedPath || expectedPath.length < 2) return null;
+    
+    const scale = robotGeometry.getScale();
+    
+    // Create path segments
+    const lines = expectedPath.map((point, index) => {
+      if (index === 0) return null; // Skip first point (no line to draw)
+      
+      const prevPoint = expectedPath[index - 1];
+      const svgPoint = worldToSVG(point.x * scale, point.y * scale);
+      const svgPrevPoint = worldToSVG(prevPoint.x * scale, prevPoint.y * scale);
+      
+      return (
+        <line
+          key={`expected-path-${index}`}
+          x1={svgPrevPoint.x}
+          y1={svgPrevPoint.y}
+          x2={svgPoint.x}
+          y2={svgPoint.y}
+          stroke="#4fc3f7"
+          strokeWidth="1"
+          strokeLinecap="round"
+          opacity={0.7}
+        />
+      );
+    }).filter(line => line !== null);
+    
+    // Calculate arrow head at start point showing direction of movement
+    let arrowHead = null;
+    if (expectedPath.length >= 2) {
+      const startPoint = expectedPath[0];
+      const nextPoint = expectedPath[1];
+      const svgStart = worldToSVG(startPoint.x * scale, startPoint.y * scale);
+      const svgNext = worldToSVG(nextPoint.x * scale, nextPoint.y * scale);
+      
+      // Calculate direction angle (in SVG coordinates where Y is inverted)
+      const dx = svgNext.x - svgStart.x;
+      const dy = svgNext.y - svgStart.y;
+      const angle = Math.atan2(dy, dx);
+      
+      // Arrow head size
+      const arrowSize = 8;
+      const arrowAngle = Math.PI / 6; // 30 degrees
+      
+      // Arrow head points
+      const tip = svgStart;
+      const left = {
+        x: tip.x - arrowSize * Math.cos(angle - arrowAngle),
+        y: tip.y - arrowSize * Math.sin(angle - arrowAngle),
+      };
+      const right = {
+        x: tip.x - arrowSize * Math.cos(angle + arrowAngle),
+        y: tip.y - arrowSize * Math.sin(angle + arrowAngle),
+      };
+      
+      arrowHead = (
+        <polygon
+          key="expected-path-arrow"
+          points={`${tip.x},${tip.y} ${left.x},${left.y} ${right.x},${right.y}`}
+          fill="#4fc3f7"
+          opacity={0.9}
+        />
+      );
+    }
+    
+    // Add a small circle at the start point
+    const startCircle = expectedPath.length > 0 ? (
+      <circle
+        key="expected-path-start"
+        cx={worldToSVG(expectedPath[0].x * scale, expectedPath[0].y * scale).x}
+        cy={worldToSVG(expectedPath[0].x * scale, expectedPath[0].y * scale).y}
+        r={4}
+        fill="none"
+        stroke="#4fc3f7"
+        strokeWidth="1.5"
+        opacity={0.9}
+      />
+    ) : null;
+    
+    return lines.length > 0 ? (
+      <g>
+        {lines}
+        {startCircle}
+        {arrowHead}
+      </g>
+    ) : null;
+  };
+
   // Render robot based on selected geometry
   const renderRobot = () => {
     if (selectedGeometry === 'xy_cartesian') {
@@ -536,6 +627,7 @@ export default function RobotVisualization({ lastUpdate, robotConfig }: RobotVis
           </g>
 
           {/* Robot */}
+          {renderExpectedPath()}
           {renderTrail()}
           {renderPublishedTrail()}
           {renderRobot()}

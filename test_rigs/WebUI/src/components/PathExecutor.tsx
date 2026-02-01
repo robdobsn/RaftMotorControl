@@ -1,6 +1,6 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import ConnManager from '../ConnManager';
-import { RobotConfig } from '../App';
+import { RobotConfig, ExpectedPathPoint } from '../App';
 import { getRobotGeometry } from '../utils/RobotGeometry';
 
 const connManager = ConnManager.getInstance();
@@ -9,6 +9,7 @@ const robotGeometry = getRobotGeometry();
 interface PathExecutorProps {
   motorConnectionReady: boolean;
   robotConfig: RobotConfig | null;
+  onPathChange?: (path: ExpectedPathPoint[]) => void;
 }
 
 interface PathPoint {
@@ -34,7 +35,7 @@ const PATTERNS: PatternDefinition[] = [
   { name: 'Star', type: 'star', description: '5-pointed star' },
 ];
 
-export default function PathExecutor({ motorConnectionReady, robotConfig }: PathExecutorProps) {
+export default function PathExecutor({ motorConnectionReady, robotConfig, onPathChange }: PathExecutorProps) {
   const [selectedPattern, setSelectedPattern] = useState<PatternType>('circle');
   const [speed, setSpeed] = useState(50);
   const [repetitions, setRepetitions] = useState(1);
@@ -222,6 +223,14 @@ export default function PathExecutor({ motorConnectionReady, robotConfig }: Path
       a1: (p.a1 - 0.5) * height,
     }));
   };
+
+  // Update expected path visualization when pattern or points change
+  useEffect(() => {
+    const normalizedPath = generateNormalizedPath(selectedPattern, pointsPerPath);
+    const scaledPath = scalePathToWorkspace(normalizedPath);
+    const expectedPath: ExpectedPathPoint[] = scaledPath.map(p => ({ x: p.a0, y: p.a1 }));
+    onPathChange?.(expectedPath);
+  }, [selectedPattern, pointsPerPath, onPathChange]);
 
   // Execute a single movement command
   const sendMoveCommand = async (point: PathPoint, speedValue: number): Promise<void> => {

@@ -31,6 +31,12 @@ export interface RobotConfig {
   axes?: AxisConfig[];
 }
 
+// Expected path point for visualization
+export interface ExpectedPathPoint {
+  x: number;
+  y: number;
+}
+
 export default function App() {
   const [sensorConnectionStatus, setSensorConnectionStatus] = useState<RaftConnEvent>(
     RaftConnEvent.CONN_DISCONNECTED
@@ -38,6 +44,7 @@ export default function App() {
   const [motorConnectionReady, setMotorConnectionReady] = useState<boolean>(false);
   const [lastUpdate, setLastUpdate] = useState<number>(0);
   const [robotConfig, setRobotConfig] = useState<RobotConfig | null>(null);
+  const [expectedPath, setExpectedPath] = useState<ExpectedPathPoint[]>([]);
 
   useEffect(() => {
     // Set log level once at startup, before any connections
@@ -116,9 +123,9 @@ export default function App() {
             <AngleChart lastUpdate={lastUpdate} />
           </div>
           <div className="visualization-section">
-            <RobotVisualization lastUpdate={lastUpdate} robotConfig={robotConfig} />
+            <RobotVisualization lastUpdate={lastUpdate} robotConfig={robotConfig} expectedPath={expectedPath} />
           </div>
-          <PathExecutor motorConnectionReady={motorConnectionReady} robotConfig={robotConfig} />
+          <PathExecutor motorConnectionReady={motorConnectionReady} robotConfig={robotConfig} onPathChange={setExpectedPath} />
           <MotorControl motorConnectionReady={motorConnectionReady} />
         </>
       )}
