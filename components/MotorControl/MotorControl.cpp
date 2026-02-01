@@ -154,17 +154,6 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
     }
 }
 
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get binary data from the device
-/// @param formatCode format code for the command
-/// @param buf (out) buffer to receive the binary data
-/// @param bufMaxLen maximum length of data to return
-/// @return RaftRetCode
-RaftRetCode MotorControl::getDataBinary(uint32_t formatCode, std::vector<uint8_t>& buf, uint32_t bufMaxLen) const
-{
-    return RAFT_NOT_IMPLEMENTED;
-}
-
 // /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // /// @brief Send a binary command to the device
 // /// @param formatCode Format code for the command
@@ -320,4 +309,45 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
 String MotorControl::getDebugJSON(bool includeBraces) const
 {
     return _motionController.getDebugJSON(includeBraces);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the device status as JSON (for DeviceManager aggregation)
+/// @return JSON string with motor status
+String MotorControl::getStatusJSON() const
+{
+    // Delegate to getDataJSON with PUBLISH level
+    return getDataJSON(DEVICE_JSON_LEVEL_PUBLISH);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get a hash value representing the current device state for change detection
+/// @return Hash value based on step counts and status flags
+uint32_t MotorControl::getDeviceStateHash() const
+{
+    // Get current state
+    AxesValues<AxisStepsDataType> steps = _motionController.getAxisTotalSteps();
+    bool busy = _motionController.isBusy();
+    bool paused = _motionController.isPaused();
+    
+    // Build hash from step counts and status flags
+    // Note: Position is not included because it is derived from step counts
+    // (through kinematics transformation), so if steps haven't changed, position can't either
+    uint32_t hash = 0;
+    for (uint32_t i = 0; i < steps.numAxes(); i++)
+    {
+        AxisStepsDataType stepVal = steps.getVal(i);
+        // XOR in both halves of the step value
+        hash ^= (uint32_t)(stepVal & 0xFFFFFFFF);
+        if constexpr (sizeof(AxisStepsDataType) > 4)
+        {
+            hash ^= (uint32_t)(stepVal >> 32);
+        }
+    }
+    
+    // Add status flags to the hash
+    hash ^= (busy ? 0x01 : 0x00);
+    hash ^= (paused ? 0x02 : 0x00);
+    
+    return hash;
 }

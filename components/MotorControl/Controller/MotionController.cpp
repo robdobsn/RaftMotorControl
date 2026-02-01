@@ -343,6 +343,50 @@ void MotionController::goToOrigin(const MotionArgs &args)
 /// @return JSON string
 String MotionController::getDataJSON(RaftDeviceJSONLevel level) const
 {
+    // Check for publish level - return operational state data
+    if (level == DEVICE_JSON_LEVEL_PUBLISH)
+    {
+        // Get current state
+        AxesValues<AxisPosDataType> monPos = getLastMonitoredPos();
+        AxesValues<AxisStepsDataType> steps = getAxisTotalSteps();
+        bool busy = isBusy();
+        bool paused = isPaused();
+        const String& pattern = getCurrentMotionPatternName();
+        
+        // Build JSON string
+        String json = "{";
+        
+        // Position array
+        json += "\"pos\":[";
+        for (uint32_t i = 0; i < monPos.numAxes(); i++)
+        {
+            if (i > 0) json += ",";
+            json += String(monPos.getVal(i), 2);  // 2 decimal places
+        }
+        json += "],";
+        
+        // Step counts array
+        json += "\"steps\":[";
+        for (uint32_t i = 0; i < steps.numAxes(); i++)
+        {
+            if (i > 0) json += ",";
+            json += String((long)steps.getVal(i));
+        }
+        json += "],";
+        
+        // Status fields
+        json += "\"busy\":";
+        json += busy ? "true" : "false";
+        json += ",\"paused\":";
+        json += paused ? "true" : "false";
+        json += ",\"pattern\":\"";
+        json += pattern;
+        json += "\"}";
+        
+        return json;
+    }
+
+    // Other levels - return diagnostic info
     String jsonBody;
     if (level >= DEVICE_JSON_LEVEL_MIN)
     {
