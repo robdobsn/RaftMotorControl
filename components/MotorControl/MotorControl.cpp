@@ -11,6 +11,8 @@
 #include "RaftBusSystem.h"
 #include "Logger.h"
 #include "HomingPattern.h"
+#include "DeviceManager.h"
+#include "DeviceTypeRecordDynamic.h"
 
 // #define DEBUG_MOTOR_CMD_JSON
 // #define DEBUG_SEND_CMD_TIMINGS
@@ -350,4 +352,57 @@ uint32_t MotorControl::getDeviceStateHash() const
     hash ^= (paused ? 0x02 : 0x00);
     
     return hash;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the device status as binary (for DeviceManager aggregation)
+/// @return Binary data vector with motor status
+std::vector<uint8_t> MotorControl::getStatusBinary() const
+{
+    // Get device data from motion controller
+    std::vector<uint8_t> data;
+    _motionController.formBinaryDataResponse(data);
+    
+    // Wrap with standard header
+    std::vector<uint8_t> binBuf;
+    RaftDevice::genBinaryDataMsg(binBuf, DeviceManager::DEVICE_CONN_MODE_DIRECT, 
+                                  0, getDeviceTypeIndex(), true, data);
+    return binBuf;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the device type record for this device
+/// @param devTypeRec (out) Device type record with schema
+/// @return true if the device has a device type record
+bool MotorControl::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const
+{
+    // Device info JSON with binary schema
+    // Format: 2-byte timestamp, 3x4-byte floats (pos), 3x4-byte int32s (steps), 1-byte flags, 4-byte pattern
+    // Total: 31 bytes
+    // Flags byte at offset 26: bit 0 = busy, bit 1 = paused
+    static const char* devInfoJson = R"~({"name":"Motor Controller","desc":"Multi-axis Motor Controller","manu":"Robotical","type":"MotorControl")~"
+        R"~(,"resp":{"b":31,"a":[)~"
+        R"~({"n":"pos0","t":">f","u":"mm","r":[-1000,1000],"d":1,"f":".2f","o":"float"},)~"
+        R"~({"n":"pos1","t":">f","u":"mm","r":[-1000,1000],"d":1,"f":".2f","o":"float"},)~"
+        R"~({"n":"pos2","t":">f","u":"mm","r":[-1000,1000],"d":1,"f":".2f","o":"float"},)~"
+        R"~({"n":"steps0","t":">i","u":"steps","r":[-2147483648,2147483647],"d":1,"f":"d","o":"int"},)~"
+        R"~({"n":"steps1","t":">i","u":"steps","r":[-2147483648,2147483647],"d":1,"f":"d","o":"int"},)~"
+        R"~({"n":"steps2","t":">i","u":"steps","r":[-2147483648,2147483647],"d":1,"f":"d","o":"int"},)~"
+        R"~({"n":"busy","at":26,"t":"B","r":[0,1],"m":"0x01","f":"b","o":"bool"},)~"
+        R"~({"n":"paused","at":26,"t":"B","r":[0,1],"m":"0x02","s":1,"f":"b","o":"bool"})~"
+        R"~(]}})~";
+    
+    // Set the device type record
+    devTypeRec = DeviceTypeRecordDynamic(
+        getPublishDeviceType().c_str(),
+        "",     // addresses
+        "",     // detectionValues
+        "",     // initValues
+        "",     // pollInfo
+        31,     // pollDataSizeBytes
+        devInfoJson,
+        nullptr // pollResultDecodeFn
+    );
+    
+    return true;
 }

@@ -67,6 +67,15 @@ public:
     /// @return Hash value based on step counts and status flags
     virtual uint32_t getDeviceStateHash() const override final;
 
+    /// @brief Get the device status as binary (for DeviceManager aggregation)
+    /// @return Binary data vector with motor status
+    virtual std::vector<uint8_t> getStatusBinary() const override final;
+
+    /// @brief Get the device type record for this device
+    /// @param devTypeRec (out) Device type record with schema
+    /// @return true if the device has a device type record
+    virtual bool getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) const override final;
+
     // Set motor on time after move
     void setMotorOnTimeAfterMoveSecs(float motorOnTimeAfterMoveSecs)
     {

@@ -408,6 +408,54 @@ String MotionController::getDataJSON(RaftDeviceJSONLevel level) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Form binary data response for publishing
+/// @param data (out) Data buffer to fill with binary data
+void MotionController::formBinaryDataResponse(std::vector<uint8_t>& data) const
+{
+    // Timestamp (16-bit, lower bits of millis)
+    uint16_t timeVal = (uint16_t)(millis() & 0xFFFF);
+    data.push_back((timeVal >> 8) & 0xFF);
+    data.push_back(timeVal & 0xFF);
+    
+    // Position values (3 x float, big-endian)
+    AxesValues<AxisPosDataType> pos = getLastMonitoredPos();
+    for (uint32_t i = 0; i < AXIS_VALUES_MAX_AXES; i++)
+    {
+        float val = pos.getVal(i);
+        uint32_t floatBits;
+        memcpy(&floatBits, &val, sizeof(float));
+        data.push_back((floatBits >> 24) & 0xFF);
+        data.push_back((floatBits >> 16) & 0xFF);
+        data.push_back((floatBits >> 8) & 0xFF);
+        data.push_back(floatBits & 0xFF);
+    }
+    
+    // Step counts (3 x int32, big-endian)
+    AxesValues<AxisStepsDataType> steps = getAxisTotalSteps();
+    for (uint32_t i = 0; i < AXIS_VALUES_MAX_AXES; i++)
+    {
+        int32_t val = steps.getVal(i);
+        data.push_back((val >> 24) & 0xFF);
+        data.push_back((val >> 16) & 0xFF);
+        data.push_back((val >> 8) & 0xFF);
+        data.push_back(val & 0xFF);
+    }
+    
+    // Flags byte (bit 0: busy, bit 1: paused)
+    uint8_t flags = 0;
+    if (isBusy()) flags |= 0x01;
+    if (isPaused()) flags |= 0x02;
+    data.push_back(flags);
+    
+    // Pattern name (first 4 bytes as identifier)
+    const String& pattern = getCurrentMotionPatternName();
+    for (uint32_t i = 0; i < 4; i++)
+    {
+        data.push_back(i < pattern.length() ? pattern[i] : 0);
+    }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get number of queue slots available for streaming
 /// @return Number of slots
 uint32_t MotionController::streamGetQueueSlots() const

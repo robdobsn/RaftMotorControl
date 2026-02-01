@@ -89,6 +89,9 @@ public:
     // Get data (diagnostics)
     String getDataJSON(RaftDeviceJSONLevel level) const;
 
+    // Form binary data response for publishing
+    void formBinaryDataResponse(std::vector<uint8_t>& data) const;
+
     // Get queue slots (buffers) available for streaming
     uint32_t streamGetQueueSlots() const;
 
