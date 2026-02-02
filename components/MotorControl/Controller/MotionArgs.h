@@ -81,7 +81,12 @@ public:
     
     bool isVelocityMode() const
     {
-        return _mode.startsWith("vel-");
+        return _mode == "vel" || _mode.startsWith("vel-");
+    }
+    
+    bool areVelocityUnitsSteps() const
+    {
+        return _mode == "vel-steps";
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

@@ -121,6 +121,17 @@ public:
     /// @param respMsg Optional pointer to string for error message (default nullptr)
     /// @return RaftRetCode
     RaftRetCode pumpBlockSplitter(MotionPipelineIF& motionPipeline, String* respMsg = nullptr);
+
+    /// @brief Add a velocity mode block
+    /// @param args MotionArgs containing velocity parameters
+    /// @param motionPipeline Motion pipeline to add block to
+    /// @param minStepRatePerTTicks Minimum step rate for initial velocity
+    /// @param respMsg Optional error message output
+    /// @return RaftRetCode
+    RaftRetCode addVelocityBlock(const MotionArgs& args,
+                                  MotionPipelineIF& motionPipeline,
+                                  uint32_t minStepRatePerTTicks,
+                                  String* respMsg = nullptr);
     
 private:
     // Debug

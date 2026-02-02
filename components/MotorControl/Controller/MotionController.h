@@ -183,6 +183,12 @@ private:
     /// @note The args may be modified so cannot be const
     RaftRetCode moveToRamped(MotionArgs& args, String* respMsg = nullptr);
 
+    /// @brief Start velocity mode motion
+    /// @param args MotionArgs specify the velocities for each axis
+    /// @param respMsg Optional pointer to string for error message (default nullptr)
+    /// @return RaftRetCode
+    RaftRetCode moveToVelocity(MotionArgs& args, String* respMsg = nullptr);
+
     // Defaults
     static constexpr const char* DEFAULT_DRIVER_CHIP = "TMC2209";
     static constexpr const char* DEFAULT_HARDWARE_LOCATION = "local";

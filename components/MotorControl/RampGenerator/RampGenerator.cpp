@@ -259,9 +259,18 @@ void IRAM_ATTR RampGenerator::setupNewBlock(MotionBlock *pBlock)
     {
         if (!_stepperDrivers[axisIdx])
             continue;
-        // Total steps
+        // Total steps - for velocity mode, use a large value (effectively infinite)
         int32_t stepsTotal = pBlock->_stepsTotalMaybeNeg[axisIdx];
-        _stepsTotalAbs[axisIdx] = UTILS_ABS(stepsTotal);
+        if (pBlock->isVelocityMode())
+        {
+            // For velocity mode, _stepsTotalMaybeNeg only encodes direction (1 or -1)
+            // Set a very large step count for indefinite motion
+            _stepsTotalAbs[axisIdx] = UINT32_MAX;
+        }
+        else
+        {
+            _stepsTotalAbs[axisIdx] = UTILS_ABS(stepsTotal);
+        }
         _curStepCount[axisIdx] = 0;
         _curAccumulatorRelative[axisIdx] = 0;
         // Set direction for the axis
@@ -363,7 +372,7 @@ bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
     // Complete Flag
     bool anyAxisMoving = false;
 
-    // Axis with most steps
+    // Axis with most steps (or dominant velocity axis for velocity mode)
     int axisIdxMaxSteps = pBlock->_axisIdxWithMaxSteps;
     if ((axisIdxMaxSteps < 0) || (axisIdxMaxSteps >= _stepperDrivers.size()))
         return false;
@@ -371,6 +380,43 @@ bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
     // Subtract from accumulator leaving remainder
     _curAccumulatorStep = _curAccumulatorStep - MotionBlock::TTICKS_VALUE;
 
+    // Handle velocity mode - uses pre-computed integer velocity ratios for ISR-safe operation
+    if (pBlock->isVelocityMode())
+    {
+        // Step the dominant axis
+        if (_stepperDrivers[axisIdxMaxSteps])
+            _stepperDrivers[axisIdxMaxSteps]->stepStart();
+        _stats.stepStart(axisIdxMaxSteps);
+
+        // Step other axes using pre-computed integer velocity ratios (no FPU in ISR)
+        for (uint32_t axisIdx = 0; axisIdx < _stepperDrivers.size(); axisIdx++)
+        {
+            if (axisIdx == axisIdxMaxSteps)
+                continue;
+
+            // Get pre-computed integer-scaled velocity ratio
+            uint32_t scaledRatio = pBlock->_velocityRatiosScaled[axisIdx];
+            if (scaledRatio == 0)
+                continue;  // Axis not moving in velocity mode
+
+            // Use accumulator with scaled threshold based on velocity ratio
+            // Higher ratio = step more often
+            _curAccumulatorRelative[axisIdx] = _curAccumulatorRelative[axisIdx] + scaledRatio;
+            if (_curAccumulatorRelative[axisIdx] >= MotionBlock::VEL_RATIO_SCALE)
+            {
+                _curAccumulatorRelative[axisIdx] = _curAccumulatorRelative[axisIdx] - MotionBlock::VEL_RATIO_SCALE;
+                
+                if (_stepperDrivers[axisIdx])
+                    _stepperDrivers[axisIdx]->stepStart();
+                _stats.stepStart(axisIdx);
+            }
+        }
+
+        // Velocity mode always returns true (continues indefinitely until stopped)
+        return true;
+    }
+
+    // Position mode - original behavior
     // Step the axis with the greatest step count if needed
     if (_curStepCount[axisIdxMaxSteps] < _stepsTotalAbs[axisIdxMaxSteps])
     {
@@ -478,17 +524,9 @@ void IRAM_ATTR RampGenerator::generateMotionPulses()
     // TODO
     // _rampGenIO.tickIndicator();
 
-    // Do a step-end for any motor which needs one - return here to avoid too short a pulse
-    if (handleStepEnd())
-    {
-#ifdef DEBUG_MOTION_PULSE_GEN
-        if(!_useRampGenTimer)
-        {
-            LOG_I(MODULE_PREFIX, "generateMotionPulses stepEnd true exiting");
-        }
-#endif
-        return;
-    }
+    // Do a step-end for any motor which needs one
+    // Note: No early return here - we continue to increment accumulators to maintain timing accuracy
+    handleStepEnd();
 
     // Check stop pending
     if (_stopPending)
@@ -645,4 +683,13 @@ void IRAM_ATTR RampGenerator::generateMotionPulses()
 void RampGenerator::debugShowStats()
 {
     LOG_I(MODULE_PREFIX, "%s isrCount %d", _stats.getStatsStr().c_str(), _isrCount);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check if velocity mode is currently active
+/// @return true if the current block is a velocity mode block
+bool RampGenerator::isVelocityModeActive() const
+{
+    MotionBlock* pBlock = const_cast<MotionPipeline&>(_motionPipeline).peekGet();
+    return pBlock && pBlock->_isExecuting && pBlock->isVelocityMode();
 }

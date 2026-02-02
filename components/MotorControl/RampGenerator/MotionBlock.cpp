@@ -61,6 +61,12 @@ void MotionBlock::clear()
     _endStopsToCheck.clear();
     for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
         _stepsTotalMaybeNeg[axisIdx] = 0;
+    // Velocity mode
+    _isVelocityMode = false;
+    _targetVelocities.clear();
+    _velocityRatios.clear();
+    for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+        _velocityRatiosScaled[axisIdx] = 0;
 #if USE_SINGLE_SPLIT_BLOCK
     _isSplitBlock = false;
     _totalSubBlocks = 0;
@@ -315,4 +321,95 @@ void MotionBlock::debugShowBlock(int elemIdx, const AxesParams &axesParams) cons
                 _debugStepDistMM,
                 axesParams.getMaxStepRatePerSec(0));
     LOG_I(MODULE_PREFIX, "%s%s", baseStr, extStr);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// Prepare for velocity mode stepping
+// Velocity mode blocks run indefinitely at the target velocity until stopped or replaced
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+
+bool MotionBlock::prepareForVelocityStepping(const AxesParams &axesParams, uint32_t minStepRatePerTTicks)
+{
+    // If block is currently being executed don't change it
+    if (_isExecuting)
+        return false;
+
+    _isVelocityMode = true;
+
+    // Find the axis with maximum absolute velocity (becomes the "dominant" axis)
+    AxisSpeedDataType maxAbsVelStepsPerSec = 0;
+    _axisIdxWithMaxSteps = 0;
+    for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+    {
+        AxisSpeedDataType absVel = fabs(_targetVelocities.getVal(axisIdx));
+        if (absVel > maxAbsVelStepsPerSec)
+        {
+            maxAbsVelStepsPerSec = absVel;
+            _axisIdxWithMaxSteps = axisIdx;
+        }
+    }
+
+    // Near-zero velocity means stop - return false to indicate no movement
+    if (maxAbsVelStepsPerSec < 0.001)
+    {
+        _isVelocityMode = false;
+        return false;
+    }
+
+    // Cap at maximum step rate for the dominant axis
+    if (maxAbsVelStepsPerSec > axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps))
+        maxAbsVelStepsPerSec = axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps);
+
+    // Set up step directions based on velocity signs
+    // For velocity mode, _stepsTotalMaybeNeg encodes direction only (sign of 1 or -1)
+    for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+    {
+        AxisSpeedDataType vel = _targetVelocities.getVal(axisIdx);
+        _stepsTotalMaybeNeg.setVal(axisIdx, (vel >= 0) ? 1 : -1);
+    }
+
+    // Calculate velocity ratios for multi-axis coordination
+    // Each axis velocity relative to dominant axis velocity
+    for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+    {
+        AxisSpeedDataType thisAbsVel = fabs(_targetVelocities.getVal(axisIdx));
+        if (maxAbsVelStepsPerSec > 0.001)
+        {
+            float ratio = thisAbsVel / maxAbsVelStepsPerSec;
+            _velocityRatios.setVal(axisIdx, ratio);
+            // Pre-compute integer-scaled ratio for ISR use (avoids FPU in ISR)
+            _velocityRatiosScaled[axisIdx] = uint32_t(ratio * VEL_RATIO_SCALE);
+        }
+        else
+        {
+            _velocityRatios.setVal(axisIdx, 0);
+            _velocityRatiosScaled[axisIdx] = 0;
+        }
+    }
+
+    // Calculate target step rate from velocity (for dominant axis)
+    float targetStepRatePerSec = maxAbsVelStepsPerSec;
+
+    // Set up acceleration profile to reach target velocity
+    // Start from minimum step rate (or could inherit from previous block for smooth transition)
+    _initialStepRatePerTTicks = minStepRatePerTTicks;
+    _maxStepRatePerTTicks = uint32_t((targetStepRatePerSec * TTICKS_VALUE) / _ticksPerSec);
+    _finalStepRatePerTTicks = _maxStepRatePerTTicks;  // No deceleration in steady state
+
+    // Acceleration in steps per TTicks per millisecond
+    // Use acceleration from dominant axis
+    float maxAccStepsPerSec2 = axesParams.getMaxAccelUps2(_axisIdxWithMaxSteps) * 
+                               axesParams.getStepsPerUnit(_axisIdxWithMaxSteps);
+    _accStepsPerTTicksPerMS = uint32_t((maxAccStepsPerSec2 * TTICKS_VALUE) / _ticksPerSec / 1000);
+
+    // For velocity mode, _stepsBeforeDecel is set to MAX so we never decelerate
+    _stepsBeforeDecel = UINT32_MAX;
+
+    // Set requested speed for reference
+    _requestedSpeed = maxAbsVelStepsPerSec;
+
+    // Set unit vector (1.0 for dominant axis in velocity mode)
+    _unitVecAxisWithMaxDist = 1.0;
+
+    return true;
 }

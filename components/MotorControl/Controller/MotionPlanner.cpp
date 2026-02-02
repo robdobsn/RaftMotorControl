@@ -658,3 +658,69 @@ void MotionPlanner::debugShowPipeline(MotionPipelineIF& motionPipeline, unsigned
         curIdx++;
     }
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Create a velocity mode motion block
+/// @param args MotionArgs containing velocity parameters
+/// @param axesParams Parameters for the axes
+/// @param motionPipeline Motion pipeline to add the block to
+/// @param minStepRatePerTTicks Minimum step rate for initial velocity
+/// @return RaftRetCode
+RaftRetCode MotionPlanner::moveVelocity(const MotionArgs& args,
+                                        const AxesParams& axesParams,
+                                        MotionPipelineIF& motionPipeline,
+                                        uint32_t minStepRatePerTTicks)
+{
+    // Check pipeline can accept
+    if (!motionPipeline.canAccept())
+        return RAFT_BUSY;
+
+    // Create velocity mode block
+    MotionBlock block;
+    block.setTimerPeriodNs(_stepGenPeriodNs);
+
+    // Extract velocities from args and convert to step velocities if needed
+    const AxesValues<AxisPosDataType>& vels = args.getVelocitiesConst();
+    
+    for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+    {
+        AxisSpeedDataType vel = vels.getVal(axisIdx);
+        
+        if (args.areVelocityUnitsSteps())
+        {
+            // Already in steps/sec
+            block._targetVelocities.setVal(axisIdx, vel);
+        }
+        else
+        {
+            // Convert from units/sec to steps/sec
+            double stepsPerUnit = axesParams.getStepsPerUnit(axisIdx);
+            block._targetVelocities.setVal(axisIdx, vel * stepsPerUnit);
+        }
+    }
+
+    // Prepare block for velocity stepping
+    if (!block.prepareForVelocityStepping(axesParams, minStepRatePerTTicks))
+    {
+        // Zero velocity = stop command (no movement)
+        return RAFT_OK;
+    }
+
+    // Set end-stop checking if configured
+    block.setEndStopsToCheck(args.getEndstopCheck());
+
+    // Set motion tracking index if present
+    if (args.isMotionTrackingIndexValid())
+        block.setMotionTrackingIndex(args.getMotionTrackingIndex());
+
+    block._canExecute = true;
+
+    // Add to pipeline
+    if (!motionPipeline.add(block))
+        return RAFT_OTHER_FAILURE;
+
+    LOG_I(MODULE_PREFIX, "moveVelocity created block - dominant axis %d, velocity %.2f steps/sec",
+          block._axisIdxWithMaxSteps, block._requestedSpeed);
+
+    return RAFT_OK;
+}

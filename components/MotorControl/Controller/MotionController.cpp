@@ -190,6 +190,17 @@ RaftRetCode MotionController::moveTo(MotionArgs &args, String* respMsg)
         _blockManager.clear();
     }
 
+    // Check for velocity mode
+    if (args.isVelocityMode())
+    {
+        RaftRetCode rc = moveToVelocity(args, respMsg);
+#ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
+        uint64_t totalTimeUs = micros() - startTimeUs;
+        LOG_I(MODULE_PREFIX, "moveTo TIMING: total=%lluus cmd=velocity", totalTimeUs);
+#endif
+        return rc;
+    }
+
     // Check motion type
     if (args.isRamped())
     {
@@ -318,6 +329,36 @@ RaftRetCode MotionController::moveToRamped(MotionArgs& args, String* respMsg)
         return rc;
 
     // Ok
+    return RAFT_OK;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Start velocity mode motion
+/// @param args MotionArgs specify the velocities for each axis
+/// @param respMsg Optional pointer to string for error message
+/// @return RaftRetCode
+RaftRetCode MotionController::moveToVelocity(MotionArgs& args, String* respMsg)
+{
+    // For velocity mode, we need to stop any existing motion and replace with velocity block
+    // This ensures immediate response to velocity commands
+    _rampGenerator.stop();
+    _blockManager.clear();
+
+    // Add velocity block
+    RaftRetCode rc = _blockManager.addVelocityBlock(args, 
+                                                     _rampGenerator.getMotionPipeline(),
+                                                     _rampGenerator.getMinStepRatePerTTicks(),
+                                                     respMsg);
+    
+    if (rc != RAFT_OK)
+    {
+        LOG_W(MODULE_PREFIX, "moveToVelocity failed: %s", Raft::getRetCodeStr(rc));
+        return rc;
+    }
+
+    LOG_I(MODULE_PREFIX, "moveToVelocity started - vel %s", 
+          args.getVelocitiesConst().getDebugJSON("vel").c_str());
+    
     return RAFT_OK;
 }
 

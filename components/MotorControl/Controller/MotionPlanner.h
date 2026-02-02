@@ -53,6 +53,17 @@ public:
                     String* respMsg = nullptr,
                     bool deferRecalc = false);
 
+    /// @brief Create a velocity mode motion block
+    /// @param args MotionArgs containing velocity parameters
+    /// @param axesParams Parameters for the axes
+    /// @param motionPipeline Motion pipeline to add the block to
+    /// @param minStepRatePerTTicks Minimum step rate for initial velocity
+    /// @return RaftRetCode
+    RaftRetCode moveVelocity(const MotionArgs& args,
+                             const AxesParams& axesParams,
+                             MotionPipelineIF& motionPipeline,
+                             uint32_t minStepRatePerTTicks);
+
     /// @brief Debug show pipeline contents
     /// @param motionPipeline Motion pipeline to show
     /// @param minQLen Minimum queue length to show

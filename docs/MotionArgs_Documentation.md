@@ -1,7 +1,7 @@
 # MotionArgs Documentation
 
-**Last Updated:** January 26, 2026  
-**Version:** 2.0 - Mode-Based Motion Control
+**Last Updated:** February 1, 2026  
+**Version:** 2.1 - Mode-Based Motion Control with Velocity Mode
 **Author:** Rob Dobson
 
 ## Overview
@@ -27,20 +27,22 @@ The class includes JSON serialization/deserialization capabilities and uses a mo
 | `"pos-abs-steps"` | Absolute position in motor steps | Low-level step control |
 | `"pos-rel-steps"` | Relative position in motor steps | Incremental step control |
 | `"pos-rel-steps-noramp"` | Relative steps, no acceleration | Direct step execution (used by homing) |
-| `"vel"` | Velocity mode in units/sec | Continuous motion (future) |
-| `"vel-steps"` | Velocity mode in steps/sec | Continuous motion (future) |
+| `"vel"` | Velocity mode in units/sec | Continuous motion at specified velocity |
+| `"vel-steps"` | Velocity mode in steps/sec | Continuous motion at specified step rate |
 
 **Helper Methods:**
 - `isRelative()` - Returns true if mode contains relative positioning
 - `areUnitsSteps()` - Returns true if mode uses steps instead of units
 - `isRamped()` - Returns true unless mode contains "noramp"
-- `isVelocityMode()` - Returns true if mode starts with "vel"
+- `isVelocityMode()` - Returns true if mode is "vel" or starts with "vel-"
+- `areVelocityUnitsSteps()` - Returns true if velocity mode uses steps/sec
 
 **Examples:**
 ```json
 {"mode": "abs"}                    // Move to absolute position in mm
 {"mode": "rel"}                    // Move relative in mm
 {"mode": "pos-rel-steps-noramp"}   // Direct step control for homing
+{"mode": "vel", "vel": [10, 5]}    // Velocity mode: axis 0 at 10 u/s, axis 1 at 5 u/s
 ```
 
 ---
@@ -450,12 +452,33 @@ Emergency return to origin - stops current motion, clears queue, executes immedi
 ```
 Moves axes 0, 1, 3 (skips 2) at 15mm/sec, constrains to workspace bounds.
 
-### Velocity Mode (Future)
+### Velocity Mode
 ```json
 {
   "cmd": "motion",
   "mode": "vel",
-  "vel": [10, -5, 0]
+  "vel": [10, -5]
 }
+```
+Continuous motion: axis 0 at 10 units/sec, axis 1 at -5 units/sec.
+Motion continues indefinitely until stopped or a new command is received.
+
+### Velocity Mode (Steps)
+```json
+{
+  "cmd": "motion",
+  "mode": "vel-steps",
+  "vel": [1000, 500]
+}
+```
+Continuous motion: axis 0 at 1000 steps/sec, axis 1 at 500 steps/sec.
+
+### Stop Velocity Mode
+```json
+{
+  "cmd": "stop"
+}
+```
+Stops all motion including velocity mode.
 ```
 Continuous motion: axis 0 at 10 u/s, axis 1 at -5 u/s, axis 2 stopped

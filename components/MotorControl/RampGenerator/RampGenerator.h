@@ -54,6 +54,21 @@ public:
         return _stepGenPeriodNs / 1000;
     }
 
+    // Get minimum step rate per TTicks
+    uint32_t getMinStepRatePerTTicks() const
+    {
+        return _minStepRatePerTTicks;
+    }
+
+    // Check if velocity mode is currently active
+    bool isVelocityModeActive() const;
+
+    // Get current step rate (for velocity transitions)
+    uint32_t getCurrentStepRatePerTTicks() const
+    {
+        return _curStepRatePerTTicks;
+    }
+
     // Get motion pipeline
     MotionPipelineIF& getMotionPipeline()
     {

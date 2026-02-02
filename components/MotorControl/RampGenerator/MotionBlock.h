@@ -65,6 +65,16 @@ public:
     //     we now compute the stepping parameters to make motion happen
     bool prepareForStepping(const AxesParams &axesParams, bool isLinear);
 
+    // Prepare a block for velocity mode stepping
+    // Velocity mode blocks run indefinitely until stopped or replaced
+    bool prepareForVelocityStepping(const AxesParams &axesParams, uint32_t minStepRatePerTTicks);
+
+    // Check if this is a velocity mode block
+    bool isVelocityMode() const { return _isVelocityMode; }
+
+    // Get target velocities for velocity mode
+    const AxesValues<AxisSpeedDataType>& getTargetVelocities() const { return _targetVelocities; }
+
     // Debug
     void debugShowTimingConsts() const;
     void debugShowBlkHead() const;
@@ -144,6 +154,18 @@ public:
     // Motion tracking index - to help keep track of motion execution from other processes
     // like homing
     uint32_t _motionTrackingIndex = 0;
+
+    // Velocity mode support
+    // When true, block continues stepping indefinitely until stopped or replaced
+    bool _isVelocityMode = false;
+    // Target velocities per axis (in steps per second for velocity mode)
+    AxesValues<AxisSpeedDataType> _targetVelocities;
+    // Velocity ratios for multi-axis coordination (relative to dominant axis)
+    AxesValues<AxisSpeedDataType> _velocityRatios;
+    // Integer-scaled velocity ratios for ISR-safe stepping (no FPU in ISR)
+    // Scaled by VEL_RATIO_SCALE (1000) for integer accumulator math
+    static constexpr uint32_t VEL_RATIO_SCALE = 1000;
+    uint32_t _velocityRatiosScaled[AXIS_VALUES_MAX_AXES] = {0};
 
 #if USE_SINGLE_SPLIT_BLOCK
     // Split-block support (backward compatible - all false/0 by default)

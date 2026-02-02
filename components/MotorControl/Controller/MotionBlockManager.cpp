@@ -587,3 +587,18 @@ void MotionBlockManager::setCurPositionAsOrigin()
 {
     _axesState.setOrigin();
 }
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Add a velocity mode block
+/// @param args MotionArgs containing velocity parameters
+/// @param motionPipeline Motion pipeline to add block to
+/// @param minStepRatePerTTicks Minimum step rate for initial velocity
+/// @param respMsg Optional error message output
+/// @return RaftRetCode
+RaftRetCode MotionBlockManager::addVelocityBlock(const MotionArgs& args,
+                                                  MotionPipelineIF& motionPipeline,
+                                                  uint32_t minStepRatePerTTicks,
+                                                  String* respMsg)
+{
+    return _motionPlanner.moveVelocity(args, _axesParams, motionPipeline, minStepRatePerTTicks);
+}
