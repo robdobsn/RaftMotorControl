@@ -10,7 +10,7 @@
 #include "MotionBlock.h"
 #include "AxesValues.h"
 #include "AxesParams.h"
-#include "RampGenConsts.h"
+#include "RampGenTimer.h"
 
 // #define DEBUG_ENDSTOPS
 
@@ -21,7 +21,7 @@
 MotionBlock::MotionBlock()
 {
     clear();
-    _ticksPerSec = calcTicksPerSec(RAMP_GEN_PERIOD_US_DEFAULT * 1000);
+    _ticksPerSec = calcTicksPerSec(RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT * 1000);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

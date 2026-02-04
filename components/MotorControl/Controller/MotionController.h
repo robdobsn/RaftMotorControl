@@ -96,13 +96,14 @@ public:
     uint32_t streamGetQueueSlots() const;
 
     // Motor on time after move
-    void setMotorOnTimeAfterMoveSecs(float motorOnTimeAfterMoveSecs)
+    RaftRetCode setMotorOnTimeAfterMoveSecs(float motorOnTimeAfterMoveSecs)
     {
         _motorEnabler.setMotorOnTimeAfterMoveSecs(motorOnTimeAfterMoveSecs);
+        return RAFT_OK;
     }
 
     // Set max motor current (amps)
-    void setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrent);
+    RaftRetCode setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrent);
 
     // Get debug JSON
     String getDebugJSON(bool includeBraces) const;

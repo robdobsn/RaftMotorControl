@@ -19,13 +19,11 @@ public:
     /// @param stepperName - name of stepper
     /// @param stepperParams - parameters for the stepper
     /// @param usingISR - true if using ISR
-    /// @param timeNowMs - current time in milliseconds
     /// @return true if successful
-    virtual bool setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR, uint32_t timeNowMs) override final;
+    virtual bool setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR) override final;
     
     /// @brief Loop - called frequently
-    /// @param timeNowMs - current time in milliseconds
-    virtual void loop(uint32_t timeNowMs) override final;
+    virtual void loop() override final;
 
     // Microsteps
     virtual void setMicrosteps(uint32_t microsteps) override final;
@@ -46,7 +44,7 @@ public:
 
     virtual String getStatusJSON(bool includeBraces, bool detailed) const override final;
 
-    virtual RaftRetCode setMaxMotorCurrentAmps(float maxMotorCurrentAmps, uint32_t timeNowMs) override final;
+    virtual RaftRetCode setMaxMotorCurrentAmps(float maxMotorCurrentAmps) override final;
 
     virtual bool isOperatingOk() const override final
     {
@@ -221,7 +219,7 @@ private:
     uint32_t getMRESFieldValue(uint32_t microsteps) const;
     void convertRMSCurrentToRegs(double reqCurrentAmps, double holdFactor, 
             StepDriverParams::HoldModeEnum holdMode, bool& vsenseOut, uint32_t& irunOut, uint32_t& iholdOut) const;
-    void setMainRegs(uint32_t timeNowMs);
+    void setMainRegs();
 
     // TMC2209 Defs
     static const uint8_t TMC_2209_SYNC_BYTE = 5;

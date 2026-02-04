@@ -33,9 +33,7 @@ public:
             const std::vector<EndStops*>& axisEndStops);
 
     /// @brief Loop - must be called very frequently if not using timer ISR (maybe called less frequently if using timer ISR)
-    /// @param timeNowMs Current system time in milliseconds (only relevant for debug or non-timer ISR)
-    /// @param nonTimerIntervalMs Interval between calls if not using timer ISR
-    void loop(uint32_t timeNowMs, uint32_t nonTimerIntervalMs);
+    void loop();
 
     // Start / stop / pause
     void start();
@@ -112,6 +110,7 @@ private:
 
     // Consts
     static constexpr uint32_t PIPELINE_LEN_DEFAULT = 100;
+    static constexpr uint32_t NON_TIMER_SERVICE_CALL_MIN_MS = 5;
 
     // If this is true nothing will move
     volatile bool _isPaused = true;
@@ -172,7 +171,7 @@ private:
     RampGenStats _stats;
 
     // Helpers
-    void generateMotionPulses(uint32_t timeNowMs);
+    void generateMotionPulses();
     bool handleStepEnd();
     void setupNewBlock(MotionBlock *pBlock);
     void updateMSAccumulator(MotionBlock *pBlock);
@@ -184,7 +183,7 @@ private:
     static MOTOR_TICK_FN_DECORATOR void rampGenTimerCallback(void* pObject)
     {
         if (pObject)
-            ((RampGenerator*)pObject)->generateMotionPulses(millis());
+            ((RampGenerator*)pObject)->generateMotionPulses();
     }
 
     // ISR count

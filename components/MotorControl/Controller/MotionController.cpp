@@ -17,6 +17,8 @@
 #include "RaftArduino.h"
 #include "RaftJsonPrefixed.h"
 
+// #define WARN_ON_MOTOR_CURRENT_SET_FAILURE
+
 // #define DEBUG_STEPPER_SETUP_CONFIG
 // #define DEBUG_RAMP_SETUP_CONFIG
 // #define DEBUG_MOTION_CONTROLLER
@@ -649,11 +651,22 @@ void MotionController::setupSerialBus(RaftBus* pBus, bool useBusForDirectionReve
 // Set max motor current
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-void MotionController::setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrentAmps)
+RaftRetCode MotionController::setMaxMotorCurrentAmps(uint32_t axisIdx, float maxMotorCurrentAmps)
 {
     // Set max motor current
+    RaftRetCode retCode = RAFT_OK;
     if (axisIdx < _stepperDrivers.size())
-        _stepperDrivers[axisIdx]->setMaxMotorCurrentAmps(maxMotorCurrentAmps);
+    {
+        RaftRetCode retCode2 = _stepperDrivers[axisIdx]->setMaxMotorCurrentAmps(maxMotorCurrentAmps);
+        if (retCode2 != RAFT_OK)
+        {
+#ifdef WARN_ON_MOTOR_CURRENT_SET_FAILURE
+            LOG_W(MODULE_PREFIX, "setMaxMotorCurrentAmps failed for axis %u: %s", axisIdx, Raft::getRetCodeStr(retCode2));
+#endif
+            retCode = retCode2;
+        }
+    }
+    return retCode;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

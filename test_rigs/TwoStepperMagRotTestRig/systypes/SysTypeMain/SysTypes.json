@@ -46,9 +46,8 @@
           "blockDistMM": 10,
           "homeBeforeMove": 0,
           "maxJunctionDeviationMM": 0.05,
-          "arm1LenMM": 100,
-          "arm2LenMM": 100,
-          "maxRadiusMM": 200,
+          "arm1LenMM": 95,
+          "arm2LenMM": 95,
           "originTheta2OffsetDegrees": 180
         },
         "ramp": {
@@ -66,10 +65,10 @@
             "name": "s0",
             "params": {
                 "unitsPerRot": 360,
-                "stepsPerRot": 12800,
-                "gearFactor": 1,
-                "maxSpeedUps": 360,
-                "maxAccUps2": 90
+                "stepsPerRot": 38400,
+                "gearFactor": 3,
+                "maxSpeedUps": 90,
+                "maxAccUps2": 45
             },
             "driver": {
               "driver": "TMC2209",
@@ -108,10 +107,10 @@
             "name": "s1",
             "params": {
                 "unitsPerRot": 360,
-                "stepsPerRot": 12800,
-                "gearFactor": 1,
-                "maxSpeedUps": 360,
-                "maxAccUps2": 90
+                "stepsPerRot": 38400,
+                "gearFactor": 3,
+                "maxSpeedUps": 90,
+                "maxAccUps2": 45
             },
             "driver": {
               "driver": "TMC2209",
