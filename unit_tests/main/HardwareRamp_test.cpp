@@ -7,10 +7,9 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include <limits.h>
-#include "Logger.h"
+#include "RaftCore.h"
 #include "MotorControl.h"
 #include "BusSerial.h"
-#include "RaftArduino.h"
 #include "unity.h"
 
 static const char* MODULE_PREFIX = "MotorControlTest";
@@ -33,7 +32,7 @@ RaftJson testConfig = R"(
         "bus": "SERA",
         "motion": {
             "geom": "XYZ",
-            "blockDistMM": 1,
+            "blockDistMM": 10,
             "homeBeforeMove": 0,
             "maxJunctionDeviationMM": 0.05
         },

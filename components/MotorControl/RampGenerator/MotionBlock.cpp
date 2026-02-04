@@ -6,12 +6,11 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "RaftCore.h"
 #include "MotionBlock.h"
 #include "AxesValues.h"
 #include "AxesParams.h"
-#include "Logger.h"
-#include "RaftUtils.h"
-#include "RampGenTimer.h"
+#include "RampGenConsts.h"
 
 // #define DEBUG_ENDSTOPS
 
@@ -22,7 +21,7 @@
 MotionBlock::MotionBlock()
 {
     clear();
-    _ticksPerSec = calcTicksPerSec(RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT * 1000);
+    _ticksPerSec = calcTicksPerSec(RAMP_GEN_PERIOD_US_DEFAULT * 1000);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -132,7 +131,7 @@ void MotionBlock::setMotionTrackingIndex(uint32_t motionTrackingIndex)
 {
     _motionTrackingIndex = motionTrackingIndex;
 }
-uint32_t IRAM_ATTR MotionBlock::getMotionTrackingIndex()
+uint32_t MOTOR_TICK_FN_DECORATOR MotionBlock::getMotionTrackingIndex()
 {
     return _motionTrackingIndex;
 }

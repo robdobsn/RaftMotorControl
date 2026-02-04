@@ -6,10 +6,9 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "StepDriverBase.h"
-#include "RaftArduino.h"
+#include "RaftCore.h"
 #include "RaftBus.h"
-#include "BusRequestInfo.h"
+#include "StepDriverBase.h"
 
 // Warning on CRC error
 #define WARN_ON_CRC_ERROR
@@ -41,8 +40,9 @@ StepDriverBase::~StepDriverBase()
 /// @param stepperName - name of stepper
 /// @param stepperParams - parameters for the stepper
 /// @param usingISR - true if using ISR
+/// @param timeNowMs - current time in milliseconds
 /// @return true if successful
-bool StepDriverBase::setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR)
+bool StepDriverBase::setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR, uint32_t timeNowMs)
 {
     // Store config
     _name = stepperName;
@@ -63,7 +63,8 @@ void StepDriverBase::setupSerialBus(RaftBus* pBus, bool useBusForDirectionRevers
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Loop - called frequently
-void StepDriverBase::loop()
+/// @param timeNowMs - current time in milliseconds
+void StepDriverBase::loop(uint32_t timeNowMs)
 {
     // Check if we are reading
     if (isReadInProgress())
@@ -132,7 +133,7 @@ void StepDriverBase::loop()
     }
 
     // Check timeout
-    if (isReadInProgress() && Raft::isTimeout(millis(), _readStartTimeMs, READ_TIMEOUT_MS))
+    if (isReadInProgress() && Raft::isTimeout(timeNowMs, _readStartTimeMs, READ_TIMEOUT_MS))
     {
 #ifdef DEBUG_READ_TIMEOUT
         LOG_I(MODULE_PREFIX, "loop name %s read timed out", _name.c_str());
@@ -197,7 +198,7 @@ void StepDriverBase::writeTrinamicsRegister(const char* pRegName, uint8_t regAdd
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Start a read from Trinamics register
 /// @param readRegisterIdx - index of register to read
-void StepDriverBase::startReadTrinamicsRegister(uint32_t readRegisterIdx)
+void StepDriverBase::startReadTrinamicsRegister(uint32_t readRegisterIdx, uint32_t timeNowMs)
 {
     // Check valid
     if (!busValid() || isBusy())
@@ -237,7 +238,7 @@ void StepDriverBase::startReadTrinamicsRegister(uint32_t readRegisterIdx)
     _readBytesToIgnore = _singleWireReadWrite ? sizeof(datagram) : 0;
     _readBytesRequired = TMC_REPLY_DATAGRAM_LEN;
     _readRegisterIdx = readRegisterIdx;
-    _readStartTimeMs = millis();
+    _readStartTimeMs = timeNowMs;
     _readInProgress = true;
 
 #ifdef DEBUG_READ_DETAIL

@@ -6,8 +6,9 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "RaftCore.h"
 #include "EndStops.h"
-#include "RaftArduino.h"
+#include "MotorControlConsts.h"
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -32,11 +33,13 @@ EndStops::~EndStops()
 /// @brief Clear endstops
 void EndStops::clear()
 {
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
     // Check if inputs should be restored (may have had pullup)
     if (_maxEndStopPin >= 0)
         pinMode(_maxEndStopPin, INPUT);
     if (_minEndStopPin >= 0)
         pinMode(_minEndStopPin, INPUT);
+#endif
 
     // Max endstop
     _maxEndStopPin = -1;
@@ -66,7 +69,9 @@ void EndStops::add(bool isMax, const char* name, int endStopPin, bool actvLevel,
         _maxInputType = inputType;
         if (_maxEndStopPin < 0)
             return;
-        pinMode(_maxEndStopPin, inputType);
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
+            pinMode(_maxEndStopPin, inputType);
+#endif
     }
     else
     {
@@ -76,7 +81,9 @@ void EndStops::add(bool isMax, const char* name, int endStopPin, bool actvLevel,
         _minInputType = inputType;
         if (_minEndStopPin < 0)
             return;
-        pinMode(_minEndStopPin, inputType);
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
+            pinMode(_minEndStopPin, inputType);
+#endif
     }
 } 
 
@@ -90,21 +97,29 @@ void EndStops::loop()
 /// @brief Check if at end stop
 /// @param max True if checking max endstop (false for min)
 /// @return true if at endstop
-bool IRAM_ATTR EndStops::isAtEndStop(bool max)
+bool MOTOR_TICK_FN_DECORATOR EndStops::isAtEndStop(bool max)
 {
     if (max)
     {
         if (_maxEndStopPin < 0)
             return false;
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         bool val = digitalRead(_maxEndStopPin);
         return val == _maxActLevel;
+#else
+        return false;
+#endif
     }
     else
     {
         if (_minEndStopPin < 0)
             return false;
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         bool val = digitalRead(_minEndStopPin);
         return val == _minActLevel;
+#else
+        return false;
+#endif
     }
 }
 
@@ -112,7 +127,7 @@ bool IRAM_ATTR EndStops::isAtEndStop(bool max)
 // Check endstop valid
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool IRAM_ATTR EndStops::isValid(bool max)
+bool MOTOR_TICK_FN_DECORATOR EndStops::isValid(bool max)
 {
     if (max)
     {
@@ -128,7 +143,7 @@ bool IRAM_ATTR EndStops::isValid(bool max)
 // Get pin and level
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool IRAM_ATTR EndStops::getPinAndLevel(bool max, int& pin, bool& actvLevel)
+bool MOTOR_TICK_FN_DECORATOR EndStops::getPinAndLevel(bool max, int& pin, bool& actvLevel)
 {
     if (max)
     {

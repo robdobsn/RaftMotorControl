@@ -35,7 +35,7 @@ MotorControl::~MotorControl()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// @brief Setup the device
+/// @brief Setup the device
 void MotorControl::setup()
 {
     // Setup motion controller
@@ -56,7 +56,7 @@ void MotorControl::setup()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// @brief Main loop for the device (called frequently)
+/// @brief Main loop for the device (called frequently)
 void MotorControl::loop()
 {
     // Loop motion controller
@@ -156,38 +156,16 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
     }
 }
 
-// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// /// @brief Send a binary command to the device
-// /// @param formatCode Format code for the command
-// /// @param pData Pointer to the data
-// /// @param dataLen Length of the data
-// /// @return RaftRetCode
-// RaftRetCode MotorControl::sendCmdBinary(uint32_t formatCode, const uint8_t* pData, uint32_t dataLen)
-// {
-//     // Check format code
-//     if (formatCode == MULTISTEPPER_CMD_BINARY_FORMAT_1)
-//     {
-//         // Check length ok
-//         if (dataLen < MULTISTEPPER_OPCODE_POS + 1)
-//             return RAFT_INVALID_DATA;
-
-//         // Check op-code
-//         switch(pData[MULTISTEPPER_OPCODE_POS])
-//         {
-//             case MULTISTEPPER_MOVETO_OPCODE:
-//             {
-//                 handleCmdBinary_MoveTo(pData + MULTISTEPPER_OPCODE_POS + 1, dataLen - MULTISTEPPER_OPCODE_POS - 1);
-//                 break;
-//             }
-//         }
-//     }
-//     return RAFT_OK;
-// }
-
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Send a JSON command to the device
 /// @param jsonCmd JSON command
 /// @return RaftRetCode
+/// - RAFT_OK if the motion was successfully added to the pipeline
+/// - RAFT_BUSY if the pipeline is full
+/// - RAFT_INVALID_DATA if geometry not set
+/// - RAFT_INVALID_OPERATION if homing is needed
+/// - RAFT_CANNOT_START if no movement
+/// - RAFT_NOT_IMPLEMENTED if the command is not implemented
 RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 {
     return sendCmdJSON(cmdJSON, nullptr);
@@ -195,6 +173,7 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON)
 
 RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
 {
+    RaftRetCode retCode = RAFT_OK;
 #ifdef DEBUG_SEND_CMD_TIMINGS
     uint64_t startTimeUs = micros();
     uint64_t parseStartUs, motionArgsStartUs, moveToStartUs;
@@ -228,19 +207,13 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
 #ifdef DEBUG_MOTOR_CMD_JSON
         LOG_I(MODULE_PREFIX, "sendCmdJSON motion %s", motionArgs.toJSON().c_str());
 #endif
-        RaftRetCode rc = _motionController.moveTo(motionArgs, respMsg);
+        retCode = _motionController.moveTo(motionArgs, respMsg);
 #ifdef DEBUG_SEND_CMD_TIMINGS
         uint64_t moveToTimeUs = micros() - moveToStartUs;
         uint64_t totalTimeUs = micros() - startTimeUs;
         LOG_I(MODULE_PREFIX, "sendCmdJSON TIMING: total=%lluus parse=%lluus motionArgs=%lluus moveTo=%lluus cmd=%s",
               totalTimeUs, parseTimeUs, motionArgsTimeUs, moveToTimeUs, cmd.c_str());
 #endif
-        if (rc != RAFT_OK)
-        {
-            LOG_W(MODULE_PREFIX, "sendCmdJSON motion failed: %s", 
-                  respMsg && respMsg->length() > 0 ? respMsg->c_str() : Raft::getRetCodeStr(rc));
-        }
-        return rc;
     }
     else if (cmd.equalsIgnoreCase("stop"))
     {
@@ -248,7 +221,6 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
         // Optional: disable motors if "disableMotors" is true
         bool disableMotors = jsonInfo.getBool("disableMotors", false);
         _motionController.stopAll(disableMotors);
-        return RAFT_OK;
     }
     else if (cmd.equalsIgnoreCase("setOrigin"))
     {
@@ -258,12 +230,12 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
     {
         float maxCurrentA = jsonInfo.getDouble("maxCurrentA", 0);
         uint32_t axisIdx = jsonInfo.getInt("axisIdx", 0);
-        _motionController.setMaxMotorCurrentAmps(axisIdx, maxCurrentA);
+        retCode = _motionController.setMaxMotorCurrentAmps(axisIdx, maxCurrentA);
     }
     else if (cmd.equalsIgnoreCase("offAfter"))
     {
         float motorOnTimeAfterMoveSecs = jsonInfo.getDouble("offAfterS", 0);
-        _motionController.setMotorOnTimeAfterMoveSecs(motorOnTimeAfterMoveSecs);
+        retCode = _motionController.setMotorOnTimeAfterMoveSecs(motorOnTimeAfterMoveSecs);
     }
     else if (cmd.equalsIgnoreCase("startPattern"))
     {
@@ -275,35 +247,21 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
     {
         _motionController.stopPattern();
     }
+#ifdef WARN_ON_SEND_CMD_JSON_FAILED
+if (retCode != RAFT_OK)
+{
+    LOG_W(MODULE_PREFIX, "sendCmdJSON failed: req %s resp %s", 
+            cmdJSON, respMsg && respMsg->length() > 0 ? respMsg->c_str() : Raft::getRetCodeStr(retCode));
+}
+#endif
+
 #ifdef DEBUG_SEND_CMD_TIMINGS
     uint64_t totalTimeUs = micros() - startTimeUs;
     LOG_I(MODULE_PREFIX, "sendCmdJSON TIMING: total=%lluus parse=%lluus cmd=%s",
           totalTimeUs, parseTimeUs, cmd.c_str());
 #endif
-    return RAFT_OK;
+    return retCode;
 }
-
-// /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// /// @brief Handle binary move-to command
-// /// @param pData Pointer to the data
-// /// @param dataLen Length of the data
-// void MotorControl::handleCmdBinary_MoveTo(const uint8_t* pData, uint32_t dataLen)
-// {
-//     // Check length ok
-//     if (dataLen < MULTISTEPPER_MOVETO_BINARY_FORMAT_POS + 1)
-//         return;
-    
-//     // Check version of args
-//     if (pData[MULTISTEPPER_MOVETO_BINARY_FORMAT_POS] != MULTISTEPPER_MOTION_ARGS_BINARY_FORMAT_1)
-//         return;
-
-//     // Check args length
-//     if (dataLen < sizeof(MotionArgs))
-//         return;
-
-//     // Send the request for interpretation
-//     _motionController.moveTo((const MotionArgs&)*pData);
-// }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Get debug string

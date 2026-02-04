@@ -9,8 +9,7 @@
 #pragma once
 
 #include <stdint.h>
-#include "RaftUtils.h"
-#include "RaftArduino.h"
+#include "RaftCore.h"
 
 class EndStops
 {

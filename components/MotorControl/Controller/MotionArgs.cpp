@@ -109,8 +109,10 @@ void MotionArgs::fromJSON(const char* jsonStr)
 
 String MotionArgs::toJSON()
 {
-    // Output string
-    String jsonStr = "\"mode\":\"" + _mode + "\"";
+    // Output string - reserve space to avoid heap fragmentation
+    String jsonStr;
+    jsonStr.reserve(256);
+    jsonStr = "\"mode\":\"" + _mode + "\"";
 
     // Speed (if specified)
     if (_speed.length() > 0)

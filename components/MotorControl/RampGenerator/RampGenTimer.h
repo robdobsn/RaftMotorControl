@@ -8,9 +8,8 @@
 
 #pragma once
 
-#include <stdint.h>
-#include <vector>
-#include "RaftArduino.h"
+#include "RaftCore.h"
+#include "MotorControlConsts.h"
 #ifdef ESP_PLATFORM
 #include "freertos/FreeRTOS.h"
 #include "freertos/semphr.h"
@@ -46,7 +45,7 @@ public:
     uint32_t getDebugISRCount();
     uint64_t getDebugRawCount();
     String getDebugJSON(bool includeBraces) const;
-    
+
     // Default ramp generation timer period us
     static constexpr uint32_t RAMP_GEN_PERIOD_US_DEFAULT = 20;
 
@@ -82,7 +81,7 @@ private:
 
 #ifdef ESP_PLATFORM
     // ISR
-    static IRAM_ATTR bool _staticGPTimerCB(gptimer_t* timer, const gptimer_alarm_event_data_t* eventData, void* arg)
+    static MOTOR_TICK_FN_DECORATOR bool _staticGPTimerCB(gptimer_t* timer, const gptimer_alarm_event_data_t* eventData, void* arg)
     {
         // Check the arg is valid
         if (!arg)
@@ -91,7 +90,7 @@ private:
         pRampGenTimer->_nonStaticGPTimerCB();
         return false;
     }
-    void IRAM_ATTR _nonStaticGPTimerCB()
+    void MOTOR_TICK_FN_DECORATOR _nonStaticGPTimerCB()
     {
         // Bump count
         _timerISRCount = _timerISRCount + 1;

@@ -6,8 +6,7 @@
 
 #pragma once
 
-#include "RaftArduino.h"
-#include "RaftSysMod.h"
+#include "RaftCore.h"
 #include "MotorControl.h"
 
 class APISourceInfo;

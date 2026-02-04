@@ -16,6 +16,7 @@ build_raft_artifacts
 managed_components
 node_modules
 P2_test
+build_linux/
 
 # Generated updater files
 current_version.json

@@ -12,7 +12,7 @@
 // Peek at next item in pipeline
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-MotionBlock* IRAM_ATTR MotionPipeline::peekGet()
+MotionBlock* MOTOR_TICK_FN_DECORATOR MotionPipeline::peekGet()
 {
     // Check if queue is empty
     if (!_pipelinePosn.canGet())

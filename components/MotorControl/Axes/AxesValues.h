@@ -8,9 +8,7 @@
 
 #pragma once
 
-#include <stdint.h>
-#include "Logger.h"
-#include "RaftArduino.h"
+#include "RaftCore.h"
 
 // Max axes and endstops supported
 static const uint32_t AXIS_VALUES_MAX_AXES = 3;
@@ -188,7 +186,8 @@ public:
         {
             if (axisIdx != 0)
                 jsonStr += ",";
-            jsonStr += String(_vals[axisIdx]);
+            // This uses std::to_string to get full precision as Arduino String(float) loses precision
+            jsonStr += std::to_string(_vals[axisIdx]).c_str();
         }
         jsonStr += "]";
         return jsonStr;

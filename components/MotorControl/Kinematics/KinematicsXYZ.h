@@ -10,6 +10,7 @@
 
 #include "RaftKinematics.h"
 #include "AxesParams.h"
+#include <math.h>
 
 // #define DEBUG_KINEMATICS_XYZ
 // #define DEBUG_KINEMATICS_XYZ_BOUNDS
@@ -94,9 +95,6 @@ public:
             // Convert to steps
             outActuator.setVal(axisIdx, round(axisValFromHome * axesParams.getStepsPerUnit(axisIdx)));
 
-            // TODO - decide if this origin steps needed
-            // outActuator.setVal(axisIdx, round(axisValFromHome * axesParams.getStepsPerUnit(axisIdx) + axesParams.gethomeOffsetSteps(axisIdx)));
-
 #ifdef DEBUG_KINEMATICS_XYZ
             LOG_I(MODULE_PREFIX, "ptToActuator axis%d %.2f(%.2f)-> %d",
                   axisIdx,
@@ -122,8 +120,6 @@ public:
         // Perform conversion
         for (uint32_t axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
         {
-            // TODO - decide if this origin steps needed
-            // double ptVal = targetActuator.getVal(axisIdx) - axesParams.gethomeOffsetSteps(axisIdx);
             double ptVal = targetActuator.getVal(axisIdx);
             ptVal = ptVal / axesParams.getStepsPerUnit(axisIdx);
             outPt.setVal(axisIdx, ptVal);

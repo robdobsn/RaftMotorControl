@@ -6,18 +6,17 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "RaftCore.h"
 #include "RampGenerator.h"
 #ifdef ESP_PLATFORM
 #include "esp_intr_alloc.h"
 #endif
 #include "MotionPipeline.h"
-#include "RampGenTimer.h"
-#include "RaftArduino.h"
 #include "StepDriverBase.h"
 #include "EndStops.h"
 #include "AxisEndstopChecks.h"
 
-#define RAMP_GEN_DETAILED_STATS
+// #define RAMP_GEN_DETAILED_STATS
 // #define DEBUG_MOTION_PULSE_GEN
 // #define DEBUG_MOTION_PEEK_QUEUE
 // #define DEBUG_SETUP_NEW_BLOCK
@@ -35,8 +34,10 @@ RampGenerator::RampGenerator()
 /// @brief Destructor
 RampGenerator::~RampGenerator()
 {
+#if defined(ESP_PLATFORM)
     // Release timer hook
     _rampGenTimer.unhookTimer(this);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -49,10 +50,12 @@ void RampGenerator::setup(const RaftJsonIF& config,
             const std::vector<EndStops*>& axisEndStops)
 {
     // Check if using ramp timer
+    uint32_t rampTimerUs = RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT;
+#if defined(ESP_PLATFORM)
     _useRampGenTimer = config.getBool("rampTimerEn", false);
 
     // Ramp generator config
-    long rampTimerUs = config.getLong("rampTimerUs", RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT);
+    rampTimerUs = config.getLong("rampTimerUs", RampGenTimer::RAMP_GEN_PERIOD_US_DEFAULT);
 
     // Ramp generator timer
     bool timerSetupOk = false;
@@ -67,6 +70,7 @@ void RampGenerator::setup(const RaftJsonIF& config,
             LOG_E(MODULE_PREFIX, "setup timer setup failed");
         }
     }
+#endif
 
     // Check if using a timer interrupt
     if (!_useRampGenTimer)
@@ -85,9 +89,11 @@ void RampGenerator::setup(const RaftJsonIF& config,
     // Calculate ramp gen periods
     _minStepRatePerTTicks = MotionBlock::calcMinStepRatePerTTicks(_stepGenPeriodNs);
 
+#ifdef ESP_PLATFORM
     // Hook the timer if required
     if (_useRampGenTimer)
         _rampGenTimer.hookTimer(rampGenTimerCallback, this);
+#endif
 
     // Setup motion pipeline
     uint32_t pipelineLen = config.getLong("pipelineLen", PIPELINE_LEN_DEFAULT);
@@ -109,12 +115,13 @@ void RampGenerator::loop()
 
     // Check if timer used for pulse generation - otherwise pump many times to
     // aid testing
+    uint32_t timeNowMs = millis();
     if (!_useRampGenTimer)
     {
         // Check time to generate pulses
-        if (Raft::isTimeout(millis(), _nonTimerLoopLastMs, NON_TIMER_SERVICE_CALL_MIN_MS))
+        if (Raft::isTimeout(timeNowMs, _nonTimerLoopLastMs, NON_TIMER_SERVICE_CALL_MIN_MS))
         {
-            _nonTimerLoopLastMs = millis();
+            _nonTimerLoopLastMs = timeNowMs;
             // Calculate times to call to give equivalent to timer rate
             uint32_t numCalls = (NON_TIMER_SERVICE_CALL_MIN_MS * 1000) / (_stepGenPeriodNs / 1000);
             for (uint32_t i = 0; i < numCalls; i++)
@@ -125,10 +132,10 @@ void RampGenerator::loop()
 #ifdef DEBUG_RAMP_GEN_SERVICE
     // Debug
     _debugRampGenLoopCount++;
-    if (Raft::isTimeout(millis(), _debugRampGenLoopLastMs, 1000))
+    if (Raft::isTimeout(timeNowMs, _debugRampGenLoopLastMs, 1000))
     {
         LOG_I(MODULE_PREFIX, "loop count %d useRampGenTimer %d", _debugRampGenLoopCount, _useRampGenTimer);
-        _debugRampGenLoopLastMs = millis();
+        _debugRampGenLoopLastMs = timeNowMs;
     }
 #endif
 
@@ -141,8 +148,10 @@ void RampGenerator::start()
     _rampGenEnabled = true;
     _stopPending = false;
     pause(false);
+#ifdef ESP_PLATFORM
     if (_useRampGenTimer)
         _rampGenTimer.enable(true);
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -229,7 +238,7 @@ void RampGenerator::getEndStopStatus(AxisEndstopChecks& axisEndStopVals) const
 // Handle the end of a step for any axis
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-bool IRAM_ATTR RampGenerator::handleStepEnd()
+bool MOTOR_TICK_FN_DECORATOR RampGenerator::handleStepEnd()
 {
     bool anyPinReset = false;
     for (uint32_t axisIdx = 0; axisIdx < _stepperDrivers.size(); axisIdx++)
@@ -251,7 +260,7 @@ bool IRAM_ATTR RampGenerator::handleStepEnd()
 /// @param pBlock Motion block defines all motion parameters
 /// @note This function is called when a new block is added to the pipeline
 ///       It sets up the block for execution recording all the info needed to process the block
-void IRAM_ATTR RampGenerator::setupNewBlock(MotionBlock *pBlock)
+void MOTOR_TICK_FN_DECORATOR RampGenerator::setupNewBlock(MotionBlock *pBlock)
 {
     // Setup step counts, direction and endstops for each axis
     _endStopCheckNum = 0;
@@ -280,8 +289,8 @@ void IRAM_ATTR RampGenerator::setupNewBlock(MotionBlock *pBlock)
 #ifdef DEBUG_SETUP_NEW_BLOCK
         if (!_useRampGenTimer)
         {
-            LOG_I(MODULE_PREFIX, "setupNewBlock setDirection %d stepsTotal %d numSteppers %d stepType %s", 
-                        stepsTotal >= 0, stepsTotal, _stepperDrivers.size(), _stepperDrivers[axisIdx]->getDriverType().c_str());
+            LOG_I(MODULE_PREFIX, "setupNewBlock axisIdx %d setDirection %d stepsTotal %d numSteppers %d stepType %s", 
+                        axisIdx, stepsTotal >= 0, stepsTotal, _stepperDrivers.size(), _stepperDrivers[axisIdx]->getDriverType().c_str());
         }
 #endif
 
@@ -336,7 +345,7 @@ void IRAM_ATTR RampGenerator::setupNewBlock(MotionBlock *pBlock)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Update the motion block time accumulators to handle acceleration and deceleration
 /// @param pBlock Motion block defines all motion parameters
-void IRAM_ATTR RampGenerator::updateMSAccumulator(MotionBlock *pBlock)
+void MOTOR_TICK_FN_DECORATOR RampGenerator::updateMSAccumulator(MotionBlock *pBlock)
 {
     // Bump the millisec accumulator
     _curAccumulatorNS = _curAccumulatorNS + _stepGenPeriodNs;
@@ -367,7 +376,7 @@ void IRAM_ATTR RampGenerator::updateMSAccumulator(MotionBlock *pBlock)
 /// @param pBlock Motion block defines all motion parameters
 /// @return true if any axis is still moving
 /// @note Handle the start of step on each axis
-bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
+bool MOTOR_TICK_FN_DECORATOR RampGenerator::handleStepMotion(MotionBlock *pBlock)
 {
     // Complete Flag
     bool anyAxisMoving = false;
@@ -483,7 +492,7 @@ bool IRAM_ATTR RampGenerator::handleStepMotion(MotionBlock *pBlock)
 /// @brief End motion
 /// @param pBlock Motion block defines all motion parameters
 /// @note This function is called when a block is completed and removes the block from the pipeline
-void IRAM_ATTR RampGenerator::endMotion(MotionBlock *pBlock)
+void MOTOR_TICK_FN_DECORATOR RampGenerator::endMotion(MotionBlock *pBlock)
 {
 #if USE_SINGLE_SPLIT_BLOCK
     // For split-blocks, advance to next sub-block instead of removing immediately
@@ -512,7 +521,7 @@ void IRAM_ATTR RampGenerator::endMotion(MotionBlock *pBlock)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Generate motion pulses
 /// @note This function is called from the timer ISR or from the main loop if not using a timer ISR
-void IRAM_ATTR RampGenerator::generateMotionPulses()
+void MOTOR_TICK_FN_DECORATOR RampGenerator::generateMotionPulses()
 {
     // Instrumentation code to time ISR execution (if enabled)
     _stats.startMotionProcessing();
@@ -565,13 +574,14 @@ void IRAM_ATTR RampGenerator::generateMotionPulses()
     if (!pBlock)
     {
 #ifdef DEBUG_MOTION_PEEK_QUEUE
-        if (Raft::isTimeout(millis(), _debugLastQueuePeekMs, 1000))
+        uint32_t timeNowMs = millis();
+        if (Raft::isTimeout(timeNowMs, _debugLastQueuePeekMs, 1000))
         {
             if(!_useRampGenTimer)
             {
                 LOG_I(MODULE_PREFIX, "generateMotionPulses no block exiting");
             }
-            _debugLastQueuePeekMs = millis();
+            _debugLastQueuePeekMs = timeNowMs;
         }
 #endif
         return;
@@ -581,13 +591,14 @@ void IRAM_ATTR RampGenerator::generateMotionPulses()
     if (!pBlock->_canExecute)
     {
 #ifdef DEBUG_MOTION_PEEK_QUEUE
-        if (Raft::isTimeout(millis(), _debugLastQueuePeekMs, 1000))
+        uint32_t timeNowMs = millis();
+        if (Raft::isTimeout(timeNowMs, _debugLastQueuePeekMs, 1000))
         {
             if(!_useRampGenTimer)
             {
                 LOG_I(MODULE_PREFIX, "generateMotionPulses can't execute exiting");
             }
-            _debugLastQueuePeekMs = millis();
+            _debugLastQueuePeekMs = timeNowMs;
         }
 #endif
         return;

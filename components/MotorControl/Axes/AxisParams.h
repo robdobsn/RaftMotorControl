@@ -8,9 +8,7 @@
 
 #pragma once
 
-#include "RaftJson.h"
-#include "Logger.h"
-#include "RaftUtils.h"
+#include "RaftCore.h"
 #include "AxesValues.h"
 #include "MotorControlTypes.h"
 

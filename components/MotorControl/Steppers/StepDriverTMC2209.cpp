@@ -6,9 +6,10 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#include "StepDriverTMC2209.h"
-#include "RaftArduino.h"
 #include <math.h>
+#include "RaftCore.h"
+#include "StepDriverTMC2209.h"
+#include "MotorControlConsts.h"
 
 #define WARN_ON_DRIVER_BUSY
 
@@ -91,16 +92,20 @@ bool StepDriverTMC2209::setup(const String& stepperName, const StepDriverParams&
     // Setup step pin
     if (stepperParams.stepPin >= 0)
     {
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         // Setup the pin
         pinMode(stepperParams.stepPin, OUTPUT);
         digitalWrite(stepperParams.stepPin, false);
+#endif
     }
 
     // Setup dirn pin
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
     if (stepperParams.dirnPin >= 0)
     {
         pinMode(stepperParams.dirnPin, OUTPUT);
     }
+#endif
     
     // Hardware is not initialised
     _hwIsSetup = true;
@@ -123,6 +128,7 @@ void StepDriverTMC2209::loop()
     StepDriverBase::loop();
 
     // Check if driver is ready
+    uint32_t timeNowMs = millis();
     if (isBusy())
     {
 #ifdef WARN_ON_DRIVER_BUSY
@@ -130,9 +136,9 @@ void StepDriverTMC2209::loop()
         {
             if (_warnOnDriverBusyStartTimeMs == 0)
             {
-                _warnOnDriverBusyStartTimeMs = millis();
+                _warnOnDriverBusyStartTimeMs = timeNowMs;
             }
-            else if (Raft::isTimeout(millis(), _warnOnDriverBusyStartTimeMs, WARN_ON_DRIVER_BUSY_AFTER_MS))
+            else if (Raft::isTimeout(timeNowMs, _warnOnDriverBusyStartTimeMs, WARN_ON_DRIVER_BUSY_AFTER_MS))
             {
                 LOG_E(MODULE_PREFIX, "%s loop driver busy for too long", _name.c_str());
                 _warnOnDriverBusyStartTimeMs = 0;
@@ -148,9 +154,9 @@ void StepDriverTMC2209::loop()
     _warnOnDriverBusyDone = false;
 
     // Check if ready for loop checks
-    if (!Raft::isTimeout(millis(), _loopLastTimeMs, LOOP_INTERVAL_MS))
+    if (!Raft::isTimeout(timeNowMs, _loopLastTimeMs, LOOP_INTERVAL_MS))
         return;
-    _loopLastTimeMs = millis();
+    _loopLastTimeMs = timeNowMs;
 
     // Check read in progress
     if (isReadInProgress())
@@ -197,7 +203,7 @@ void StepDriverTMC2209::loop()
     }
 
     // Check for time to read status registers
-    if ((_statusReadIntervalMs != 0) && Raft::isTimeout(millis(), _statusReadLastTimeMs, _statusReadIntervalMs))
+    if ((_statusReadIntervalMs != 0) && Raft::isTimeout(timeNowMs, _statusReadLastTimeMs, _statusReadIntervalMs))
     {
         // Check if GSTAT register has been read successfully
         if (_driverRegisters[DRIVER_REGISTER_CODE_GSTAT].readValid)
@@ -225,7 +231,7 @@ void StepDriverTMC2209::loop()
     // Check for config reset
     if (_configResetRequired)
     {
-        if (Raft::isTimeout(millis(), _configSetLastTimeMs, CONFIG_RESET_AFTER_MS))
+        if (Raft::isTimeout(timeNowMs, _configSetLastTimeMs, CONFIG_RESET_AFTER_MS))
         {
             // Reset config
             LOG_I(MODULE_PREFIX, "%s loop reset config registers", _name.c_str());
@@ -320,7 +326,7 @@ uint32_t StepDriverTMC2209::getMRESFieldValue(uint32_t microsteps) const
 /// @param iholdOut - ihold value
 void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double holdFactor, 
             StepDriverParams::HoldModeEnum holdMode, bool& vsenseOut, uint32_t& irunOut, uint32_t& iholdOut) const
-{
+{            
     // External sense resistor value in ohms
     const double R_sense = _requestedParams.extSenseOhms;
     if (R_sense <= 0)
@@ -374,11 +380,13 @@ void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double ho
     }
 
 #ifdef DEBUG_IHOLD_IRUN_CALCS
+    char tmpHoldStr[30];
+    snprintf(tmpHoldStr, sizeof(tmpHoldStr), "FactorBy%0.2f", holdFactor);
     LOG_I(MODULE_PREFIX, "convertRMSCurrentToRegs %s reqCurAmps %0.2f RSense %.2f holdMode=%s => IRUN %d (actual %.2fA) IHOLD %d (actual %.2fA) vsense %d",
             _name.c_str(), 
             reqCurrentAmps, 
             R_sense,
-            holdMode == StepDriverParams::HOLD_MODE_FACTOR ? ("FactorBy" + String(holdFactor,2)).c_str() : 
+            holdMode == StepDriverParams::HOLD_MODE_FACTOR ? tmpHoldStr : 
                 (holdMode == StepDriverParams::HOLD_MODE_FREEWHEEL ? "Freewheel" : "PassiveBraking"),
             irunOut, 
             (Vref * (irunOut + 1)) / (32 * R_sense),
@@ -392,7 +400,7 @@ void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double ho
 /// @brief Set direction
 /// @param dirn - direction
 /// @param forceSet - force set
-void IRAM_ATTR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
+void MOTOR_TICK_FN_DECORATOR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
 {
     // Check valid
     if (!_hwIsSetup)
@@ -449,7 +457,7 @@ void IRAM_ATTR StepDriverTMC2209::setDirection(bool dirn, bool forceSet)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Start a step
-void IRAM_ATTR StepDriverTMC2209::stepStart()
+void MOTOR_TICK_FN_DECORATOR StepDriverTMC2209::stepStart()
 {
     // Check hardware pin
     if (_hwIsSetup && (_requestedParams.stepPin >= 0))
@@ -461,7 +469,9 @@ void IRAM_ATTR StepDriverTMC2209::stepStart()
         }
 #endif
         // Set the pin value
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         digitalWrite(_requestedParams.stepPin, true);
+#endif
         _stepCurActive = true;
     }
     else
@@ -478,12 +488,14 @@ void IRAM_ATTR StepDriverTMC2209::stepStart()
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief End a step
-bool IRAM_ATTR StepDriverTMC2209::stepEnd()
+bool MOTOR_TICK_FN_DECORATOR StepDriverTMC2209::stepEnd()
 {
     if (_stepCurActive && (_requestedParams.stepPin >= 0))
     {
         _stepCurActive = false;
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         digitalWrite(_requestedParams.stepPin, false);
+#endif
 #ifdef DEBUG_STEPPING_ONLY_IF_NOT_ISR
         if (!_usingISR)
         {
@@ -498,7 +510,7 @@ bool IRAM_ATTR StepDriverTMC2209::stepEnd()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set the max motor current
 /// @param maxMotorCurrentAmps - max motor current in Amps
-void StepDriverTMC2209::setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
+RaftRetCode StepDriverTMC2209::setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
 {
     // Set the max motor current
     _requestedParams.rmsAmps = maxMotorCurrentAmps;
@@ -508,6 +520,7 @@ void StepDriverTMC2209::setMaxMotorCurrentAmps(float maxMotorCurrentAmps)
 
     // Set the current
     setMainRegs();
+    return RAFT_OK;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -609,10 +622,10 @@ String StepDriverTMC2209::getDebugJSON(bool includeBraces, bool detailed) const
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-// @brief Get status JSON
-// @param includeBraces - include braces
-// @param detailed - detailed
-// @return JSON string
+/// @brief Get status JSON
+/// @param includeBraces - include braces
+/// @param detailed - detailed
+/// @return JSON string
 String StepDriverTMC2209::getStatusJSON(bool includeBraces, bool detailed) const
 {
     bool anyWritePending = false;

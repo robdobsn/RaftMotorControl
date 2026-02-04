@@ -9,9 +9,9 @@
 #pragma once
 
 #include <stdint.h>
-#include "RaftArduino.h"
-#include "Logger.h"
+#include "RaftCore.h"
 #include "RaftJson.h"
+#include "MotorControlConsts.h"
 
 static const uint32_t AXIS_VALUES_MAX_ENDSTOPS_PER_AXIS = 2;
 
@@ -68,7 +68,7 @@ public:
     }
     // Set endstop on all axes when moving towards
     void all();
-    inline bool IRAM_ATTR any() const
+    inline bool MOTOR_TICK_FN_DECORATOR any() const
     {
         return (_uint & (1 << MIN_MAX_VALID_BIT)) && (_uint & MIN_MAX_VALUES_MASK);
     }

@@ -6,6 +6,7 @@
 //
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
+#include "RaftCore.h"
 #include "AxisEndstopChecks.h"
 #include "AxesValues.h"
 
@@ -24,7 +25,7 @@ AxisEndstopChecks::AxisEndstopChecks()
     }
 }
 
-AxisEndstopChecks::AxisMinMaxEnum IRAM_ATTR AxisEndstopChecks::get(uint32_t axisIdx, uint32_t endStopIdx) const
+AxisEndstopChecks::AxisMinMaxEnum MOTOR_TICK_FN_DECORATOR AxisEndstopChecks::get(uint32_t axisIdx, uint32_t endStopIdx) const
 {
     if ((axisIdx > MAX_AXIS_INDEX) || (endStopIdx >= AXIS_VALUES_MAX_ENDSTOPS_PER_AXIS))
         return END_STOP_NONE;

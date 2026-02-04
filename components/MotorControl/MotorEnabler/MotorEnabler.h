@@ -8,10 +8,8 @@
 
 #pragma once
 
-#include "RaftUtils.h"
+#include "RaftCore.h"
 #include "time.h"
-#include "RaftArduino.h"
-#include "ConfigPinMap.h"
 
 // #define DEBUG_MOTOR_ENABLER
 
@@ -29,9 +27,11 @@ public:
     }
     void deinit()
     {
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         // disable
         if (_stepEnablePin >= 0)
             pinMode(_stepEnablePin, INPUT);
+#endif
     }
 
     bool setup(const RaftJsonIF& config)
@@ -46,15 +46,20 @@ public:
         LOG_I(MODULE_PREFIX, "setup pin %d, actLvl %d, disableAfter %fs", 
                     _stepEnablePin, _stepEnLev, _stepDisableSecs);
 
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
         // Enable pin - initially disable
         if (_stepEnablePin >= 0)
         {
             pinMode(_stepEnablePin, OUTPUT);
             digitalWrite(_stepEnablePin, !_stepEnLev);
         }
+#endif
         return true;
     }
 
+    /// @brief Enable/disable motors
+    /// @param en true to enable, false to disable
+    /// @param timeout true if this is a timeout causing the disable
     void enableMotors(bool en, bool timeout)
     {
         // LOG_I(MODULE_PREFIX, "Enable %d currentlyEn %d pin %d disable level %d, disable after time %f",
@@ -70,7 +75,9 @@ public:
                                 _stepDisableSecs, _stepEnablePin, _stepEnLev);
                 }
 #endif
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
                 digitalWrite(_stepEnablePin, _stepEnLev);
+#endif
             }
             _motorsAreEnabled = true;
             _motorEnLastMillis = millis();
@@ -86,7 +93,9 @@ public:
                     LOG_I(MODULE_PREFIX, "MotorEnabler: motors disabled by %s", timeout ? ("timeout(" + String(_stepDisableSecs) + "s)").c_str() : "command");
                 }
 #endif
+#if defined(ARDUINO) || defined(ESP_PLATFORM)
                 digitalWrite(_stepEnablePin, !_stepEnLev);
+#endif
             }
             _motorsAreEnabled = false;
         }
@@ -97,6 +106,7 @@ public:
         return _motorEnLastUnixTime;
     }
 
+    /// @brief Loop
     void loop()
     {
         // Check for motor enable timeout

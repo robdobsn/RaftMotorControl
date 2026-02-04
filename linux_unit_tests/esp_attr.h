@@ -1,2 +1,0 @@
-#define IRAM_ATTR
-

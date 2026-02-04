@@ -36,13 +36,21 @@ public:
     /// @param config Configuration
     KinematicsSingleArmSCARA(const RaftJsonIF& config)
     {
-        _arm1LenMM = AxisPosDataType(config.getDouble("arm1LenMM", 100));
-        _arm2LenMM = AxisPosDataType(config.getDouble("arm2LenMM", 100));
+        _arm1LenMM = AxisPosDataType(config.getDouble("arm1LenMM", DEFAULT_ARM_LENGTH_MM));
+        _arm2LenMM = AxisPosDataType(config.getDouble("arm2LenMM", DEFAULT_ARM_LENGTH_MM));
         _maxRadiusMM = AxisPosDataType(config.getDouble("maxRadiusMM", _arm1LenMM + _arm2LenMM));
         _originTheta2OffsetDegrees = AxisPosDataType(config.getDouble("originTheta2OffsetDegrees", 180));
 
+        // Check validity
+        if (_arm1LenMM < MIN_ARM_LENGTH_MM)
+            _arm1LenMM = DEFAULT_ARM_LENGTH_MM;
+        if (_arm2LenMM < MIN_ARM_LENGTH_MM)
+            _arm2LenMM = DEFAULT_ARM_LENGTH_MM;
+        if (_maxRadiusMM > _arm1LenMM + _arm2LenMM)
+            _maxRadiusMM = _arm1LenMM + _arm2LenMM;
+
 #ifdef DEBUG_KINEMATICS_SA_SCARA_SETUP
-        LOG_I(MODULE_PREFIX, "arm1LenMM %.2f arm2LenMM %.2f maxRadiusMM %.2f",
+        LOG_I(MODULE_PREFIX, "arm1Len %.2fmm arm2Len %.2fmm maxRadius %.2fmm",
                 _arm1LenMM, _arm2LenMM, _maxRadiusMM);
 #endif
     }
@@ -132,7 +140,7 @@ public:
 #endif
         }
 
-        // Apply this to calculate required steps (relative to the current position)
+        // Calculate required steps (relative to the current position)
         relativeAnglesToAbsoluteSteps(relativeAngleSolution, curAxesState, outActuator, axesParams);
 
 #ifdef DEBUG_KINEMATICS_SA_SCARA
@@ -163,9 +171,9 @@ public:
     /// @param axesParams Axes parameters
     /// @return true if successful
     virtual bool actuatorToPt(const AxesValues<AxisStepsDataType>& inActuator,
-            AxesValues<AxisPosDataType>& outPt,
-            const AxesState& curAxesState,
-            const AxesParams& axesParams) const override final
+                            AxesValues<AxisPosDataType>& outPt,
+                            const AxesState& curAxesState,
+                            const AxesParams& axesParams) const override final
     {
         // Convert steps to angles - NOTE: Must use inActuator parameter, not curAxesState!
         // This ensures we calculate position for the actual current step count from the motors
@@ -180,7 +188,7 @@ public:
         LOG_I(MODULE_PREFIX, "actuatorToPt steps %d, %d x %.2f y %.2f theta1 %.2f theta2 %.2f",
                 inActuator.getVal(0), inActuator.getVal(1), outPt.getVal(0), outPt.getVal(1), curAngles.getVal(0), curAngles.getVal(1));
 #endif
-        return true;        
+        return true;
     }
 
     /// @brief Get arm lengths
@@ -303,11 +311,11 @@ private:
         // For angles between -180 and +180 just use the diffAngle
         double bestRotation = diffAngle;
         if (diffAngle <= -180)
-            bestRotation = 360 + diffAngle;
+            bestRotation = 360.0 + diffAngle;
         else if (diffAngle > 180)
-            bestRotation = diffAngle - 360;
+            bestRotation = diffAngle - 360.0;
 #ifdef DEBUG_KINEMATICS_SA_SCARA_RELATIVE_ANGLE
-        LOG_I(MODULE_PREFIX, "computeRelativeAngle: target %.2f cur %.2f diff %.2f best %.2f",
+        LOG_I(MODULE_PREFIX, "computeRelativeAngle: target %.2f° cur %.2f° diff %.2f° best %.2f°",
                 targetRotation, curRotation, diffAngle, bestRotation);
 #endif
         return bestRotation;
@@ -340,11 +348,13 @@ private:
     }
 
     // Arm lengths in mm
-    AxisPosDataType _arm1LenMM = 100;
-    AxisPosDataType _arm2LenMM = 100;
+    static const constexpr AxisPosDataType MIN_ARM_LENGTH_MM = 0.1;
+    static const constexpr AxisPosDataType DEFAULT_ARM_LENGTH_MM = 100.0;
+    AxisPosDataType _arm1LenMM = DEFAULT_ARM_LENGTH_MM;
+    AxisPosDataType _arm2LenMM = DEFAULT_ARM_LENGTH_MM;
 
     // Max radius in mm
-    AxisPosDataType _maxRadiusMM = 200;
+    AxisPosDataType _maxRadiusMM = DEFAULT_ARM_LENGTH_MM + DEFAULT_ARM_LENGTH_MM;
 
     // Origin theta2 offset in degrees (theta2 is the angle of the second arm anticlockwise from the x-axis)
     // 180 degrees is the default for a SCARA arm since this is the position where the end effector is in the centre
