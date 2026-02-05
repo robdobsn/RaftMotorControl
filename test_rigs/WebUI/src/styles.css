@@ -333,6 +333,35 @@ input[type="number"]::-webkit-outer-spin-button {
   font-size: 0.8rem;
 }
 
+/* Checkbox styling for Path Executor */
+.checkbox-group {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.checkbox-label {
+  display: flex !important;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  color: #e0e0e0 !important;
+  font-size: 0.85rem !important;
+}
+
+.checkbox-label input[type="checkbox"] {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+  accent-color: #4a9eff;
+}
+
+.checkbox-help {
+  color: #888;
+  font-size: 0.7rem;
+  margin-top: 2px;
+}
+
 .form-range-sm {
   height: 1rem;
 }

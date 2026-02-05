@@ -29,6 +29,8 @@ The class includes JSON serialization/deserialization capabilities and uses a mo
 | `"pos-rel-steps-noramp"` | Relative steps, no acceleration | Direct step execution (used by homing) |
 | `"vel"` | Velocity mode in units/sec | Continuous motion at specified velocity |
 | `"vel-steps"` | Velocity mode in steps/sec | Continuous motion at specified step rate |
+| `"prop"` | Proportionate absolute (0-1 maps to axis min-max) | Scale-independent patterns |
+| `"prop-rel"` | Proportionate relative (fraction of axis range) | Scale-independent increments |
 
 **Helper Methods:**
 - `isRelative()` - Returns true if mode contains relative positioning
@@ -36,6 +38,7 @@ The class includes JSON serialization/deserialization capabilities and uses a mo
 - `isRamped()` - Returns true unless mode contains "noramp"
 - `isVelocityMode()` - Returns true if mode is "vel" or starts with "vel-"
 - `areVelocityUnitsSteps()` - Returns true if velocity mode uses steps/sec
+- `isProportionate()` - Returns true if mode is "prop" or starts with "prop-"
 
 **Examples:**
 ```json
@@ -43,7 +46,59 @@ The class includes JSON serialization/deserialization capabilities and uses a mo
 {"mode": "rel"}                    // Move relative in mm
 {"mode": "pos-rel-steps-noramp"}   // Direct step control for homing
 {"mode": "vel", "vel": [10, 5]}    // Velocity mode: axis 0 at 10 u/s, axis 1 at 5 u/s
+{"mode": "prop", "pos": [0.5, 0.5]}    // Move to center of each axis range
+{"mode": "prop-rel", "pos": [0.1, 0]}  // Move axis 0 by 10% of its range
 ```
+
+### Proportionate Mode Details
+
+The proportionate modes (`prop` and `prop-rel`) allow position commands to be specified as values between 0 and 1, which are mapped to the configured axis bounds (`minUnits` and `maxUnits`). This enables:
+
+- **Portable patterns**: A pattern designed with proportionate coordinates will work on any machine, automatically scaling to fit the working area.
+- **Scale-independent control**: UI sliders or joysticks can use 0-1 values without knowing machine dimensions.
+- **Bounds safety**: Values are inherently within bounds when using 0-1 range.
+
+**Prerequisites:** Axis bounds must be configured in the system JSON:
+```json
+{
+  "axes": [
+    {
+      "name": "X",
+      "params": {
+        "minUnits": -100,
+        "maxUnits": 100,
+        ...
+      }
+    }
+  ]
+}
+```
+
+**Mode: `prop` (Proportionate Absolute)**
+
+Values are clamped to 0-1 and linearly mapped to the axis range:
+- `0` → `minUnits`
+- `0.5` → midpoint of range
+- `1` → `maxUnits`
+
+```json
+{"mode": "prop", "pos": [0, 0]}        // Move to minimum position on both axes
+{"mode": "prop", "pos": [1, 1]}        // Move to maximum position on both axes
+{"mode": "prop", "pos": [0.5, 0.5]}    // Move to center of working area
+```
+
+**Mode: `prop-rel` (Proportionate Relative)**
+
+Values represent a fraction of the axis range to move relative to current position:
+- `0.1` → move 10% of the range in positive direction
+- `-0.1` → move 10% of the range in negative direction
+
+```json
+{"mode": "prop-rel", "pos": [0.1, 0]}     // Move axis 0 by 10% of its range
+{"mode": "prop-rel", "pos": [-0.05, 0.05]} // Move axis 0 back 5%, axis 1 forward 5%
+```
+
+**Note:** For `prop-rel`, values are not clamped, allowing the resulting position to potentially exceed bounds (standard out-of-bounds handling applies).
 
 ---
 

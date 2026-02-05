@@ -287,6 +287,43 @@ export class RobotGeometry {
   }
 
   /**
+   * Get workspace dimensions for proportionate mode
+   * This returns the full axis range that the firmware uses for proportionate coordinate conversion
+   * For SCARA: maps to full -maxRadius to +maxRadius range (diameter = 2*maxRadius)
+   * For Cartesian: maps to the configured axis ranges
+   */
+  public getProportionateWorkspaceDimensions(): WorkspaceDimensions {
+    if (!this.robotConfig) {
+      return { width: 400, height: 400, description: 'Default 400mm x 400mm' };
+    }
+
+    const geomLower = this.robotConfig.geometry.toLowerCase();
+    
+    if (geomLower.includes('cartesian') || geomLower.includes('xyz')) {
+      // For Cartesian, use axis min/max ranges
+      return this.getWorkspaceDimensions();
+    } else {
+      // For SCARA: firmware maps proportionate 0-1 to -maxRadius to +maxRadius
+      const arm1Len = this.robotConfig.arm1LengthMM || 150;
+      const arm2Len = this.robotConfig.arm2LengthMM || 150;
+      // Physical max reach is arm1 + arm2
+      const physicalMaxRadius = arm1Len + arm2Len;
+      // Use the smaller of: configured maxRadius (if valid) or physical max
+      // This handles cases where firmware returns a bogus default (e.g., 290) larger than physical reach
+      const configuredMax = this.robotConfig.maxRadiusMM || physicalMaxRadius;
+      const maxRadius = Math.min(configuredMax, physicalMaxRadius);
+      // Full diameter is 2*maxRadius
+      const diameter = maxRadius * 2;
+      console.log(`[RobotGeometry] getProportionateWorkspaceDimensions: arm1=${arm1Len}, arm2=${arm2Len}, physicalMax=${physicalMaxRadius}, configuredMax=${configuredMax}, maxRadius=${maxRadius}, diameter=${diameter}`);
+      return { 
+        width: diameter, 
+        height: diameter,
+        description: `Full range ±${maxRadius.toFixed(0)}mm (diameter ${diameter.toFixed(0)}mm)` 
+      };
+    }
+  }
+
+  /**
    * Normalize angle to 0-360 range, handling negatives
    */
   public normalizeAngle(angle: number): number {

@@ -214,6 +214,32 @@ public:
         return _originTheta2OffsetDegrees;
     }
 
+    /// @brief Get Cartesian workspace bounds for proportionate coordinate conversion
+    /// @param axisIdx Axis index (0=X, 1=Y)
+    /// @param minVal Output minimum value for this axis
+    /// @param maxVal Output maximum value for this axis
+    /// @param axesParams Axes parameters (unused for SCARA - bounds come from arm geometry)
+    /// @return true if bounds are available for this axis
+    /// @note For SCARA, the Cartesian workspace is a circle centered at origin with radius maxRadiusMM
+    ///       So both X and Y range from -maxRadiusMM to +maxRadiusMM
+    virtual bool getCartesianWorkspaceBounds(uint32_t axisIdx, 
+                                             AxisPosDataType& minVal, 
+                                             AxisPosDataType& maxVal,
+                                             const AxesParams& axesParams) const override
+    {
+        (void)axesParams; // Unused for SCARA - bounds come from arm geometry
+        
+        // For SCARA, X and Y both range from -maxRadiusMM to +maxRadiusMM
+        if (axisIdx <= 1)
+        {
+            minVal = -_maxRadiusMM;
+            maxVal = _maxRadiusMM;
+            return true;
+        }
+        // Other axes not supported
+        return false;
+    }
+
 private:
     static constexpr const char *MODULE_PREFIX = "KinematicsSingleArmSCARA";
 

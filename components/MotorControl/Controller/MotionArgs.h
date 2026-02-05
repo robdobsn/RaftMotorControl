@@ -88,6 +88,11 @@ public:
     {
         return _mode == "vel-steps";
     }
+    
+    bool isProportionate() const
+    {
+        return _mode == "prop" || _mode.startsWith("prop-");
+    }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     // Speed Control
@@ -284,7 +289,8 @@ private:
     uint8_t _motionArgsStructVersion = 0;
 
     // Motion mode: "abs", "rel", "pos-abs-steps", "pos-rel-steps", 
-    // "pos-abs-steps-noramp", "pos-rel-steps-noramp", "vel", "vel-steps"
+    // "pos-abs-steps-noramp", "pos-rel-steps-noramp", "vel", "vel-steps",
+    // "prop", "prop-rel" (proportionate 0-1 mapping to axis min/max)
     String _mode = "abs";
 
     // Speed: numeric (percentage) or string with units ("10mmps", "500upm", "80pc", etc.)

@@ -41,6 +41,7 @@ export default function PathExecutor({ motorConnectionReady, robotConfig, onPath
   const [repetitions, setRepetitions] = useState(1);
   const [delayMs, setDelayMs] = useState(50);
   const [pointsPerPath, setPointsPerPath] = useState(50);
+  const [useProportionate, setUseProportionate] = useState(true);
   const [isExecuting, setIsExecuting] = useState(false);
   const [progress, setProgress] = useState({ current: 0, total: 0 });
   const [connectorReady, setConnectorReady] = useState(false);
@@ -234,7 +235,7 @@ export default function PathExecutor({ motorConnectionReady, robotConfig, onPath
     }
   };
 
-  // Scale normalized points to fit within robot workspace
+  // Scale normalized points to fit within robot workspace (absolute mm coordinates)
   const scalePathToWorkspace = (normalizedPoints: PathPoint[]): PathPoint[] => {
     // Use pattern workspace dimensions which account for circular SCARA workspace
     const { width, height } = robotGeometry.getPatternWorkspaceDimensions();
@@ -245,20 +246,60 @@ export default function PathExecutor({ motorConnectionReady, robotConfig, onPath
     }));
   };
 
-  // Update expected path visualization when pattern or points change
+  // Scale normalized points to proportionate range (0.05 to 0.95)
+  // This keeps the pattern 10% away from the axis boundaries
+  const scalePathToProportionate = (normalizedPoints: PathPoint[]): PathPoint[] => {
+    const margin = 0.05; // 5% margin on each side
+    const range = 1 - 2 * margin; // 0.9 range (0.05 to 0.95)
+    
+    return normalizedPoints.map(p => ({
+      a0: margin + p.a0 * range,
+      a1: margin + p.a1 * range,
+    }));
+  };
+
+  // Convert proportionate (0-1) coordinates to mm for display
+  // This mirrors what the firmware does: maps 0-1 to the full workspace range
+  // Uses robotGeometry which has the properly configured robot dimensions
+  const scaleProportionateToMM = (proportionatePoints: PathPoint[]): PathPoint[] => {
+    // Get the proportionate workspace dimensions from robotGeometry
+    // This returns the full range the firmware uses (e.g., ±maxRadius for SCARA)
+    const { width, height } = robotGeometry.getProportionateWorkspaceDimensions();
+    // Firmware maps: 0 -> -width/2, 0.5 -> 0, 1 -> +width/2
+    return proportionatePoints.map(p => ({
+      a0: (p.a0 - 0.5) * width,
+      a1: (p.a1 - 0.5) * height,
+    }));
+  };
+
+  // Update expected path visualization when pattern, points, or mode change
   useEffect(() => {
     const normalizedPath = generateNormalizedPath(selectedPattern, pointsPerPath);
-    const scaledPath = scalePathToWorkspace(normalizedPath);
-    const expectedPath: ExpectedPathPoint[] = scaledPath.map(p => ({ x: p.a0, y: p.a1 }));
+    let expectedPath: ExpectedPathPoint[];
+    
+    if (useProportionate) {
+      // For proportionate mode: scale to 0.05-0.95 range, then convert to mm for display
+      const proportionatePath = scalePathToProportionate(normalizedPath);
+      const mmPath = scaleProportionateToMM(proportionatePath);
+      expectedPath = mmPath.map(p => ({ x: p.a0, y: p.a1 }));
+    } else {
+      // For absolute mode: scale directly to workspace mm
+      const scaledPath = scalePathToWorkspace(normalizedPath);
+      expectedPath = scaledPath.map(p => ({ x: p.a0, y: p.a1 }));
+    }
+    
     onPathChange?.(expectedPath);
-  }, [selectedPattern, pointsPerPath, onPathChange]);
+  }, [selectedPattern, pointsPerPath, useProportionate, robotConfig, onPathChange]);
 
   // Execute a single movement command
-  const sendMoveCommand = async (point: PathPoint, speedValue: number): Promise<void> => {
+  // When isProportionate=true, point values are 0-1 normalized and sent with mode=prop
+  // When isProportionate=false, point values are in mm and sent with mode=abs
+  const sendMoveCommand = async (point: PathPoint, speedValue: number, isProportionate: boolean): Promise<void> => {
     // Build command using modern pos=[x,y] array format (backend auto-detects arrays/numbers)
     // Speed is sent as percentage (100 = 100% of max speed)
     const speedPercent = Math.round(speedValue * 100);
-    const command = `motors?cmd=motion&mode=abs&speed=${speedPercent}&pos=[${point.a0.toFixed(2)},${point.a1.toFixed(2)}]&imm=0&nosplit=1`;
+    const mode = isProportionate ? 'prop' : 'abs';
+    const command = `motors?cmd=motion&mode=${mode}&speed=${speedPercent}&pos=[${point.a0.toFixed(4)},${point.a1.toFixed(4)}]&imm=0&nosplit=1`;
     try {
       await connManager.getMotorConnector().sendRICRESTMsg(command, {});
       console.log('Move command sent:', command);
@@ -281,7 +322,10 @@ export default function PathExecutor({ motorConnectionReady, robotConfig, onPath
     try {
       // Generate the path
       const normalizedPath = generateNormalizedPath(selectedPattern, pointsPerPath);
-      const scaledPath = scalePathToWorkspace(normalizedPath);
+      // Scale path based on mode: proportionate (0.05-0.95) or absolute (mm)
+      const scaledPath = useProportionate 
+        ? scalePathToProportionate(normalizedPath)
+        : scalePathToWorkspace(normalizedPath);
 
       const totalPoints = scaledPath.length * repetitions;
       setProgress({ current: 0, total: totalPoints });
@@ -289,7 +333,7 @@ export default function PathExecutor({ motorConnectionReady, robotConfig, onPath
       // Execute repetitions
       for (let rep = 0; rep < repetitions && !executionRef.current.shouldStop; rep++) {
         for (let i = 0; i < scaledPath.length && !executionRef.current.shouldStop; i++) {
-          await sendMoveCommand(scaledPath[i], speed);
+          await sendMoveCommand(scaledPath[i], speed, useProportionate);
           setProgress({ 
             current: rep * scaledPath.length + i + 1, 
             total: totalPoints 
@@ -305,8 +349,10 @@ export default function PathExecutor({ motorConnectionReady, robotConfig, onPath
       // Return to origin after completing all repetitions
       if (!executionRef.current.shouldStop) {
         await new Promise(resolve => setTimeout(resolve, delayMs));
-        await sendMoveCommand({ a0: 0, a1: 0 }, speed);
-        console.log('Returned to origin (0, 0)');
+        // Origin is center (0.5, 0.5) in proportionate mode, (0, 0) in absolute mode
+        const origin = useProportionate ? { a0: 0.5, a1: 0.5 } : { a0: 0, a1: 0 };
+        await sendMoveCommand(origin, speed, useProportionate);
+        console.log(`Returned to origin ${useProportionate ? '(0.5, 0.5) proportionate' : '(0, 0) mm'}`);
       }
 
       if (!executionRef.current.shouldStop) {
@@ -423,6 +469,22 @@ export default function PathExecutor({ motorConnectionReady, robotConfig, onPath
               onChange={(e) => setRepetitions(Math.max(1, parseInt(e.target.value) || 1))}
               disabled={!connectorReady || isExecuting}
             />
+          </div>
+
+          <div className="control-group-compact checkbox-group">
+            <label htmlFor="proportionateCheck" className="checkbox-label">
+              <input
+                type="checkbox"
+                id="proportionateCheck"
+                checked={useProportionate}
+                onChange={(e) => setUseProportionate(e.target.checked)}
+                disabled={!connectorReady || isExecuting}
+              />
+              Proportionate
+            </label>
+            <small className="checkbox-help">
+              {useProportionate ? 'Using 0-1 scaled coordinates' : 'Using absolute mm coordinates'}
+            </small>
           </div>
         </div>
 

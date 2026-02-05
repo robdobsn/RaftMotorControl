@@ -94,8 +94,72 @@ public:
         {
             LOG_W(MODULE_PREFIX, "preProcessCoords no kinematics set");
             return 0;
-        }    
+        }
+        
+        // Handle proportionate mode - convert 0-1 values to absolute units
+        if (args.isProportionate())
+        {
+            convertProportionateToAbsolute(args);
+        }
+        
         return _pRaftKinematics->preProcessCoords(args, _axesState, _axesParams);
+    }
+    
+    /// @brief Convert proportionate (0-1) coordinates to absolute units
+    /// @param args Motion arguments (modified in place)
+    /// @note For "prop" mode: 0 maps to minUnits, 1 maps to maxUnits
+    /// @note For "prop-rel" mode: value is fraction of (maxUnits - minUnits) to move relative to current position
+    /// @note Uses kinematics getCartesianWorkspaceBounds() for workspace-aware conversion
+    void convertProportionateToAbsolute(MotionArgs& args) const
+    {
+        AxesValues<AxisPosDataType> axisPositions;
+        bool isRelative = args.isRelative();
+        
+        for (uint32_t i = 0; i < AXIS_VALUES_MAX_AXES; i++)
+        {
+            if (args.getAxesSpecified().getVal(i))
+            {
+                AxisPosDataType propVal = args.getAxesPosConst().getVal(i);
+                
+                // Get workspace bounds from kinematics (handles SCARA vs Cartesian properly)
+                AxisPosDataType minU = 0, maxU = 0;
+                bool hasBounds = _pRaftKinematics && 
+                    _pRaftKinematics->getCartesianWorkspaceBounds(i, minU, maxU, _axesParams);
+                
+                if (!hasBounds)
+                {
+                    // Fallback to axis params if kinematics doesn't provide bounds
+                    minU = _axesParams.getMinUnits(i);
+                    maxU = _axesParams.getMaxUnits(i);
+                }
+                
+                AxisPosDataType range = maxU - minU;
+                
+                AxisPosDataType absVal;
+                if (isRelative)
+                {
+                    // prop-rel: value is fraction of range to move relative to current position
+                    absVal = _axesState.getUnitsFromOrigin(i) + propVal * range;
+                }
+                else
+                {
+                    // prop: clamp 0-1 and map to absolute position
+                    if (propVal < 0) propVal = 0;
+                    if (propVal > 1) propVal = 1;
+                    absVal = minU + propVal * range;
+                }
+                axisPositions.setVal(i, absVal);
+            }
+            else
+            {
+                // Unspecified axis - keep current position
+                axisPositions.setVal(i, _axesState.getUnitsFromOrigin(i));
+            }
+        }
+        
+        // Update args with absolute positions and change mode to absolute
+        args.setAxesPositions(axisPositions);
+        args.setMode("abs");
     }
 
     /// @brief Set current position as origin

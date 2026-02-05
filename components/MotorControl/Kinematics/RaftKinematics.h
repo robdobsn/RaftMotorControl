@@ -119,6 +119,27 @@ public:
         return false;
     }
 
+    /// @brief Get Cartesian workspace bounds for proportionate coordinate conversion
+    /// @param axisIdx Axis index (0=X, 1=Y, etc.)
+    /// @param minVal Output minimum value for this axis
+    /// @param maxVal Output maximum value for this axis
+    /// @param axesParams Axes parameters
+    /// @return true if bounds are available for this axis
+    /// @note Default implementation uses axesParams minUnits/maxUnits
+    /// @note Kinematics with non-Cartesian joints (like SCARA) should override this
+    ///       to provide the Cartesian workspace bounds instead of joint bounds
+    virtual bool getCartesianWorkspaceBounds(uint32_t axisIdx, 
+                                             AxisPosDataType& minVal, 
+                                             AxisPosDataType& maxVal,
+                                             const AxesParams& axesParams) const
+    {
+        // Default: use axis params (works for Cartesian kinematics like XYZ)
+        minVal = axesParams.getMinUnits(axisIdx);
+        maxVal = axesParams.getMaxUnits(axisIdx);
+        // Return true only if bounds are actually set (non-zero range)
+        return (maxVal - minVal) > 0.001;
+    }
+
     /// @brief Validate that all intermediate points in a linear path are reachable
     /// @param startPt Start point in Cartesian coordinates
     /// @param endPt End point in Cartesian coordinates
