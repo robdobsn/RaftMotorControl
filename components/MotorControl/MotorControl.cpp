@@ -323,7 +323,7 @@ std::vector<uint8_t> MotorControl::getStatusBinary() const
     
     // Wrap with standard header
     std::vector<uint8_t> binBuf;
-    RaftDevice::genBinaryDataMsg(binBuf, DeviceManager::DEVICE_CONN_MODE_DIRECT, 
+    RaftDevice::genBinaryDataMsg(binBuf, RaftDeviceID::BUS_NUM_DIRECT_CONN, 
                                   0, getDeviceTypeIndex(), true, data);
     return binBuf;
 }
@@ -352,7 +352,7 @@ bool MotorControl::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) cons
     
     // Set the device type record
     devTypeRec = DeviceTypeRecordDynamic(
-        getPublishDeviceType().c_str(),
+        getConfiguredDeviceType().c_str(),
         "",     // addresses
         "",     // detectionValues
         "",     // initValues

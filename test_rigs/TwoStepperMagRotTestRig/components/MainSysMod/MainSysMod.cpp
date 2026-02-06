@@ -142,7 +142,7 @@ RaftDevice* MainSysMod::getMotorDevice() const
     auto pDevMan = getSysManager()->getDeviceManager();
     if (!pDevMan)
         return nullptr;
-    RaftDevice* pMotor = pDevMan->getDevice("MotorControl");
+    RaftDevice* pMotor = pDevMan->getDeviceByStringLookup("MotorControl");
     if (!pMotor)
         return nullptr;
     return pMotor;
@@ -158,7 +158,8 @@ void MainSysMod::registerForSensorData()
         return;
 
     // Register for device data notifications from MT6701 (Joint 1)
-    pDevMan->registerForDeviceData("I2CA_6@0", 
+    RaftDeviceID deviceID_MT6701 = RaftDeviceID(1, 0x06);  // I2C bus 1, address 0x06
+    pDevMan->registerForDeviceData(deviceID_MT6701, 
         [this](uint32_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo) {
 
             // Decode device data
@@ -207,7 +208,8 @@ void MainSysMod::registerForSensorData()
     );
 
     // Register for device data notifications from AS5600 (Joint 2)
-    pDevMan->registerForDeviceData("I2CA_36@0", 
+    RaftDeviceID deviceID_AS5600 = RaftDeviceID(1, 0x36);  // I2C bus 1, address 0x36
+    pDevMan->registerForDeviceData(deviceID_AS5600, 
         [this](uint32_t deviceTypeIdx, std::vector<uint8_t> data, const void* pCallbackInfo) {
 
             // Decode device data
