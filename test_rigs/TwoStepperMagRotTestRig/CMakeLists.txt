@@ -10,4 +10,4 @@ include("${CMAKE_BINARY_DIR}/RaftBootstrap.cmake")
 list(APPEND EXTRA_COMPONENT_DIRS "../..")
 
 # Define the project dependencies
-project(${_build_config_name} DEPENDS ${ADDED_PROJECT_DEPENDENCIES})
+project(${_systype_name} DEPENDS ${ADDED_PROJECT_DEPENDENCIES})
