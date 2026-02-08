@@ -184,6 +184,15 @@ void RampGenerator::resetTotalStepPosition()
         _totalStepsInc[i] = 0;
     }
 }
+
+void RampGenerator::resetAxisStepPosition(uint32_t axisIdx)
+{
+    if (axisIdx < AXIS_VALUES_MAX_AXES)
+    {
+        _axisTotalSteps[axisIdx] = 0;
+        _totalStepsInc[axisIdx] = 0;
+    }
+}
 void RampGenerator::getTotalStepPosition(AxesValues<AxisStepsDataType>& actuatorPos) const
 {
     for (int i = 0; i < AXIS_VALUES_MAX_AXES; i++)

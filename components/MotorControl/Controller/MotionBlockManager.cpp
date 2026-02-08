@@ -589,6 +589,14 @@ void MotionBlockManager::setCurPositionAsOrigin()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+// @brief Set a single axis to origin (zero) without affecting other axes
+// @param axisIdx Axis index to set as origin
+void MotionBlockManager::setAxisOrigin(uint32_t axisIdx)
+{
+    _axesState.setAxisOrigin(axisIdx);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Add a velocity mode block
 /// @param args MotionArgs containing velocity parameters
 /// @param motionPipeline Motion pipeline to add block to

@@ -20,7 +20,7 @@ typedef float AxisAccDataType;
 typedef float AxisPosDataType;
 typedef double AxisCalcDataType;
 typedef float AxisPosFactorDataType;
-typedef float AxisRPMDataType;
+typedef float AxisDegreesPerSecondType;
 typedef float AxisStepsFactorDataType;
 typedef int32_t AxisStepsDataType;
 typedef int32_t AxisStepsDataType;

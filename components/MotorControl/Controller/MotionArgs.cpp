@@ -17,19 +17,21 @@ void MotionArgs::fromJSON(const char* jsonStr)
     clear();
 
     // Get mode (default to "abs" if not specified)
-    _mode = cmdJson.getString("mode", "abs");
+    String modeStr = cmdJson.getString("mode", "abs");
+    _mode = stringToMode(modeStr);
 
-    // Get speed (can be numeric or string)
+    // Get speed (can be numeric or string) - parse into value + unit type
     int arrayLen = 0;
     if (cmdJson.getType("speed", arrayLen) == RaftJson::RAFT_JSON_STRING)
     {
-        _speed = cmdJson.getString("speed", "");
+        String speedStr = cmdJson.getString("speed", "");
+        parseSpeedString(speedStr);
     }
     else if (cmdJson.getType("speed", arrayLen) == RaftJson::RAFT_JSON_NUMBER)
     {
         // Numeric speed is interpreted as percentage
-        double speedVal = cmdJson.getDouble("speed", 100.0);
-        _speed = String(speedVal);
+        _speedValue = cmdJson.getDouble("speed", 100.0);
+        _speedUnitType = SpeedUnitType::PERCENTAGE;
     }
 
     // Get motor current
@@ -37,8 +39,7 @@ void MotionArgs::fromJSON(const char* jsonStr)
 
     // Get boolean flags
     _dontSplitMove = cmdJson.getBool("nosplit", false);
-    _moveClockwise = cmdJson.getBool("cw", false);
-    _moveRapid = cmdJson.getBool("rapid", false);
+    _homingMove = cmdJson.getBool("homing", false);
     _moreMovesComing = cmdJson.getBool("more", false);
     
     // Parse outOfBounds string value
@@ -52,13 +53,6 @@ void MotionArgs::fromJSON(const char* jsonStr)
     // If not specified, USE_DEFAULT (inherits from SysType)
     
     _immediateExecution = cmdJson.getBool("imm", false);
-
-    // Get extrude distance (if present)
-    if (cmdJson.contains("exDist"))
-    {
-        _extrudeDistance = cmdJson.getDouble("exDist", 0);
-        _extrudeValid = true;
-    }
 
     // Get motion tracking index (if present)
     if (cmdJson.contains("idx"))
@@ -112,29 +106,25 @@ String MotionArgs::toJSON()
     // Output string - reserve space to avoid heap fragmentation
     String jsonStr;
     jsonStr.reserve(256);
-    jsonStr = "\"mode\":\"" + _mode + "\"";
+    jsonStr = "\"mode\":\"" + modeToString(_mode) + "\"";
 
     // Speed (if specified)
-    if (_speed.length() > 0)
+    if (_speedUnitType != SpeedUnitType::NONE)
     {
-        // Check if speed is pure numeric (percentage)
-        bool isNumeric = true;
-        for (size_t i = 0; i < _speed.length(); i++)
+        switch (_speedUnitType)
         {
-            if (!isdigit(_speed[i]) && _speed[i] != '.' && _speed[i] != '-')
-            {
-                isNumeric = false;
+            case SpeedUnitType::PERCENTAGE:
+                // Output as plain number for percentage
+                jsonStr += ",\"speed\":" + String(_speedValue);
                 break;
-            }
-        }
-        
-        if (isNumeric)
-        {
-            jsonStr += ",\"speed\":" + _speed;
-        }
-        else
-        {
-            jsonStr += ",\"speed\":\"" + _speed + "\"";
+            case SpeedUnitType::UNITS_PER_SEC:
+                jsonStr += ",\"speed\":\"" + String(_speedValue) + "ups\"";
+                break;
+            case SpeedUnitType::STEPS_PER_SEC:
+                jsonStr += ",\"speed\":\"" + String(_speedValue) + "sps\"";
+                break;
+            default:
+                break;
         }
     }
 
@@ -147,10 +137,8 @@ String MotionArgs::toJSON()
     // Boolean flags (only output if true)
     if (_dontSplitMove)
         jsonStr += ",\"nosplit\":true";
-    if (_moveClockwise)
-        jsonStr += ",\"cw\":true";
-    if (_moveRapid)
-        jsonStr += ",\"rapid\":true";
+    if (_homingMove)
+        jsonStr += ",\"homing\":true";
     if (_moreMovesComing)
         jsonStr += ",\"more\":true";
     if (_outOfBoundsAction != OutOfBoundsAction::USE_DEFAULT)
@@ -165,12 +153,6 @@ String MotionArgs::toJSON()
     }
     if (_immediateExecution)
         jsonStr += ",\"imm\":true";
-
-    // Extrude distance (if valid)
-    if (_extrudeValid)
-    {
-        jsonStr += ",\"exDist\":" + String(_extrudeDistance);
-    }
 
     // Motion tracking index (if valid)
     if (_motionTrackingIndexValid)

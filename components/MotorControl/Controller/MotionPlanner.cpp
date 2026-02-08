@@ -56,6 +56,7 @@ AxesValues<AxisStepsDataType> MotionPlanner::moveToNonRamped(MotionArgs &args,
 
     // Find if there are any steps
     bool hasSteps = false;
+    uint32_t axisWithLowestStepRate = 0;
     AxisStepRateDataType lowestMaxStepRatePerSecForAnyAxis = 1e8;
     AxesValues<AxisStepsDataType> stepsToTarget;
     for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
@@ -74,8 +75,17 @@ AxesValues<AxisStepsDataType> MotionPlanner::moveToNonRamped(MotionArgs &args,
         if (steps != 0)
         {
             hasSteps = true;
-            if (lowestMaxStepRatePerSecForAnyAxis > axesParams.getMaxStepRatePerSec(axisIdx))
-                lowestMaxStepRatePerSecForAnyAxis = axesParams.getMaxStepRatePerSec(axisIdx);
+            AxisStepRateDataType maxStepRateForAxis = axesParams.getMaxStepRatePerSec(axisIdx);
+            if (args.isHomingMove())
+            {
+                // For homing moves, we want to use the homing speed which may be different from the normal max speed
+                maxStepRateForAxis = axesParams.getHomingStepRatePerSec(axisIdx);
+            }
+            if (lowestMaxStepRatePerSecForAnyAxis > maxStepRateForAxis)
+            {
+                lowestMaxStepRatePerSecForAnyAxis = maxStepRateForAxis;
+                axisWithLowestStepRate = axisIdx;
+            }
         }
         // Value (and direction)
         stepsToTarget.setVal(axisIdx, steps);
@@ -96,9 +106,10 @@ AxesValues<AxisStepsDataType> MotionPlanner::moveToNonRamped(MotionArgs &args,
     // Set numbered command index if present
     block.setMotionTrackingIndex(args.getMotionTrackingIndex());
 
-    // Compute the requested velocity using new speed parsing
+    // Compute the requested velocity in steps/sec (for non-ramped step-based motion)
     // Speed is automatically capped by config max
-    AxisSpeedDataType requestedVelocity = args.getSpeedUps(lowestMaxStepRatePerSecForAnyAxis);
+    AxisSpeedDataType requestedVelocity = args.getSpeedStepsPerSec(lowestMaxStepRatePerSecForAnyAxis, 
+            axesParams.getStepsPerUnit(axisWithLowestStepRate));
     block._requestedSpeed = requestedVelocity;
 
     // Prepare for stepping

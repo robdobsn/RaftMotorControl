@@ -74,6 +74,17 @@ public:
     // Set current position as origin
     virtual void setCurPositionAsOrigin() override;
 
+    /// @brief Set a single axis to origin (zero) without affecting other axes
+    /// @param axisIdx Axis index to set as origin
+    virtual void setAxisOrigin(uint32_t axisIdx) override;
+
+    /// @brief Get axes parameters
+    /// @return AxesParams structure
+    virtual AxesParams getAxesParams() const override
+    {
+        return _axesParams;
+    }
+
     // Go to previously set origin position
     void goToOrigin(const MotionArgs &args);
 
@@ -114,6 +125,9 @@ public:
 
     /// @brief Stop current motion pattern
     virtual void stopPattern() override;
+
+    /// @brief Stop all motion and clear the queue
+    virtual void stopAndClear() override;
 
     /// @brief Add a motion pattern to the registry
     /// @param patternName Name of the pattern

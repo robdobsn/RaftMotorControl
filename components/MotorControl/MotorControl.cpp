@@ -10,7 +10,7 @@
 #include "RaftJsonPrefixed.h"
 #include "RaftBusSystem.h"
 #include "Logger.h"
-#include "HomingPattern.h"
+#include "HomingSeekCenter.h"
 #include "DeviceManager.h"
 #include "DeviceTypeRecordDynamic.h"
 
@@ -47,7 +47,7 @@ void MotorControl::setup()
     _motionController.setupSerialBus(_pMotorSerialBus, false);
 
     // Register motion patterns
-    _motionController.addMotionPattern("homing", HomingPattern::create);
+    _motionController.addMotionPattern("homing-seek-center", HomingSeekCenter::create);
 
     // Debug
     LOG_I(MODULE_PREFIX, "setup type %s serialBusName %s%s",

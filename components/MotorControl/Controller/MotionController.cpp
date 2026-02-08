@@ -206,7 +206,7 @@ RaftRetCode MotionController::moveTo(MotionArgs &args, String* respMsg)
     // Check motion type
     if (args.isRamped())
     {
-        // Ramped (variable speed) motion
+        // Ramped (variable speed) motion with cartesian coordinates
         RaftRetCode rc = moveToRamped(args, respMsg);
 #ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
         uint64_t totalTimeUs = micros() - startTimeUs;
@@ -215,7 +215,7 @@ RaftRetCode MotionController::moveTo(MotionArgs &args, String* respMsg)
         return rc;
     }
 
-    // Handle flat motion (no ramp) - motion is defined in terms of steps (not mm)
+    // Handle flat motion (no ramp) - includes step-based modes which bypass kinematics
     bool success = _blockManager.addNonRampedBlock(args, _rampGenerator.getMotionPipeline());
 #ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
     uint64_t totalTimeUs = micros() - startTimeUs;
@@ -297,7 +297,7 @@ RaftRetCode MotionController::moveToRamped(MotionArgs& args, String* respMsg)
     // Ensure at least one block
     uint32_t numBlocks = 1;
     double maxBlockDistMM = _axesParams.getMaxBlockDistMM();
-    if (maxBlockDistMM > 0.01f && !args.dontSplitMove())
+    if (maxBlockDistMM > 0.01f && !args.isDoNotSplitMove())
         numBlocks = int(ceil(moveDistanceMM / maxBlockDistMM));
     if (numBlocks == 0)
         numBlocks = 1;
@@ -371,6 +371,15 @@ void MotionController::setCurPositionAsOrigin()
 {
     _rampGenerator.resetTotalStepPosition();
     _blockManager.setCurPositionAsOrigin();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set a single axis to origin (zero) without affecting other axes
+/// @param axisIdx Axis index to set as origin
+void MotionController::setAxisOrigin(uint32_t axisIdx)
+{
+    _rampGenerator.resetAxisStepPosition(axisIdx);
+    _blockManager.setAxisOrigin(axisIdx);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -700,6 +709,9 @@ AxesValues<AxisPosDataType> MotionController::getLastMonitoredPos() const
     return lastMonitoredPos;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get total steps for all axes
+/// @return Total steps for each axis
 AxesValues<AxisStepsDataType> MotionController::getAxisTotalSteps() const
 {
     AxesValues<AxisStepsDataType> steps;
@@ -767,6 +779,13 @@ bool MotionController::getEndStopState(uint32_t axisIdx, bool max, bool& isFresh
 void MotionController::stopPattern()
 {
     _patternManager.stopPattern(true);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Stop all motion and clear the queue
+void MotionController::stopAndClear()
+{
+    stopAll(false);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

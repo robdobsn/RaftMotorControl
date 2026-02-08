@@ -31,6 +31,15 @@ public:
         _unitsFromOriginValid = true;
     }
 
+    /// @brief Set a single axis to origin (zero) without affecting other axes
+    /// @param axisIdx Axis index to set as origin
+    void setAxisOrigin(uint32_t axisIdx)
+    {
+        unitsFromOrigin.setVal(axisIdx, 0);
+        stepsFromOrigin.setVal(axisIdx, 0);
+        _unitsFromOriginValid = true;
+    }
+
     /// @brief Set position
     /// @param unitsFromOrigin units from origin
     /// @param steps steps (maybe relative to previous value or from origin)

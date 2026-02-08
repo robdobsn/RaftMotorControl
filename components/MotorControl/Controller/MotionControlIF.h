@@ -10,6 +10,7 @@
 #pragma once
 
 #include "AxesValues.h"
+#include "AxesParams.h"
 #include "RaftRetCode.h"
 
 class MotionArgs;
@@ -37,8 +38,16 @@ public:
     /// @return true if any motion is in the pipeline
     virtual bool isBusy() const = 0;
 
-    /// @brief Set current position as home
+    /// @brief Set current position as home (all axes)
     virtual void setCurPositionAsOrigin() = 0;
+
+    /// @brief Set the current position of a specific axis as its origin (zero)
+    /// @param axisIdx Axis index to set as origin
+    virtual void setAxisOrigin(uint32_t axisIdx) = 0;
+
+    /// @brief Get axes parameters
+    /// @return AxesParams structure
+    virtual AxesParams getAxesParams() const = 0;
 
     /// @brief Get last commanded position
     /// @return AxesValues of last commanded position
@@ -47,6 +56,10 @@ public:
     /// @brief Get last monitored position
     /// @return AxesValues of last monitored position
     virtual AxesValues<AxisPosDataType> getLastMonitoredPos() const = 0;
+
+    /// @brief Get total step counts for all axes
+    /// @return AxesValues of total step counts for all axes
+    virtual AxesValues<AxisStepsDataType> getAxisTotalSteps() const = 0;
 
     /// @brief Get end-stop state for an axis (min or max)
     /// @param axisIdx axis index
@@ -57,4 +70,7 @@ public:
 
     /// @brief Stop current motion pattern
     virtual void stopPattern() = 0;
+
+    /// @brief Stop all motion and clear the queue
+    virtual void stopAndClear() = 0;
 };

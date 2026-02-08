@@ -165,6 +165,10 @@ public:
     /// @brief Set current position as origin
     void setCurPositionAsOrigin();
 
+    /// @brief Set a single axis to origin (zero) without affecting other axes
+    /// @param axisIdx Axis index to set as origin
+    void setAxisOrigin(uint32_t axisIdx);
+
     /// @brief Check if homing needed before any move
     /// @return true if homing is needed
     bool isHomingNeededBeforeMove() const

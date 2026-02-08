@@ -28,7 +28,8 @@ public:
     static constexpr AxisAccDataType maxAccUps2_default = 100.0f;
     static constexpr AxisStepsFactorDataType stepsPerRot_default = 1.0f;
     static constexpr AxisPosFactorDataType posUnitsPerRot_default = 1.0f;
-    static constexpr AxisRPMDataType maxRPM_default = 300.0f;
+    static constexpr AxisDegreesPerSecondType maxDegreesPerSecond_default = 1800.0f;
+    static constexpr AxisDegreesPerSecondType homingDegreesPerSecond_default = 300.0f;
     static constexpr AxisPosDataType originOffsetUnits_default = 0.0f;
     static constexpr AxisStepsDataType stepsForAxisHoming_default = 100000;
 
@@ -43,8 +44,11 @@ public:
     AxisStepsFactorDataType _stepsPerRot;
     AxisPosFactorDataType _unitsPerRot;
 
-    // Max RPM
-    AxisRPMDataType _maxRPM;
+    // Max degrees per second for this axis (used for speed limits and homing)
+    AxisDegreesPerSecondType _maxDegreesPerSec;
+
+    // Homing degrees per second for this axis (used for homing)
+    AxisDegreesPerSecondType _homingDegreesPerSec;
 
     // Min and max values for the axis in units
     AxisPosDataType _minUnits;
@@ -73,7 +77,8 @@ public:
         _maxAccelUps2 = maxAccUps2_default;
         _stepsPerRot = stepsPerRot_default;
         _unitsPerRot = posUnitsPerRot_default;
-        _maxRPM = maxRPM_default;
+        _maxDegreesPerSec = maxDegreesPerSecond_default;
+        _homingDegreesPerSec = homingDegreesPerSecond_default; 
         _minUnits = 0;
         _maxUnits = 0;
         _minUnitsSet = false;
@@ -116,7 +121,8 @@ public:
         _maxAccelUps2 = AxisAccDataType(config.getDouble("maxAccUps2", AxisParams::maxAccUps2_default));
         _stepsPerRot = AxisStepsFactorDataType(config.getDouble("stepsPerRot", AxisParams::stepsPerRot_default));
         _unitsPerRot = AxisPosFactorDataType(config.getDouble("unitsPerRot", AxisParams::posUnitsPerRot_default));
-        _maxRPM = AxisRPMDataType(config.getDouble("maxRPM", AxisParams::maxRPM_default));
+        _maxDegreesPerSec = AxisDegreesPerSecondType(config.getDouble("maxDegPerSec", AxisParams::maxDegreesPerSecond_default));
+        _homingDegreesPerSec = AxisDegreesPerSecondType(config.getDouble("homingDegPerSec", AxisParams::homingDegreesPerSecond_default));
         
         // Check if bounds were explicitly set and parse them
         _minUnitsSet = config.contains("minUnits");
@@ -134,8 +140,8 @@ public:
     void debugLog(int axisIdx)
     {
         static const char* MODULE_PREFIX = "AxisParams";
-        LOG_I(MODULE_PREFIX, "Axis%d params maxSpeed %0.2f acceleration %0.2f stepsPerRot %0.2f unitsPerRot %0.2f maxRPM %0.2f",
-                   axisIdx, _maxSpeedUps, _maxAccelUps2, _stepsPerRot, _unitsPerRot, _maxRPM);
+        LOG_I(MODULE_PREFIX, "Axis%d params maxSpeed %0.2f acceleration %0.2f stepsPerRot %0.2f unitsPerRot %0.2f maxDegreesPerSec %0.2f homingDegreesPerSec %0.2f",
+                   axisIdx, _maxSpeedUps, _maxAccelUps2, _stepsPerRot, _unitsPerRot, _maxDegreesPerSec, _homingDegreesPerSec);
         LOG_I(MODULE_PREFIX, "Axis%d params minVal %0.2f maxVal %0.2f isDominant %d isServo %d",
                    axisIdx, _minUnits, _maxUnits, _isDominantAxis, _isServoAxis);
     }
