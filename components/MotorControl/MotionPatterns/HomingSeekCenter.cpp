@@ -277,7 +277,8 @@ void HomingSeekCenter::loop()
                 LOG_I(MODULE_PREFIX, "Switching to axis 0");
             } else {
                 // All axes homed - each axis is now at its home position (step count 0)
-                // No need to move anywhere since we're already at origin
+                // Set the current position as the origin (this updates both step and Cartesian tracking)
+                _motionControl.setCurPositionAsOrigin();
                 setState(State::COMPLETE);
                 LOG_I(MODULE_PREFIX, "Homing complete - all axes at origin");
                 _motionControl.stopPattern();

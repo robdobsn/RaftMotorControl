@@ -162,7 +162,7 @@ public:
             return MotionModeEnum::VEL;
         else if (modeStr == "vel-steps")
             return MotionModeEnum::VEL_STEPS;
-        else if (modeStr == "prop-abs")
+        else if (modeStr == "prop" || modeStr == "prop-abs")
             return MotionModeEnum::PROP_ABS;
         else if (modeStr == "prop-rel")
             return MotionModeEnum::PROP_REL;

@@ -30,6 +30,15 @@ export default function EncoderDisplay({ lastUpdate }: EncoderDisplayProps) {
     robotGeometry.setInvertJoint2Sensor(checked);
   };
 
+  const handleHome = async () => {
+    try {
+      await connManager.getMotorConnector().sendRICRESTMsg('motors?cmd=startPattern&pattern=homing-seek-center&forMs=30000', {});
+      console.log('Homing command sent');
+    } catch (error) {
+      console.error('Failed to send homing command:', error);
+    }
+  };
+
   useEffect(() => {
     const deviceManager = connManager.getConnector().getSystemType()?.deviceMgrIF;
     if (!deviceManager) return;
@@ -80,7 +89,7 @@ export default function EncoderDisplay({ lastUpdate }: EncoderDisplayProps) {
     <div className="panel panel-compact">
       <h2 style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
         <span>Current Position</span>
-        <span style={{ display: 'flex', gap: '12px', fontSize: '0.75rem', fontWeight: 'normal' }}>
+        <span style={{ display: 'flex', gap: '12px', alignItems: 'center', fontSize: '0.75rem', fontWeight: 'normal' }}>
           <label style={{ display: 'flex', alignItems: 'center', gap: '4px', cursor: 'pointer' }}>
             <input
               type="checkbox"
@@ -99,6 +108,18 @@ export default function EncoderDisplay({ lastUpdate }: EncoderDisplayProps) {
             />
             Inv J2
           </label>
+          <button 
+            onClick={handleHome}
+            className="btn btn-primary"
+            style={{ 
+              padding: '4px 12px',
+              fontSize: '0.75rem',
+              borderRadius: '4px',
+              cursor: 'pointer'
+            }}
+          >
+            Home
+          </button>
         </span>
       </h2>
       <div className="encoder-display-compact">

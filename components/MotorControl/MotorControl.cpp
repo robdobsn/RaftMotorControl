@@ -41,6 +41,9 @@ void MotorControl::setup()
     // Setup motion controller
     _motionController.setup(deviceConfig);
 
+    // Extract homing pattern
+    _homingPattern = deviceConfig.getString("homingPattern", "homing-seek-center");
+
     // Setup serial bus
     String serialBusName = deviceConfig.getString("bus", "");
     _pMotorSerialBus = raftBusSystem.getBusByName(serialBusName);
@@ -48,6 +51,7 @@ void MotorControl::setup()
 
     // Register motion patterns
     _motionController.addMotionPattern("homing-seek-center", HomingSeekCenter::create);
+    LOG_I(MODULE_PREFIX, "setup registered homing-seek-center pattern");
 
     // Debug
     LOG_I(MODULE_PREFIX, "setup type %s serialBusName %s%s",
@@ -246,6 +250,17 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
     else if (cmd.equalsIgnoreCase("stopPattern"))
     {
         _motionController.stopPattern();
+    }
+    else if (cmd.equalsIgnoreCase("home"))
+    {
+        // Convenience command to start the homing-seek-center pattern without needing to send the full pattern JSON
+        // (which would be {"cmd":"startPattern","pattern":"homing-seek-center"})
+        uint32_t runTimeMs = jsonInfo.getInt("forMs", 0);
+        _motionController.setMotionPattern(_homingPattern, runTimeMs, cmdJSON);
+    }
+    else
+    {
+        retCode = RAFT_NOT_IMPLEMENTED;
     }
 #ifdef WARN_ON_SEND_CMD_JSON_FAILED
 if (retCode != RAFT_OK)

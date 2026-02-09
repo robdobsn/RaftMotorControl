@@ -13,7 +13,7 @@
 #include "MotionPatternBase.h"
 #include "RaftArduino.h"
 
-// #define DEBUG_MOTION_PATTERN_START_STOP
+#define DEBUG_MOTION_PATTERN_START_STOP
 // #define DEBUG_MOTION_PATTERN_DURATION
 
 class MotionControlIF;

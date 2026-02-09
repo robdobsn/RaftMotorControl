@@ -45,6 +45,7 @@
           "geom": "SingleArmSCARA",
           "blockDistMM": 10,
           "homeBeforeMove": 0,
+          "homingPattern": "homing-seek-center",
           "maxJunctionDeviationMM": 0.05,
           "arm1LenMM": 95,
           "arm2LenMM": 95,
@@ -68,7 +69,9 @@
                 "stepsPerRot": 38400,
                 "gearFactor": 3,
                 "maxSpeedUps": 90,
-                "maxAccUps2": 45
+                "maxAccUps2": 45,
+                "maxDegPerSec": 360,
+                "homingDegPerSec": 60                
             },
             "driver": {
               "driver": "TMC2209",
@@ -110,7 +113,9 @@
                 "stepsPerRot": 38400,
                 "gearFactor": 3,
                 "maxSpeedUps": 90,
-                "maxAccUps2": 45
+                "maxAccUps2": 45,
+                "maxDegPerSec": 360,
+                "homingDegPerSec": 60
             },
             "driver": {
               "driver": "TMC2209",

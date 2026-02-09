@@ -147,6 +147,9 @@ private:
     // Motion controller
     MotionController _motionController;
 
+    // Homing pattern name (if specified in config)
+    String _homingPattern;
+
     // Motor serial bus
     RaftBus* _pMotorSerialBus = nullptr;
 

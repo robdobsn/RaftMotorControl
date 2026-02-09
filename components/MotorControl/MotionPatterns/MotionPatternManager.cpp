@@ -45,9 +45,7 @@ void MotionPatternManager::addPattern(const String& patternName, MotionPatternCr
     // Add pattern
     _patterns.push_back({patternName, createFn});
 
-#ifdef DEBUG_MOTION_PATTERN_START_STOP
     LOG_I(MODULE_PREFIX, "addPattern %s (total patterns: %d)", patternName.c_str(), _patterns.size());
-#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -133,7 +131,11 @@ void MotionPatternManager::setPattern(MotionControlIF& motionControl, const Stri
     }
 
     // Pattern not found
-    LOG_W(MODULE_PREFIX, "setPattern %s NOT FOUND", patternName.c_str());
+    LOG_W(MODULE_PREFIX, "setPattern %s NOT FOUND (have %d patterns)", patternName.c_str(), _patterns.size());
+    for (const auto& pattern : _patterns)
+    {
+        LOG_W(MODULE_PREFIX, "  available: %s", pattern.name.c_str());
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
