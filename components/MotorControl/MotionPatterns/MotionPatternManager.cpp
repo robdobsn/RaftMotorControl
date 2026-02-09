@@ -45,7 +45,9 @@ void MotionPatternManager::addPattern(const String& patternName, MotionPatternCr
     // Add pattern
     _patterns.push_back({patternName, createFn});
 
+#ifdef DEBUG_MOTION_PATTERN_START_STOP
     LOG_I(MODULE_PREFIX, "addPattern %s (total patterns: %d)", patternName.c_str(), _patterns.size());
+#endif
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
