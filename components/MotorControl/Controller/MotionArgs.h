@@ -14,7 +14,7 @@
 #include "AxisEndstopChecks.h"
 #include "MotorControlTypes.h"
 
-#define DEBUG_MOTION_ARGS_SPEED_PARSING
+// #define DEBUG_MOTION_ARGS_SPEED_PARSING
 
 /// @brief Motion mode enumeration
 enum class MotionModeEnum

@@ -98,6 +98,99 @@ String MotorControl::getDataJSON(RaftDeviceJSONLevel level) const
 /// @return double value
 double MotorControl::getNamedValue(const char* param, bool& isFresh) const
 {
+    if (!param)
+    {
+        isFresh = false;
+        return 0.0;
+    }
+
+    // Named values for motion/geometry metadata
+    if (!isdigit(param[0]))
+    {
+        String paramStr(param);
+        String geom = deviceConfig.getString("motion/geom", "");
+        String geomLower = geom;
+        geomLower.toLowerCase();
+        bool isScara = geomLower.indexOf("scara") >= 0;
+
+        const AxesParams axesParams = _motionController.getAxesParams();
+        double arm1Len = deviceConfig.getDouble("motion/arm1LenMM", 0.0);
+        double arm2Len = deviceConfig.getDouble("motion/arm2LenMM", 0.0);
+        double maxRadius = deviceConfig.getDouble("motion/maxRadiusMM", 0.0);
+        if (maxRadius <= 0.0 && arm1Len > 0.0 && arm2Len > 0.0)
+            maxRadius = arm1Len + arm2Len;
+
+        if (paramStr.equalsIgnoreCase("axesCount"))
+        {
+            isFresh = true;
+            return axesParams.getNumAxes();
+        }
+        if (paramStr.equalsIgnoreCase("arm1LenMM"))
+        {
+            isFresh = arm1Len > 0.0;
+            return arm1Len;
+        }
+        if (paramStr.equalsIgnoreCase("arm2LenMM"))
+        {
+            isFresh = arm2Len > 0.0;
+            return arm2Len;
+        }
+        if (paramStr.equalsIgnoreCase("maxRadiusMM"))
+        {
+            isFresh = maxRadius > 0.0;
+            return maxRadius;
+        }
+        if (paramStr.equalsIgnoreCase("originTheta2OffsetDegrees"))
+        {
+            isFresh = true;
+            return deviceConfig.getDouble("motion/originTheta2OffsetDegrees", 180.0);
+        }
+        if (paramStr.equalsIgnoreCase("homeBeforeMove"))
+        {
+            isFresh = true;
+            return deviceConfig.getBool("motion/homeBeforeMove", true) ? 1.0 : 0.0;
+        }
+        if (paramStr.equalsIgnoreCase("outOfBoundsDefault"))
+        {
+            isFresh = true;
+            return static_cast<double>(axesParams.getOutOfBoundsDefault());
+        }
+        if (paramStr.equalsIgnoreCase("workspaceMinX") || paramStr.equalsIgnoreCase("workspaceMaxX") ||
+            paramStr.equalsIgnoreCase("workspaceMinY") || paramStr.equalsIgnoreCase("workspaceMaxY"))
+        {
+            double minX = 0.0;
+            double maxX = 0.0;
+            double minY = 0.0;
+            double maxY = 0.0;
+            if (isScara)
+            {
+                if (maxRadius <= 0.0)
+                {
+                    isFresh = false;
+                    return 0.0;
+                }
+                minX = -maxRadius;
+                maxX = maxRadius;
+                minY = -maxRadius;
+                maxY = maxRadius;
+                isFresh = true;
+            }
+            else
+            {
+                minX = axesParams.getMinUnits(0);
+                maxX = axesParams.getMaxUnits(0);
+                minY = axesParams.getMinUnits(1);
+                maxY = axesParams.getMaxUnits(1);
+                isFresh = true;
+            }
+
+            if (paramStr.equalsIgnoreCase("workspaceMinX")) return minX;
+            if (paramStr.equalsIgnoreCase("workspaceMaxX")) return maxX;
+            if (paramStr.equalsIgnoreCase("workspaceMinY")) return minY;
+            if (paramStr.equalsIgnoreCase("workspaceMaxY")) return maxY;
+        }
+    }
+
     // Check for new-style axis queries: e.g. "0pos", "1min", "2max"
     if (isdigit(param[0])) {
         // Parse axis index
@@ -158,6 +251,48 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
         }
         default: { isFresh = false; return 0; }
     }
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get named string from the device
+/// @param param Parameter name
+/// @param isFresh (out) true if the value is fresh
+/// @return String value
+String MotorControl::getNamedString(const char* param, bool& isFresh) const
+{
+    if (!param)
+    {
+        isFresh = false;
+        return "";
+    }
+
+    String paramStr(param);
+    if (paramStr.equalsIgnoreCase("geom"))
+    {
+        isFresh = true;
+        return deviceConfig.getString("motion/geom", "");
+    }
+    if (paramStr.equalsIgnoreCase("homingPattern"))
+    {
+        isFresh = true;
+        return _homingPattern;
+    }
+    if (paramStr.equalsIgnoreCase("outOfBoundsDefault"))
+    {
+        const AxesParams axesParams = _motionController.getAxesParams();
+        OutOfBoundsAction action = axesParams.getOutOfBoundsDefault();
+        isFresh = true;
+        switch (action)
+        {
+            case OutOfBoundsAction::ALLOW: return "allow";
+            case OutOfBoundsAction::CLAMP: return "clamp";
+            case OutOfBoundsAction::DISCARD: return "discard";
+            default: return "discard";
+        }
+    }
+
+    isFresh = false;
+    return "";
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

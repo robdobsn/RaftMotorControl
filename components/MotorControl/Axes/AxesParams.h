@@ -12,7 +12,7 @@
 #include "AxesValues.h"
 #include <vector>
 
-#define DEBUG_AXES_PARAMS
+// #define DEBUG_AXES_PARAMS
 
 class AxesParams
 {

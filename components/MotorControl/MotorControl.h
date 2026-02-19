@@ -45,6 +45,12 @@ public:
     /// @return double value
     virtual double getNamedValue(const char* pParam, bool& isFresh) const override final;
 
+    /// @brief Get named string from the device
+    /// @param pParam Parameter name
+    /// @param isFresh (out) true if the value is fresh
+    /// @return String value
+    virtual String getNamedString(const char* pParam, bool& isFresh) const override final;
+
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
     /// @brief Send a JSON command to the device 
     /// @param jsonCmd JSON string containing the command and parameters
