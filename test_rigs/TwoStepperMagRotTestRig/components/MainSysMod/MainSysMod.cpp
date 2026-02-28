@@ -142,7 +142,7 @@ RaftDevice* MainSysMod::getMotorDevice() const
     auto pDevMan = getSysManager()->getDeviceManager();
     if (!pDevMan)
         return nullptr;
-    RaftDevice* pMotor = pDevMan->getDeviceByStringLookup("MotorControl");
+    RaftDevice* pMotor = pDevMan->getDevice("MotorControl", true);
     if (!pMotor)
         return nullptr;
     return pMotor;

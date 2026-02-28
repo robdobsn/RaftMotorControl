@@ -341,15 +341,26 @@ RaftRetCode MotionController::moveToRamped(MotionArgs& args, String* respMsg)
 /// @return RaftRetCode
 RaftRetCode MotionController::moveToVelocity(MotionArgs& args, String* respMsg)
 {
-    // For velocity mode, we need to stop any existing motion and replace with velocity block
-    // This ensures immediate response to velocity commands
+    // For smooth velocity transitions, capture the current step rate BEFORE stopping
+    // so the new block can inherit it and ramp to the new target without restarting from zero
+    uint32_t initialStepRate = _rampGenerator.getMinStepRatePerTTicks();
+    if (_rampGenerator.isVelocityModeActive())
+    {
+        uint32_t curRate = _rampGenerator.getCurrentStepRatePerTTicks();
+        if (curRate > initialStepRate)
+            initialStepRate = curRate;
+    }
+
+    // Stop current motion and clear pipeline before adding the new block.
+    // stop() must be called BEFORE add so the ISR doesn't pick up the new block
+    // and then have it killed by a later stop (race via LOG_I delay in moveVelocity)
     _rampGenerator.stop();
     _blockManager.clear();
 
-    // Add velocity block
+    // Add velocity block with captured step rate as initial rate
     RaftRetCode rc = _blockManager.addVelocityBlock(args, 
                                                      _rampGenerator.getMotionPipeline(),
-                                                     _rampGenerator.getMinStepRatePerTTicks(),
+                                                     initialStepRate,
                                                      respMsg);
     
     if (rc != RAFT_OK)
@@ -358,8 +369,8 @@ RaftRetCode MotionController::moveToVelocity(MotionArgs& args, String* respMsg)
         return rc;
     }
 
-    LOG_I(MODULE_PREFIX, "moveToVelocity started - vel %s", 
-          args.getVelocitiesConst().getDebugJSON("vel").c_str());
+    LOG_I(MODULE_PREFIX, "moveToVelocity started - vel %s initialStepRate %u", 
+          args.getVelocitiesConst().getDebugJSON("vel").c_str(), initialStepRate);
     
     return RAFT_OK;
 }

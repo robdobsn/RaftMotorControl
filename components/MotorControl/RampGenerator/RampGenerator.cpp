@@ -365,17 +365,42 @@ void MOTOR_TICK_FN_DECORATOR RampGenerator::updateMSAccumulator(MotionBlock *pBl
         // Subtract from accumulator leaving remainder to combat rounding errors
         _curAccumulatorNS = _curAccumulatorNS - MotionBlock::NS_IN_A_MS;
 
-        // Check if decelerating
-        if (_curStepCount[pBlock->_axisIdxWithMaxSteps] > pBlock->_stepsBeforeDecel)
+        if (pBlock->isVelocityMode())
         {
-            if (_curStepRatePerTTicks > UTILS_MAX(_minStepRatePerTTicks + pBlock->_accStepsPerTTicksPerMS,
-                                                 pBlock->_finalStepRatePerTTicks + pBlock->_accStepsPerTTicksPerMS))
-                _curStepRatePerTTicks = _curStepRatePerTTicks - pBlock->_accStepsPerTTicksPerMS;
-        }
-        else if ((_curStepRatePerTTicks < _minStepRatePerTTicks) || (_curStepRatePerTTicks < pBlock->_maxStepRatePerTTicks))
-        {
-            if (_curStepRatePerTTicks + pBlock->_accStepsPerTTicksPerMS < MotionBlock::TTICKS_VALUE)
+            // Velocity mode: ramp towards target rate (supports both acceleration and deceleration
+            // for smooth transitions between different velocity commands)
+            if (_curStepRatePerTTicks < pBlock->_maxStepRatePerTTicks)
+            {
+                // Accelerate towards target
                 _curStepRatePerTTicks = _curStepRatePerTTicks + pBlock->_accStepsPerTTicksPerMS;
+                if (_curStepRatePerTTicks > pBlock->_maxStepRatePerTTicks)
+                    _curStepRatePerTTicks = pBlock->_maxStepRatePerTTicks;
+            }
+            else if (_curStepRatePerTTicks > pBlock->_maxStepRatePerTTicks)
+            {
+                // Decelerate towards target
+                if (_curStepRatePerTTicks >= pBlock->_accStepsPerTTicksPerMS)
+                    _curStepRatePerTTicks = _curStepRatePerTTicks - pBlock->_accStepsPerTTicksPerMS;
+                else
+                    _curStepRatePerTTicks = pBlock->_maxStepRatePerTTicks;
+                if (_curStepRatePerTTicks < pBlock->_maxStepRatePerTTicks)
+                    _curStepRatePerTTicks = pBlock->_maxStepRatePerTTicks;
+            }
+        }
+        else
+        {
+            // Position mode: original acceleration/deceleration logic
+            if (_curStepCount[pBlock->_axisIdxWithMaxSteps] > pBlock->_stepsBeforeDecel)
+            {
+                if (_curStepRatePerTTicks > UTILS_MAX(_minStepRatePerTTicks + pBlock->_accStepsPerTTicksPerMS,
+                                                     pBlock->_finalStepRatePerTTicks + pBlock->_accStepsPerTTicksPerMS))
+                    _curStepRatePerTTicks = _curStepRatePerTTicks - pBlock->_accStepsPerTTicksPerMS;
+            }
+            else if ((_curStepRatePerTTicks < _minStepRatePerTTicks) || (_curStepRatePerTTicks < pBlock->_maxStepRatePerTTicks))
+            {
+                if (_curStepRatePerTTicks + pBlock->_accStepsPerTTicksPerMS < MotionBlock::TTICKS_VALUE)
+                    _curStepRatePerTTicks = _curStepRatePerTTicks + pBlock->_accStepsPerTTicksPerMS;
+            }
         }
     }
 }

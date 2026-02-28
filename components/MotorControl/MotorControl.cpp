@@ -474,7 +474,7 @@ std::vector<uint8_t> MotorControl::getStatusBinary() const
     // Wrap with standard header
     std::vector<uint8_t> binBuf;
     RaftDevice::genBinaryDataMsg(binBuf, RaftDeviceID::BUS_NUM_DIRECT_CONN, 
-                                  0, getDeviceTypeIndex(), true, data);
+                                  0, getDeviceTypeIndex(), DeviceOnlineState::ONLINE, data);
     return binBuf;
 }
 

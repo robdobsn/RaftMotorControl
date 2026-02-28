@@ -390,7 +390,8 @@ bool MotionBlock::prepareForVelocityStepping(const AxesParams &axesParams, uint3
     float targetStepRatePerSec = maxAbsVelStepsPerSec;
 
     // Set up acceleration profile to reach target velocity
-    // Start from minimum step rate (or could inherit from previous block for smooth transition)
+    // Start from the provided initial step rate which may be inherited from a previous
+    // velocity block for smooth transitions between different velocity commands
     _initialStepRatePerTTicks = minStepRatePerTTicks;
     _maxStepRatePerTTicks = uint32_t((targetStepRatePerSec * TTICKS_VALUE) / _ticksPerSec);
     _finalStepRatePerTTicks = _maxStepRatePerTTicks;  // No deceleration in steady state
