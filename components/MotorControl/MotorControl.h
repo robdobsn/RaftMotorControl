@@ -107,11 +107,6 @@ public:
     // Has capability
     virtual bool hasCapability(const char* pCapabilityStr) const override final;
  
-    /// @brief Get JSON data from the device
-    /// @param level Level of data to return
-    /// @return JSON string
-    virtual String getDataJSON(RaftDeviceJSONLevel level = DEVICE_JSON_LEVEL_MIN) const override final;
-
     /// @brief Get the device status as JSON (for DeviceManager aggregation)
     /// @return JSON string with motor status
     virtual String getStatusJSON() const override final;

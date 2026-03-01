@@ -13,6 +13,7 @@
 #include "HomingSeekCenter.h"
 #include "DeviceManager.h"
 #include "DeviceTypeRecordDynamic.h"
+#include "DeviceTypeRecords.h"
 
 // #define DEBUG_MOTOR_CMD_JSON
 // #define DEBUG_SEND_CMD_TIMINGS
@@ -79,16 +80,6 @@ bool MotorControl::hasCapability(const char* pCapabilityStr) const
         case 's': return true;
     }
     return false;
-}
-
-/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Get JSON data from the device
-/// @param level Level of data to return
-/// @return JSON string
-String MotorControl::getDataJSON(RaftDeviceJSONLevel level) const
-{
-    // Get data
-    return _motionController.getDataJSON(level);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -426,8 +417,14 @@ String MotorControl::getDebugJSON(bool includeBraces) const
 /// @return JSON string with motor status
 String MotorControl::getStatusJSON() const
 {
-    // Delegate to getDataJSON with PUBLISH level
-    return getDataJSON(DEVICE_JSON_LEVEL_PUBLISH);
+    std::vector<uint8_t> data;
+    _motionController.formBinaryDataResponse(data);
+    const String payload = DeviceTypeRecords::deviceStatusToJson(
+            0,
+            DeviceOnlineState::ONLINE,
+            getDeviceTypeIndex(),
+            data);
+    return String("{") + payload + String("}");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
