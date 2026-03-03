@@ -369,8 +369,10 @@ RaftRetCode MotionController::moveToVelocity(MotionArgs& args, String* respMsg)
         return rc;
     }
 
+#ifdef DEBUG_MOTION_CONTROLLER
     LOG_I(MODULE_PREFIX, "moveToVelocity started - vel %s initialStepRate %u", 
           args.getVelocitiesConst().getDebugJSON("vel").c_str(), initialStepRate);
+#endif
     
     return RAFT_OK;
 }

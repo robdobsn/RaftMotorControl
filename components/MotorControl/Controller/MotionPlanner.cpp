@@ -730,8 +730,10 @@ RaftRetCode MotionPlanner::moveVelocity(const MotionArgs& args,
     if (!motionPipeline.add(block))
         return RAFT_OTHER_FAILURE;
 
-    LOG_I(MODULE_PREFIX, "moveVelocity created block - dominant axis %d, velocity %.2f steps/sec",
-          block._axisIdxWithMaxSteps, block._requestedSpeed);
+#ifdef DEBUG_MOTIONPLANNER_DETAILED_INFO
+    LOG_I(MODULE_PREFIX, "moveVelocity created block - targetVelocities %s, maxEntrySpeedMMps %0.2f requestedSpeed %0.2f axisIdxWithMaxSteps %d", 
+          block._targetVelocities.toJSON().c_str(), block._maxEntrySpeedMMps, block._requestedSpeed, block._axisIdxWithMaxSteps);
+#endif
 
     return RAFT_OK;
 }
