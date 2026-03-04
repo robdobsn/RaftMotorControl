@@ -97,9 +97,6 @@ public:
     // Get total step counts recorded by ramp generator
     AxesValues<AxisStepsDataType> getAxisTotalSteps() const;
 
-    // Get data (diagnostics)
-    String getDataJSON(RaftDeviceJSONLevel level) const;
-
     // Form binary data response for publishing
     void formBinaryDataResponse(std::vector<uint8_t>& data) const;
 

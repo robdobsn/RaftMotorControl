@@ -11,6 +11,7 @@
 #include <math.h>
 #include "AxesParams.h"
 #include "AxisEndstopChecks.h"
+#include "MotorControlConsts.h"
 
 // Feature flag for single split-block optimization
 // Phase 1-5: Keep at 0 for parallel development
@@ -70,7 +71,7 @@ public:
     bool prepareForVelocityStepping(const AxesParams &axesParams, uint32_t minStepRatePerTTicks);
 
     // Check if this is a velocity mode block
-    bool isVelocityMode() const { return _isVelocityMode; }
+    inline bool MOTOR_TICK_FN_DECORATOR isVelocityMode() const { return _isVelocityMode; }
 
     // Get target velocities for velocity mode
     const AxesValues<AxisSpeedDataType>& getTargetVelocities() const { return _targetVelocities; }
@@ -178,13 +179,13 @@ public:
     AxesValues<AxisStepsDataType> _actuatorDeltaPerSubBlock;
 
     // Split-block accessors
-    bool isSplitBlock() const { return _isSplitBlock; }
-    uint16_t getTotalSubBlocks() const { return _totalSubBlocks; }
-    uint16_t getCurrentSubBlock() const { return _currentSubBlock; }
-    bool hasMoreSubBlocks() const { 
+    inline bool MOTOR_TICK_FN_DECORATOR isSplitBlock() const { return _isSplitBlock; }
+    inline uint16_t MOTOR_TICK_FN_DECORATOR getTotalSubBlocks() const { return _totalSubBlocks; }
+    inline uint16_t MOTOR_TICK_FN_DECORATOR getCurrentSubBlock() const { return _currentSubBlock; }
+    inline bool MOTOR_TICK_FN_DECORATOR hasMoreSubBlocks() const { 
         return _isSplitBlock && _currentSubBlock < _totalSubBlocks - 1; 
     }
-    void advanceSubBlock() { 
+    inline void MOTOR_TICK_FN_DECORATOR advanceSubBlock() { 
         if (_isSplitBlock && _currentSubBlock < _totalSubBlocks - 1) 
             _currentSubBlock++; 
     }
