@@ -63,6 +63,14 @@ void MotionController::setup(const RaftJsonIF& config)
     _rampGenerator.setup(rampConfig, _stepperDrivers, _axisEndStops);
     _rampGenerator.start();
 
+    // Propagate usingISR flag to stepper drivers now that ramp generator is configured
+    // (stepper drivers are created before ramp generator setup, so they don't yet know if ISR is in use)
+    for (auto* pDriver : _stepperDrivers)
+    {
+        if (pDriver)
+            pDriver->setUsingISR(_rampGenerator.isUsingTimerISR());
+    }
+
     // Setup motor enabler
     RaftJsonPrefixed motorEnConfig(config, "motorEn");
     _motorEnabler.setup(motorEnConfig);

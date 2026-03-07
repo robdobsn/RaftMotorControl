@@ -27,6 +27,10 @@ public:
     /// @return true if successful
     virtual bool setup(const String& stepperName, const StepDriverParams& stepperParams, bool usingISR);
 
+    /// @brief Set the usingISR flag (e.g. after ramp generator setup determines ISR usage)
+    /// @param usingISR - true if stepping is driven from a timer ISR
+    void setUsingISR(bool usingISR) { _usingISR = usingISR; }
+
     // Called after bus has been connected
     virtual void setupSerialBus(RaftBus* pBus, bool useBusForDirectionReversal);
 

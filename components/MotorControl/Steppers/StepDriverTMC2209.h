@@ -57,8 +57,8 @@ private:
     // in the base class
     enum DriverRegisterCodes {
         DRIVER_REGISTER_CODE_GCONF,
-        DRIVER_REGISTER_CODE_IFCNT,
         DRIVER_REGISTER_CODE_GSTAT,
+        DRIVER_REGISTER_CODE_IFCNT,
         DRIVER_REGISTER_CODE_CHOPCONF,
         DRIVER_REGISTER_CODE_IHOLD_IRUN,
         DRIVER_REGISTER_CODE_PWMCONF,
@@ -78,7 +78,7 @@ private:
     uint32_t _statusReadLastTimeMs = 0;
 
     // Config reset
-    static const uint32_t CONFIG_RESET_AFTER_MS = 1000;
+    static const uint32_t CONFIG_RESET_AFTER_MS = 200;
     uint32_t _configSetLastTimeMs = 0;
     bool _configResetRequired = false;
 

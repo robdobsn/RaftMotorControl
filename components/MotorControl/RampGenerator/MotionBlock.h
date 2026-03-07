@@ -13,9 +13,7 @@
 #include "AxisEndstopChecks.h"
 #include "MotorControlConsts.h"
 
-// Feature flag for single split-block optimization
-// Phase 1-5: Keep at 0 for parallel development
-// Phase 6: Set to 1 to enable optimization
+// Single split-block optimization
 #define USE_SINGLE_SPLIT_BLOCK 1
 
 class MotionBlock

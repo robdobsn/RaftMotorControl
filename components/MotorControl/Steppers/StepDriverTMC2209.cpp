@@ -45,10 +45,10 @@ StepDriverTMC2209::StepDriverTMC2209()
     _driverRegisters.push_back({"IFCNT", 2, 0x00000000, 0x000000ff, false, true});
     // Add CHOPCONF register
     _driverRegisters.push_back({"CHOPCONF", 0x6c, 0x10000053, 0xff0387f, true, true});
-    // Add IHOLD_IRUN register
+    // Add IHOLD_IRUN register (write-only on TMC2209, cannot be read back)
     _driverRegisters.push_back({"IHOLD_RUN", 0x10, 0x00001f00, 0x000f1f1f, true, false});
     // Add PWMCONF register
-    _driverRegisters.push_back({"PWMCONF", 0x70, 0xC10D0024, 0xc001f0ff, true, false});
+    _driverRegisters.push_back({"PWMCONF", 0x70, 0xC10D0024, 0xc001f0ff, true, true});
     // Add DRV_STATUS register
     _driverRegisters.push_back({"DRV_STATUS", 0x6F, 0x00000000, 0xff3fffff, false, true});
 
@@ -250,11 +250,12 @@ void StepDriverTMC2209::checkAndReinitIfNeeded()
         return;
     _lastConfigCheckMs = millis();
 
-    // Only check if registers have been read at least once
+    // Only check if readable config registers have been read at least once
+    // Note: IHOLD_IRUN is write-only on TMC2209 and cannot be verified by readback
     bool gconfValid = _driverRegisters[DRIVER_REGISTER_CODE_GCONF].readValid;
     bool chopconfValid = _driverRegisters[DRIVER_REGISTER_CODE_CHOPCONF].readValid;
-    bool iholdValid = _driverRegisters[DRIVER_REGISTER_CODE_IHOLD_IRUN].readValid;
-    if (!(gconfValid && chopconfValid && iholdValid))
+    bool pwmconfValid = _driverRegisters[DRIVER_REGISTER_CODE_PWMCONF].readValid;
+    if (!(gconfValid && chopconfValid && pwmconfValid))
         return;
 
     // Compare current register values to expected (write) values
@@ -263,7 +264,7 @@ void StepDriverTMC2209::checkAndReinitIfNeeded()
         mismatch = true;
     if (_driverRegisters[DRIVER_REGISTER_CODE_CHOPCONF].regValCur != _driverRegisters[DRIVER_REGISTER_CODE_CHOPCONF].regWriteVal)
         mismatch = true;
-    if (_driverRegisters[DRIVER_REGISTER_CODE_IHOLD_IRUN].regValCur != _driverRegisters[DRIVER_REGISTER_CODE_IHOLD_IRUN].regWriteVal)
+    if (_driverRegisters[DRIVER_REGISTER_CODE_PWMCONF].regValCur != _driverRegisters[DRIVER_REGISTER_CODE_PWMCONF].regWriteVal)
         mismatch = true;
 
     if (mismatch)
@@ -271,6 +272,11 @@ void StepDriverTMC2209::checkAndReinitIfNeeded()
         LOG_W(MODULE_PREFIX, "Detected TMC2209 config mismatch, re-initializing driver %s", _name.c_str());
         setMainRegs();
     }
+
+    // Request fresh reads for next check cycle
+    _driverRegisters[DRIVER_REGISTER_CODE_GCONF].readPending = true;
+    _driverRegisters[DRIVER_REGISTER_CODE_CHOPCONF].readPending = true;
+    _driverRegisters[DRIVER_REGISTER_CODE_PWMCONF].readPending = true;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -347,7 +353,7 @@ void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double ho
     // Calculate IRUN using the formula I_RMS = (Vref * (IRUN + 1)) / (32 * R_sense)
     uint32_t irunVal = static_cast<uint32_t>(ceil((reqCurrentAmps * 32 * R_sense) / Vref)) - 1;
 
-    // Clamp IRUN value between 8 and 31 (TMC2209 valid range)
+    // Clamp IRUN value between 8 and 31 (TMC2209 StealthChop requires IRUN >= 8)
     if (irunVal < 8)
         irunVal = 8;
     else if (irunVal > 31)
@@ -607,7 +613,6 @@ void StepDriverTMC2209::setMainRegs()
     _driverRegisters[DRIVER_REGISTER_CODE_IFCNT].readPending = true;
     _driverRegisters[DRIVER_REGISTER_CODE_GCONF].readPending = true;
     _driverRegisters[DRIVER_REGISTER_CODE_CHOPCONF].readPending = true;
-    // Note that IHOLD_IRUN is not read back as it is read only
     _driverRegisters[DRIVER_REGISTER_CODE_PWMCONF].readPending = true;
 }
 
