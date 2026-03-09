@@ -72,6 +72,7 @@ public:
         _motionTrackingIndexValid = false;
         _outOfBoundsAction = OutOfBoundsAction::USE_DEFAULT;
         _immediateExecution = false;
+        _skipHomingCheck = false;
 
         // Reset values
         _motionTrackingIdx = 0;
@@ -476,6 +477,20 @@ public:
         return _immediateExecution; 
     }
 
+    /// @brief Set skip homing check flag
+    /// @param flag True to skip the homing check for this move
+    void setSkipHomingCheck(bool flag) 
+    { 
+        _skipHomingCheck = flag; 
+    }
+
+    /// @brief Get skip homing check flag
+    /// @return True if homing check should be skipped for this move
+    bool isSkipHomingCheck() const 
+    { 
+        return _skipHomingCheck; 
+    }
+
     /// @brief Get axes positions (for position modes)
     /// @return Reference to axes positions values
     AxesValues<AxisPosDataType>& getAxesPos() 
@@ -585,6 +600,7 @@ private:
     bool _moreMovesComing: 1 = false;
     bool _motionTrackingIndexValid: 1 = false;
     bool _immediateExecution: 1 = false;  // Stop, clear queue, then execute this motion
+    bool _skipHomingCheck: 1 = false;     // Skip homing requirement check for this move
     OutOfBoundsAction _outOfBoundsAction = OutOfBoundsAction::USE_DEFAULT;
 
     // Motion tracking index

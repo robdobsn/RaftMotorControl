@@ -126,6 +126,20 @@ public:
     /// @brief Stop all motion and clear the queue
     virtual void stopAndClear() override;
 
+    /// @brief Set homing status for a specific axis
+    /// @param axisIdx Axis index
+    /// @param homed true if axis has been homed
+    virtual void setAxisHomed(uint32_t axisIdx, bool homed) override;
+
+    /// @brief Check if a specific axis has been homed
+    /// @param axisIdx Axis index
+    /// @return true if axis has been homed since last reset
+    virtual bool isAxisHomed(uint32_t axisIdx) const override;
+
+    /// @brief Check if all axes have been homed
+    /// @return true if all axes have been homed since last reset
+    virtual bool isAllAxesHomed() const override;
+
     /// @brief Add a motion pattern to the registry
     /// @param patternName Name of the pattern
     /// @param createFn Factory function to create pattern instance
@@ -176,6 +190,9 @@ private:
 
     // Homing needed
     bool _homingNeededBeforeAnyMove = true;
+
+    // Per-axis homing status (cleared on reset, set when homing completes)
+    std::vector<bool> _axisHomed;
 
     // Pause status
     bool _isPaused = false;

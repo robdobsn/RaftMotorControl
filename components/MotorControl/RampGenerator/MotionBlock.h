@@ -175,6 +175,7 @@ public:
     uint16_t _currentSubBlock = 0;
     AxesValues<AxisStepsDataType> _startActuatorCoords;
     AxesValues<AxisStepsDataType> _actuatorDeltaPerSubBlock;
+    uint32_t _originalStepsBeforeDecel = 0;
 
     // Split-block accessors
     inline bool MOTOR_TICK_FN_DECORATOR isSplitBlock() const { return _isSplitBlock; }

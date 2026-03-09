@@ -141,6 +141,17 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
             isFresh = true;
             return deviceConfig.getBool("motion/homeBeforeMove", true) ? 1.0 : 0.0;
         }
+        if (paramStr.equalsIgnoreCase("homed"))
+        {
+            isFresh = true;
+            return _motionController.isAllAxesHomed() ? 1.0 : 0.0;
+        }
+        if (paramStr.length() > 5 && paramStr.startsWith("homed") && isdigit(paramStr[5]))
+        {
+            uint32_t axisIdx = paramStr[5] - '0';
+            isFresh = true;
+            return _motionController.isAxisHomed(axisIdx) ? 1.0 : 0.0;
+        }
         if (paramStr.equalsIgnoreCase("outOfBoundsDefault"))
         {
             isFresh = true;

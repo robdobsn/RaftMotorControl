@@ -271,6 +271,11 @@ bool MOTOR_TICK_FN_DECORATOR RampGenerator::handleStepEnd()
 ///       It sets up the block for execution recording all the info needed to process the block
 void MOTOR_TICK_FN_DECORATOR RampGenerator::setupNewBlock(MotionBlock *pBlock)
 {
+#if USE_SINGLE_SPLIT_BLOCK
+    bool isSplitBlock = pBlock->isSplitBlock();
+    bool isContinuation = isSplitBlock && pBlock->getCurrentSubBlock() > 0;
+#endif
+
     // Setup step counts, direction and endstops for each axis
     _endStopCheckNum = 0;
     for (uint32_t axisIdx = 0; axisIdx < _stepperDrivers.size(); axisIdx++)
@@ -279,6 +284,25 @@ void MOTOR_TICK_FN_DECORATOR RampGenerator::setupNewBlock(MotionBlock *pBlock)
             continue;
         // Total steps - for velocity mode, use a large value (effectively infinite)
         int32_t stepsTotal = pBlock->_stepsTotalMaybeNeg[axisIdx];
+
+#if USE_SINGLE_SPLIT_BLOCK
+        // For split-blocks, use per-sub-block step counts instead of full move
+        if (isSplitBlock)
+        {
+            uint16_t currentSub = pBlock->getCurrentSubBlock();
+            if (currentSub < pBlock->getTotalSubBlocks() - 1)
+            {
+                // Intermediate sub-block: use delta per sub-block
+                stepsTotal = pBlock->_actuatorDeltaPerSubBlock.getVal(axisIdx);
+            }
+            else
+            {
+                // Last sub-block: use remaining steps to avoid rounding error
+                int32_t stepsDone = pBlock->_actuatorDeltaPerSubBlock.getVal(axisIdx) * (int32_t)currentSub;
+                stepsTotal = pBlock->_stepsTotalMaybeNeg[axisIdx] - stepsDone;
+            }
+        }
+#endif
         if (pBlock->isVelocityMode())
         {
             // For velocity mode, _stepsTotalMaybeNeg only encodes direction (1 or -1)
@@ -342,6 +366,31 @@ void MOTOR_TICK_FN_DECORATOR RampGenerator::setupNewBlock(MotionBlock *pBlock)
             }
         }
     }
+
+    // For split-block continuations, adjust deceleration point and preserve speed
+#if USE_SINGLE_SPLIT_BLOCK
+    if (isSplitBlock)
+    {
+        // On first sub-block, capture the original stepsBeforeDecel
+        // (computed by recalculatePipeline) before we modify it per sub-block
+        if (!isContinuation)
+            pBlock->_originalStepsBeforeDecel = pBlock->_stepsBeforeDecel;
+
+        // Adjust stepsBeforeDecel relative to current sub-block
+        uint32_t dominantDeltaPerSub = UTILS_ABS(pBlock->_actuatorDeltaPerSubBlock.getVal(pBlock->_axisIdxWithMaxSteps));
+        uint32_t cumulativeSteps = (uint32_t)pBlock->getCurrentSubBlock() * dominantDeltaPerSub;
+        uint32_t subBlockSteps = _stepsTotalAbs[pBlock->_axisIdxWithMaxSteps];
+        if (pBlock->_originalStepsBeforeDecel > cumulativeSteps + subBlockSteps)
+            pBlock->_stepsBeforeDecel = subBlockSteps; // No decel in this sub-block
+        else if (pBlock->_originalStepsBeforeDecel <= cumulativeSteps)
+            pBlock->_stepsBeforeDecel = 0; // All decel in this sub-block
+        else
+            pBlock->_stepsBeforeDecel = pBlock->_originalStepsBeforeDecel - cumulativeSteps;
+    }
+    // For split-block continuations, preserve speed accumulators for smooth motion
+    if (isContinuation)
+        return;
+#endif
 
     // Accumulator reset
     _curAccumulatorStep = 0;

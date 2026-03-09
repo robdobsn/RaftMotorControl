@@ -73,4 +73,18 @@ public:
 
     /// @brief Stop all motion and clear the queue
     virtual void stopAndClear() = 0;
+
+    /// @brief Set homing status for a specific axis
+    /// @param axisIdx Axis index
+    /// @param homed true if axis has been homed
+    virtual void setAxisHomed(uint32_t axisIdx, bool homed) = 0;
+
+    /// @brief Check if a specific axis has been homed
+    /// @param axisIdx Axis index
+    /// @return true if axis has been homed since last reset
+    virtual bool isAxisHomed(uint32_t axisIdx) const = 0;
+
+    /// @brief Check if all axes have been homed
+    /// @return true if all axes have been homed since last reset
+    virtual bool isAllAxesHomed() const = 0;
 };

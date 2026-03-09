@@ -270,25 +270,22 @@ RaftRetCode MotionBlockManager::addRampedBlockSingle(const MotionArgs& args, uin
     uint64_t plannerStartUs = micros();
 #endif
 
-    // Call planner ONCE to create the single block
-    // The block will have one acceleration profile for the entire segment
+    // Call planner with deferRecalc=true so the block is added to the pipeline
+    // but _canExecute remains false. This prevents the ISR from picking up the
+    // block before configureSplitBlock has been called (race condition fix).
     RaftRetCode rc = _motionPlanner.moveToRamped(
         singleBlockArgs, endActuatorCoords, _axesState, _axesParams, 
-        motionPipeline, respMsg, false); // Don't defer recalculation
+        motionPipeline, respMsg, true); // Defer recalculation
         
 #ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
     uint64_t plannerTimeUs = micros() - plannerStartUs;
 #endif
 
     if (rc == RAFT_OK)
-    if (rc == RAFT_OK)
     {
-        // Configure the block with split metadata
-        // This tells the block it represents multiple geometric waypoints
-        // Each waypoint is an interpolation point in actuator space
-        
-        // Cast to concrete MotionPipeline type to access getLastAddedBlock()
-        // This is safe because the interface is always implemented by MotionPipeline
+        // Configure the block with split metadata BEFORE making it executable.
+        // The block is in the pipeline but _canExecute is false, so the ISR
+        // won't touch it yet.
         MotionPipeline* pPipeline = static_cast<MotionPipeline*>(&motionPipeline);
         MotionBlock* block = pPipeline->getLastAddedBlock();
         
@@ -305,6 +302,10 @@ RaftRetCode MotionBlockManager::addRampedBlockSingle(const MotionArgs& args, uin
             LOG_W(MODULE_PREFIX, "addRampedBlockSingle: Failed to get last added block for split configuration");
             rc = RAFT_INVALID_OBJECT;
         }
+        
+        // Now recalculate the pipeline, which calls prepareForStepping and
+        // sets _canExecute = true. Only now can the ISR start executing.
+        _motionPlanner.recalculatePipelinePublic(motionPipeline, _axesParams);
     }
 
 #ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS

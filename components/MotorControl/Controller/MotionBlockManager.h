@@ -176,6 +176,13 @@ public:
         return _homingNeededBeforeAnyMove;
     }
 
+    /// @brief Set whether homing is needed before any move
+    /// @param needed true if homing is needed
+    void setHomingNeededBeforeMove(bool needed)
+    {
+        _homingNeededBeforeAnyMove = needed;
+    }
+
     /// @brief Add to planner
     /// @param args MotionArgs define the parameters for motion
     /// @param motionPipeline Motion pipeline to add the block to

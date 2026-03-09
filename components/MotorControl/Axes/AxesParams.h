@@ -337,6 +337,13 @@ public:
     static constexpr double _maxBlockDistanceMM_default = 10.0f;
     static constexpr double maxJunctionDeviationMM_default = 0.05f;
 
+    /// @brief Check if homing is needed before any move
+    /// @return true if homeBeforeMove is configured
+    bool isHomingNeededBeforeAnyMove() const
+    {
+        return _homingNeededBeforeAnyMove;
+    }
+
 private:
 
     static constexpr const char* MODULE_PREFIX = "AxesParams";

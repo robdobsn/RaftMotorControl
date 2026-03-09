@@ -262,8 +262,9 @@ void HomingSeekCenter::loop()
             if (now - _settleStartMs >= _settleDelayMs) {
                 // Set this axis home (origin)
                 setAxisHome(_currentAxis);
+                _motionControl.setAxisHomed(_currentAxis, true);
                 setState(State::SET_HOME);
-                LOG_I(MODULE_PREFIX, "Axis %d: Set as home (origin)", _currentAxis);
+                LOG_I(MODULE_PREFIX, "Axis %d: Set as home (origin), marked homed", _currentAxis);
             }
             break;
         }

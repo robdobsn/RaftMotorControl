@@ -53,6 +53,7 @@ void MotionArgs::fromJSON(const char* jsonStr)
     // If not specified, USE_DEFAULT (inherits from SysType)
     
     _immediateExecution = cmdJson.getBool("imm", false);
+    _skipHomingCheck = cmdJson.getBool("noHome", false);
 
     // Get motion tracking index (if present)
     if (cmdJson.contains("idx"))

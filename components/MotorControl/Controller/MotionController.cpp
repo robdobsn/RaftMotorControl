@@ -58,6 +58,12 @@ void MotionController::setup(const RaftJsonIF& config)
     _axesParams.debugLog();
 #endif
 
+    // Initialize per-axis homing status (all unhomed on setup)
+    _axisHomed.assign(_axesParams.getNumAxes(), false);
+
+    // Propagate homeBeforeMove from config
+    _homingNeededBeforeAnyMove = _axesParams.isHomingNeededBeforeAnyMove();
+
     // Setup ramp generator and pipeline
     RaftJsonPrefixed rampConfig(config, "ramp");
     _rampGenerator.setup(rampConfig, _stepperDrivers, _axisEndStops);
@@ -78,6 +84,9 @@ void MotionController::setup(const RaftJsonIF& config)
     // Block manager
     RaftJsonPrefixed motionConfig(config, "motion");
     _blockManager.setup(_rampGenerator.getPeriodUs(), motionConfig);
+
+    // Propagate homeBeforeMove to block manager
+    _blockManager.setHomingNeededBeforeMove(_homingNeededBeforeAnyMove);
 
     // If no homing required then set the current position as home
     if (!_homingNeededBeforeAnyMove)
@@ -110,6 +119,9 @@ void MotionController::deinit()
             delete pEndStops;
     }
     _axisEndStops.clear();
+
+    // Clear homing status
+    _axisHomed.clear();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -214,6 +226,15 @@ RaftRetCode MotionController::moveTo(MotionArgs &args, String* respMsg)
     // Check motion type
     if (args.isRamped())
     {
+        // Check if homing is required before position moves
+        if (_homingNeededBeforeAnyMove && !isAllAxesHomed() && !args.isSkipHomingCheck())
+        {
+#ifdef DEBUG_MOTION_CONTROLLER
+            LOG_I(MODULE_PREFIX, "moveTo rejected - homing required before position moves");
+#endif
+            return RAFT_MOTION_HOMING_REQUIRED;
+        }
+
         // Ramped (variable speed) motion with cartesian coordinates
         RaftRetCode rc = moveToRamped(args, respMsg);
 #ifdef DEBUG_MOTION_CONTROLLER_TIMINGS
@@ -737,6 +758,40 @@ void MotionController::stopPattern()
 void MotionController::stopAndClear()
 {
     stopAll(false);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Set homing status for a specific axis
+/// @param axisIdx Axis index
+/// @param homed true if axis has been homed
+void MotionController::setAxisHomed(uint32_t axisIdx, bool homed)
+{
+    if (axisIdx < _axisHomed.size())
+        _axisHomed[axisIdx] = homed;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check if a specific axis has been homed
+/// @param axisIdx Axis index
+/// @return true if axis has been homed since last reset
+bool MotionController::isAxisHomed(uint32_t axisIdx) const
+{
+    if (axisIdx < _axisHomed.size())
+        return _axisHomed[axisIdx];
+    return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Check if all axes have been homed
+/// @return true if all axes have been homed since last reset
+bool MotionController::isAllAxesHomed() const
+{
+    for (bool homed : _axisHomed)
+    {
+        if (!homed)
+            return false;
+    }
+    return !_axisHomed.empty();
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
