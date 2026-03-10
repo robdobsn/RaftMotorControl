@@ -496,7 +496,7 @@ bool MotorControl::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) cons
     // Format: 2-byte timestamp, 3x4-byte floats (pos), 3x4-byte int32s (steps), 1-byte flags, 4-byte pattern
     // Total: 31 bytes
     // Flags byte at offset 26: bit 0 = busy, bit 1 = paused
-    static const char* devInfoJson = R"~({"name":"Motor Controller","desc":"Multi-axis Motor Controller","manu":"Robotical","type":"MotorControl")~"
+    static const char* devInfoJson = R"~({"name":"MotorControl","desc":"Multi-axis Motor Controller","manu":"Robotical","type":"MotorControl")~"
         R"~(,"resp":{"b":31,"a":[)~"
         R"~({"n":"pos0","t":">f","u":"mm","r":[-1000,1000],"d":1,"f":".2f","o":"float"},)~"
         R"~({"n":"pos1","t":">f","u":"mm","r":[-1000,1000],"d":1,"f":".2f","o":"float"},)~"
