@@ -464,8 +464,13 @@ uint32_t MotorControl::getDeviceStateHash() const
     }
     
     // Add status flags to the hash
+    bool allHomed = _motionController.isAllAxesHomed();
+    bool homingActive = _motionController.isMotionPatternActive() &&
+        (_motionController.getCurrentMotionPatternName() == "HomingSeekCenter");
     hash ^= (busy ? 0x01 : 0x00);
     hash ^= (paused ? 0x02 : 0x00);
+    hash ^= (allHomed ? 0x04 : 0x00);
+    hash ^= (homingActive ? 0x08 : 0x00);
     
     return hash;
 }
@@ -495,7 +500,7 @@ bool MotorControl::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) cons
     // Device info JSON with binary schema
     // Format: 2-byte timestamp, 3x4-byte floats (pos), 3x4-byte int32s (steps), 1-byte flags, 4-byte pattern
     // Total: 31 bytes
-    // Flags byte at offset 26: bit 0 = busy, bit 1 = paused
+    // Flags byte at offset 26: bit 0 = busy, bit 1 = paused, bit 2 = homed, bit 3 = homingActive
     static const char* devInfoJson = R"~({"name":"MotorControl","desc":"Multi-axis Motor Controller","manu":"Robotical","type":"MotorControl")~"
         R"~(,"resp":{"b":31,"a":[)~"
         R"~({"n":"pos0","t":">f","u":"mm","r":[-1000,1000],"d":1,"f":".2f","o":"float"},)~"
@@ -505,7 +510,9 @@ bool MotorControl::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) cons
         R"~({"n":"steps1","t":">i","u":"steps","r":[-2147483648,2147483647],"d":1,"f":"d","o":"int"},)~"
         R"~({"n":"steps2","t":">i","u":"steps","r":[-2147483648,2147483647],"d":1,"f":"d","o":"int"},)~"
         R"~({"n":"busy","at":26,"t":"B","r":[0,1],"m":"0x01","f":"b","o":"bool"},)~"
-        R"~({"n":"paused","at":26,"t":"B","r":[0,1],"m":"0x02","s":1,"f":"b","o":"bool"})~"
+        R"~({"n":"paused","at":26,"t":"B","r":[0,1],"m":"0x02","s":1,"f":"b","o":"bool"},)~"
+        R"~({"n":"homed","at":26,"t":"B","r":[0,1],"m":"0x04","s":2,"f":"b","o":"bool"},)~"
+        R"~({"n":"homingActive","at":26,"t":"B","r":[0,1],"m":"0x08","s":3,"f":"b","o":"bool"})~"
         R"~(]}})~";
     
     // Set the device type record
