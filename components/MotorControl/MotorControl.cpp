@@ -513,7 +513,8 @@ bool MotorControl::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) cons
         R"~({"n":"busy","at":24,"t":"B","r":[0,1],"m":"0x01","f":"b","o":"bool"},)~"
         R"~({"n":"paused","at":24,"t":"B","r":[0,1],"m":"0x02","s":1,"f":"b","o":"bool"},)~"
         R"~({"n":"homed","at":24,"t":"B","r":[0,1],"m":"0x04","s":2,"f":"b","o":"bool"},)~"
-        R"~({"n":"homingActive","at":24,"t":"B","r":[0,1],"m":"0x08","s":3,"f":"b","o":"bool"})~"
+        R"~({"n":"homingActive","at":24,"t":"B","r":[0,1],"m":"0x08","s":3,"f":"b","o":"bool"},)~"
+        R"~({"n":"pattern","at":25,"t":"4s","f":"s","o":"str"})~"
         R"~(]}})~";
     
     // Set the device type record
