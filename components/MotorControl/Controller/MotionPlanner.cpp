@@ -9,6 +9,7 @@
 #include "MotionPlanner.h"
 #include "MotionArgs.h"
 #include "RampGenerator/RampGenTimer.h"
+#include "RaftKinematics.h"
 
 // #define DEBUG_REQUESTED_VELOCITY
 // #define DEBUG_ANGLE_CALCULATIONS
@@ -17,6 +18,7 @@
 // #define DEBUG_MOTIONPLANNER_DETAILED_INFO
 // #define DEBUG_MOTIONPLANNER_BEFORE
 // #define DEBUG_MOTIONPLANNER_AFTER
+#define DEBUG_JUNCTION_PERIODIC
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -148,7 +150,8 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
             const AxesParams& axesParams, 
             MotionPipelineIF& motionPipeline,
             String* respMsg,
-            bool deferRecalc)
+            bool deferRecalc,
+            const RaftKinematics* pKinematics)
 {
 #ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
     uint64_t moveStartUs = micros();
@@ -237,6 +240,17 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
         }
     }
 
+    // For non-linear kinematics (e.g. SCARA), replace the Cartesian distance and unit vectors
+    // with values that reflect actual motor effort in joint space
+    if (pKinematics && pKinematics->requiresGeometryAwareRamps())
+    {
+        AxesValues<AxisStepsDataType> startActuator = axesState.getStepsFromOrigin();
+        moveDist = pKinematics->getEffectiveMoveDistance(
+            startActuator, destActuatorCoords, moveDist, axesParams);
+        pKinematics->getEffectiveUnitVectors(
+            startActuator, destActuatorCoords, unitVectors, axesParams, unitVectors);
+    }
+
     // Store values in the block
     block._requestedSpeed = requestedVelocity;
     block._moveDistPrimaryAxesMM = moveDist;
@@ -321,6 +335,23 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
 #endif
 
             }
+
+#ifdef DEBUG_JUNCTION_PERIODIC
+            // Periodic junction speed diagnostic
+            static uint32_t jnLogCount = 0;
+            static float jnMinVmax = 1e9f;
+            static float jnMaxCosTheta = -1.0f;
+            if (vmaxJunctionMMps < jnMinVmax) jnMinVmax = vmaxJunctionMMps;
+            if (cosTheta > jnMaxCosTheta) jnMaxCosTheta = cosTheta;
+            if (++jnLogCount >= 200)
+            {
+                LOG_I(MODULE_PREFIX, "JNCT cosTheta=%.4f(worst) vmaxJn=%.1f(min) reqSpd=%.1f dist=%.2f jnDev=%.2f",
+                      jnMaxCosTheta, jnMinVmax, block._requestedSpeed, block._moveDistPrimaryAxesMM, maxJunctionDeviationMM);
+                jnLogCount = 0;
+                jnMinVmax = 1e9f;
+                jnMaxCosTheta = -1.0f;
+            }
+#endif
         }
     }
     block._maxEntrySpeedMMps = vmaxJunctionMMps;

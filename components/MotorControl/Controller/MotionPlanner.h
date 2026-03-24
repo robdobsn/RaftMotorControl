@@ -14,6 +14,8 @@
 #include "AxesState.h"
 #include "RampGenTimer.h"
 
+class RaftKinematics;
+
 class MotionPlanner
 {
 public:
@@ -51,7 +53,8 @@ public:
                     const AxesParams& axesParams,
                     MotionPipelineIF& motionPipeline,
                     String* respMsg = nullptr,
-                    bool deferRecalc = false);
+                    bool deferRecalc = false,
+                    const RaftKinematics* pKinematics = nullptr);
 
     /// @brief Create a velocity mode motion block
     /// @param args MotionArgs containing velocity parameters

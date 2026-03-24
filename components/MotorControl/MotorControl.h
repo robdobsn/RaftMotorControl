@@ -144,6 +144,22 @@ public:
     /// @return JSON string
     virtual String getDebugJSON(bool includeBraces) const override final;
 
+    /// @brief Get motion pipeline queue depth
+    /// @return number of motion blocks in the pipeline
+    unsigned int getQueueCount() const
+    {
+        return _motionController.getQueueCount();
+    }
+
+    /// @brief Direct moveTo bypassing JSON serialization/parsing
+    /// @param args MotionArgs with target position, speed, mode etc.
+    /// @param respMsg Optional pointer to string for response message
+    /// @return RaftRetCode
+    RaftRetCode moveTo(MotionArgs& args, String* respMsg = nullptr)
+    {
+        return _motionController.moveTo(args, respMsg);
+    }
+
 private:
     // Motion controller
     MotionController _motionController;

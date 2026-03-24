@@ -466,7 +466,7 @@ uint32_t MotorControl::getDeviceStateHash() const
     // Add status flags to the hash
     bool allHomed = _motionController.isAllAxesHomed();
     bool homingActive = _motionController.isMotionPatternActive() &&
-        (_motionController.getCurrentMotionPatternName() == "HomingSeekCenter");
+        (_motionController.getCurrentMotionPatternName().equalsIgnoreCase("homing-seek-center"));
     hash ^= (busy ? 0x01 : 0x00);
     hash ^= (paused ? 0x02 : 0x00);
     hash ^= (allHomed ? 0x04 : 0x00);
@@ -499,11 +499,11 @@ bool MotorControl::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) cons
 {
     // Device info JSON with binary schema
     // Format: 2-byte timestamp (extracted by raftjs), then 3x4-byte floats (pos),
-    //         3x4-byte int32s (steps), 1-byte flags, 4-byte pattern = 29 bytes after timestamp
+    //         3x4-byte int32s (steps), 1-byte flags, 16-byte pattern = 41 bytes after timestamp
     // Note: raftjs "at" offsets and "b" size are relative to data AFTER the 2-byte timestamp
     // Flags byte at offset 24: bit 0 = busy, bit 1 = paused, bit 2 = homed, bit 3 = homingActive
     static const char* devInfoJson = R"~({"name":"MotorControl","desc":"Multi-axis Motor Controller","manu":"Robotical","type":"MotorControl")~"
-        R"~(,"resp":{"b":29,"a":[)~"
+        R"~(,"resp":{"b":41,"a":[)~"
         R"~({"n":"pos0","t":">f","u":"mm","r":[-1000,1000],"d":1,"f":".2f","o":"float"},)~"
         R"~({"n":"pos1","t":">f","u":"mm","r":[-1000,1000],"d":1,"f":".2f","o":"float"},)~"
         R"~({"n":"pos2","t":">f","u":"mm","r":[-1000,1000],"d":1,"f":".2f","o":"float"},)~"
@@ -514,7 +514,7 @@ bool MotorControl::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) cons
         R"~({"n":"paused","at":24,"t":"B","r":[0,1],"m":"0x02","s":1,"f":"b","o":"bool"},)~"
         R"~({"n":"homed","at":24,"t":"B","r":[0,1],"m":"0x04","s":2,"f":"b","o":"bool"},)~"
         R"~({"n":"homingActive","at":24,"t":"B","r":[0,1],"m":"0x08","s":3,"f":"b","o":"bool"},)~"
-        R"~({"n":"pattern","at":25,"t":"4s","f":"s","o":"str"})~"
+        R"~({"n":"pattern","at":25,"t":"16s","f":"s","o":"str"})~"
         R"~(]}})~";
     
     // Set the device type record
@@ -524,7 +524,7 @@ bool MotorControl::getDeviceTypeRecord(DeviceTypeRecordDynamic& devTypeRec) cons
         "",     // detectionValues
         "",     // initValues
         "",     // pollInfo
-        31,     // pollDataSizeBytes
+        43,     // pollDataSizeBytes
         devInfoJson,
         nullptr // pollResultDecodeFn
     );

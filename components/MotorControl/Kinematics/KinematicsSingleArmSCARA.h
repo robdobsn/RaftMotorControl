@@ -462,4 +462,78 @@ public:
         return true;
     }
 
+    /// @brief SCARA requires geometry-aware ramp calculations
+    /// @return true - SCARA has non-linear relationship between Cartesian and joint space
+    virtual bool requiresGeometryAwareRamps() const override { return true; }
+
+    /// @brief Compute effective move distance in joint space for SCARA
+    /// @param startActuator Start position in actuator steps
+    /// @param endActuator End position in actuator steps
+    /// @param cartesianDistMM The Cartesian distance (for fallback)
+    /// @param axesParams Axes parameters
+    /// @return Effective distance proportional to actual motor effort
+    /// @note Converts step deltas back to angular distance (degrees) using stepsPerUnit,
+    ///       then returns the root-sum-square. This is proportional to motor effort and
+    ///       consistent with the speed/accel units configured for SCARA axes (degrees/sec).
+    virtual float getEffectiveMoveDistance(
+        const AxesValues<AxisStepsDataType>& startActuator,
+        const AxesValues<AxisStepsDataType>& endActuator,
+        float cartesianDistMM,
+        const AxesParams& axesParams) const override
+    {
+        float sumSq = 0;
+        for (uint32_t i = 0; i < AXIS_VALUES_MAX_AXES; i++)
+        {
+            if (axesParams.isPrimaryAxis(i))
+            {
+                double stepsPerUnit = axesParams.getStepsPerUnit(i);
+                if (stepsPerUnit > 0)
+                {
+                    float delta = float(endActuator.getVal(i) - startActuator.getVal(i));
+                    float unitsDelta = delta / float(stepsPerUnit);
+                    sumSq += unitsDelta * unitsDelta;
+                }
+            }
+        }
+        float dist = sqrtf(sumSq);
+        // Fallback to Cartesian distance if joint-space distance is negligible
+        return (dist > 1e-6f) ? dist : cartesianDistMM;
+    }
+
+    /// @brief Compute effective unit vectors in joint space for SCARA junction calculation
+    /// @param startActuator Start position in actuator steps
+    /// @param endActuator End position in actuator steps
+    /// @param cartesianUnitVectors The Cartesian unit vectors (fallback)
+    /// @param axesParams Axes parameters
+    /// @param outUnitVectors Output unit vectors in joint space
+    /// @note Unit vector of step deltas (normalised) so junction angle reflects motor direction change
+    virtual void getEffectiveUnitVectors(
+        const AxesValues<AxisStepsDataType>& startActuator,
+        const AxesValues<AxisStepsDataType>& endActuator,
+        const AxesValues<AxisUnitVectorDataType>& cartesianUnitVectors,
+        const AxesParams& axesParams,
+        AxesValues<AxisUnitVectorDataType>& outUnitVectors) const override
+    {
+        // Compute joint-space deltas in units (degrees)
+        float sumSq = 0;
+        float deltas[AXIS_VALUES_MAX_AXES] = {};
+        for (uint32_t i = 0; i < AXIS_VALUES_MAX_AXES; i++)
+        {
+            double stepsPerUnit = axesParams.getStepsPerUnit(i);
+            if (stepsPerUnit > 0)
+                deltas[i] = float(endActuator.getVal(i) - startActuator.getVal(i)) / float(stepsPerUnit);
+            sumSq += deltas[i] * deltas[i];
+        }
+        float norm = sqrtf(sumSq);
+        if (norm < 1e-6f)
+        {
+            outUnitVectors = cartesianUnitVectors;
+            return;
+        }
+        for (uint32_t i = 0; i < AXIS_VALUES_MAX_AXES; i++)
+        {
+            outUnitVectors.setVal(i, deltas[i] / norm);
+        }
+    }
+
 };

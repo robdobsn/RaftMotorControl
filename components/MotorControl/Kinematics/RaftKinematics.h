@@ -163,4 +163,50 @@ public:
         (void)axesParams;
         return true;
     }
+
+    /// @brief Check if this kinematics requires geometry-aware ramp calculations
+    /// @return true if the kinematics is non-linear and needs adjusted move metrics
+    /// @note Default returns false (Cartesian kinematics use standard pipeline)
+    virtual bool requiresGeometryAwareRamps() const { return false; }
+
+    /// @brief Compute the effective move distance for ramp generation
+    /// @param startActuator Start position in actuator steps
+    /// @param endActuator End position in actuator steps
+    /// @param cartesianDistMM The Cartesian distance (for reference/fallback)
+    /// @param axesParams Axes parameters
+    /// @return Effective distance in units consistent with configured speed/accel
+    /// @note For Cartesian kinematics, returns cartesianDistMM unchanged.
+    ///       For SCARA, computes a distance that reflects actual motor effort.
+    virtual float getEffectiveMoveDistance(
+        const AxesValues<AxisStepsDataType>& startActuator,
+        const AxesValues<AxisStepsDataType>& endActuator,
+        float cartesianDistMM,
+        const AxesParams& axesParams) const
+    {
+        (void)startActuator;
+        (void)endActuator;
+        (void)axesParams;
+        return cartesianDistMM;
+    }
+
+    /// @brief Compute effective unit vectors for junction deviation calculation
+    /// @param startActuator Start position in actuator steps
+    /// @param endActuator End position in actuator steps
+    /// @param cartesianUnitVectors The Cartesian unit vectors (for reference/fallback)
+    /// @param axesParams Axes parameters
+    /// @param outUnitVectors Output unit vectors for junction calculation
+    /// @note For Cartesian, copies cartesianUnitVectors unchanged.
+    ///       For SCARA, computes unit vectors in joint space.
+    virtual void getEffectiveUnitVectors(
+        const AxesValues<AxisStepsDataType>& startActuator,
+        const AxesValues<AxisStepsDataType>& endActuator,
+        const AxesValues<AxisUnitVectorDataType>& cartesianUnitVectors,
+        const AxesParams& axesParams,
+        AxesValues<AxisUnitVectorDataType>& outUnitVectors) const
+    {
+        (void)startActuator;
+        (void)endActuator;
+        (void)axesParams;
+        outUnitVectors = cartesianUnitVectors;
+    }
 };

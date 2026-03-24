@@ -470,12 +470,12 @@ void MotionController::formBinaryDataResponse(std::vector<uint8_t>& data) const
     if (isBusy()) flags |= 0x01;
     if (isPaused()) flags |= 0x02;
     if (isAllAxesHomed()) flags |= 0x04;
-    if (isMotionPatternActive() && getCurrentMotionPatternName() == "HomingSeekCenter") flags |= 0x08;
+    if (isMotionPatternActive() && getCurrentMotionPatternName().equalsIgnoreCase("homing-seek-center")) flags |= 0x08;
     data.push_back(flags);
     
-    // Pattern name (first 4 bytes as identifier)
+    // Pattern name (first 16 bytes, null-padded)
     const String& pattern = getCurrentMotionPatternName();
-    for (uint32_t i = 0; i < 4; i++)
+    for (uint32_t i = 0; i < 16; i++)
     {
         data.push_back(i < pattern.length() ? pattern[i] : 0);
     }

@@ -100,6 +100,12 @@ public:
     // Form binary data response for publishing
     void formBinaryDataResponse(std::vector<uint8_t>& data) const;
 
+    // Get motion pipeline queue count
+    unsigned int getQueueCount() const
+    {
+        return _rampGenerator.getMotionPipelineConst().count();
+    }
+
     // Get queue slots (buffers) available for streaming
     uint32_t streamGetQueueSlots() const;
 

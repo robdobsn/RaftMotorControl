@@ -98,7 +98,10 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args, uint32_t numBloc
     _nextBlockIdx = 0;
     _finalTargetPos = args.getAxesPosConst();
     
-    // Enable actuator space interpolation for split blocks (avoids repeated IK)
+#if !USE_SINGLE_SPLIT_BLOCK
+    // Actuator interpolation and boundary check only needed for multi-block path.
+    // With USE_SINGLE_SPLIT_BLOCK, ISR interpolates using coords from addRampedBlockSingle,
+    // and alternate IK retry is handled there. Skipping saves 2-6 IK calls per move.
     _useActuatorInterpolation = false;
     if (_numBlocks > 1 && _pRaftKinematics)
     {
@@ -179,6 +182,7 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args, uint32_t numBloc
             _pRaftKinematics->setPreferAlternateSolution(false);
         }
     }
+#endif
     
 #ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
     uint64_t totalTimeUs = micros() - startTimeUs;
@@ -219,10 +223,6 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args, uint32_t numBloc
 RaftRetCode MotionBlockManager::addRampedBlockSingle(const MotionArgs& args, uint32_t numBlocks,
                                                      MotionPipelineIF& motionPipeline, String* respMsg)
 {
-#ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
-    uint64_t startTimeUs = micros();
-#endif
-
     // Get kinematics
     if (!_pRaftKinematics)
     {
@@ -250,6 +250,17 @@ RaftRetCode MotionBlockManager::addRampedBlockSingle(const MotionArgs& args, uin
     bool endValid = _pRaftKinematics->ptToActuator(args.getAxesPosConst(), 
             endActuatorCoords, _axesState, _axesParams, args.getEffectiveOutOfBoundsAction(_axesParams.getOutOfBoundsDefault()));
     
+    // If primary IK solution invalid, try alternate (handles SCARA boundary cases)
+    if (!endValid && _pRaftKinematics->supportsAlternateSolutions())
+    {
+        bool wasAlternate = _pRaftKinematics->getPreferAlternateSolution();
+        _pRaftKinematics->setPreferAlternateSolution(!wasAlternate);
+        endValid = _pRaftKinematics->ptToActuator(args.getAxesPosConst(), 
+                endActuatorCoords, _axesState, _axesParams, args.getEffectiveOutOfBoundsAction(_axesParams.getOutOfBoundsDefault()));
+        if (!endValid)
+            _pRaftKinematics->setPreferAlternateSolution(wasAlternate);  // Restore on failure
+    }
+
     if (!endValid)
     {
         if (respMsg)
@@ -259,43 +270,27 @@ RaftRetCode MotionBlockManager::addRampedBlockSingle(const MotionArgs& args, uin
     }
 
     // Create single MotionArgs for the whole segment
-    // Important: This represents the entire motion, not individual waypoints
     MotionArgs singleBlockArgs = args;
-    singleBlockArgs.setMoreMovesComing(false); // This is the final block for this motion
     
     // Enable motors once for the entire sequence
     _motorEnabler.enableMotors(true, false);
-
-#ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
-    uint64_t plannerStartUs = micros();
-#endif
 
     // Call planner with deferRecalc=true so the block is added to the pipeline
     // but _canExecute remains false. This prevents the ISR from picking up the
     // block before configureSplitBlock has been called (race condition fix).
     RaftRetCode rc = _motionPlanner.moveToRamped(
         singleBlockArgs, endActuatorCoords, _axesState, _axesParams, 
-        motionPipeline, respMsg, true); // Defer recalculation
-        
-#ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
-    uint64_t plannerTimeUs = micros() - plannerStartUs;
-#endif
+        motionPipeline, respMsg, true, _pRaftKinematics);
 
     if (rc == RAFT_OK)
     {
         // Configure the block with split metadata BEFORE making it executable.
-        // The block is in the pipeline but _canExecute is false, so the ISR
-        // won't touch it yet.
         MotionPipeline* pPipeline = static_cast<MotionPipeline*>(&motionPipeline);
         MotionBlock* block = pPipeline->getLastAddedBlock();
         
         if (block)
         {
             block->configureSplitBlock(numBlocks, startActuatorCoords, endActuatorCoords);
-            
-#ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
-            LOG_I(MODULE_PREFIX, "addRampedBlockSingle: Configured split-block with %d waypoints", numBlocks);
-#endif
         }
         else
         {
@@ -303,16 +298,9 @@ RaftRetCode MotionBlockManager::addRampedBlockSingle(const MotionArgs& args, uin
             rc = RAFT_INVALID_OBJECT;
         }
         
-        // Now recalculate the pipeline, which calls prepareForStepping and
-        // sets _canExecute = true. Only now can the ISR start executing.
+        // Now recalculate the pipeline
         _motionPlanner.recalculatePipelinePublic(motionPipeline, _axesParams);
     }
-
-#ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
-    uint64_t totalTimeUs = micros() - startTimeUs;
-    LOG_I(MODULE_PREFIX, "addRampedBlockSingle TIMING: total=%lluus planner=%lluus numWaypoints=%d",
-          totalTimeUs, plannerTimeUs, numBlocks);
-#endif
 
     return rc;
 }
@@ -533,7 +521,7 @@ RaftRetCode MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipel
 #endif
     // Plan the move
     RaftRetCode rc = _motionPlanner.moveToRamped(args, actuatorCoords, 
-                        _axesState, _axesParams, motionPipeline, respMsg, deferRecalc);
+                        _axesState, _axesParams, motionPipeline, respMsg, deferRecalc, _pRaftKinematics);
 #ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
     uint64_t plannerCallTimeUs = micros() - plannerCallStartUs;
     // Disabled per-block logging to reduce overhead (~23ms for 27 blocks)
