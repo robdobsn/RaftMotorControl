@@ -33,4 +33,5 @@ idf_component_register(
   REQUIRES
     RaftCore
     driver
+    esp_driver_gptimer
 )
