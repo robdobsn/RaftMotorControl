@@ -201,6 +201,12 @@ bool MotionBlock::prepareForStepping(const AxesParams &axesParams, bool isLinear
     if (isLinear)
     {
         // requestedVelocity is in steps per second in this case
+        // NOTE: step-wise moves run FLAT (no accel/decel). A soft-start ramp was tried
+        // (git history) to allow fast homing, but it made things WORSE: homing detects
+        // each switch edge by an abrupt stop, and stopping from a high cruise speed
+        // loses/overshoots steps by a variable amount (open-loop), so trigger widths
+        // became wildly inconsistent. The ramp also made the speed-at-edge depend on
+        // seek distance. Homing relies on a constant slow speed instead - keep this flat.
         float stepRatePerSec = _requestedSpeed;
         if (stepRatePerSec > axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps))
             stepRatePerSec = axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps);

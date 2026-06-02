@@ -23,7 +23,8 @@
 /// @param pClassName device class name
 /// @param pDevConfigJson device configuration JSON
 MotorControl::MotorControl(const char* pClassName, const char *pDevConfigJson)
-        : RaftDevice(pClassName, pDevConfigJson)
+        : RaftDevice(pClassName, pDevConfigJson),
+          _homeCalibNVS("MotorHome")
 {
 }
 
@@ -42,6 +43,14 @@ void MotorControl::setup()
     // Setup motion controller
     _motionController.setup(deviceConfig);
 
+    // Home-offset calibration: register the NVS persist callback, then load any saved
+    // per-axis offsets. Saved offsets override the SysTypes "homeOffsetSteps" values
+    // parsed during _motionController.setup() above.
+    _motionController.setHomeOffsetPersistCallback([this](const std::vector<AxisStepsDataType>& offs) {
+        persistHomeOffsetsToNVS(offs);
+    });
+    loadHomeOffsetsFromNVS();
+
     // Extract homing pattern
     _homingPattern = deviceConfig.getString("homingPattern", "homing-seek-center");
 
@@ -58,6 +67,40 @@ void MotorControl::setup()
     LOG_I(MODULE_PREFIX, "setup type %s serialBusName %s%s",
             deviceClassName.c_str(), serialBusName.c_str(),
             _pMotorSerialBus ? "" : " (BUS INVALID)");
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Load per-axis home offsets (steps) from NVS and apply them (override SysTypes)
+void MotorControl::loadHomeOffsetsFromNVS()
+{
+    if (!_homeCalibNVS.getLong("set", 0))
+    {
+        LOG_I(MODULE_PREFIX, "loadHomeOffsetsFromNVS none saved - using SysTypes homeOffsetSteps");
+        return;
+    }
+    int n = _homeCalibNVS.getLong("n", 0);
+    if (n <= 0)
+        return;
+    std::vector<AxisStepsDataType> offs;
+    offs.reserve(n);
+    for (int i = 0; i < n; i++)
+        offs.push_back((AxisStepsDataType)_homeCalibNVS.getLong(("o" + String(i)).c_str(), 0));
+    // Apply but do not re-persist
+    _motionController.applyHomeOffsetsSteps(offs, false);
+    LOG_I(MODULE_PREFIX, "loadHomeOffsetsFromNVS applied %d axis offset(s) from NVS (override SysTypes)", n);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Persist per-axis home offsets (steps) to NVS (whole-doc write, like FriendlyName)
+/// @param offsets One entry per axis
+void MotorControl::persistHomeOffsetsToNVS(const std::vector<AxisStepsDataType>& offsets)
+{
+    String doc = "{\"set\":1,\"n\":" + String((int)offsets.size());
+    for (size_t i = 0; i < offsets.size(); i++)
+        doc += ",\"o" + String((int)i) + "\":" + String((int)offsets[i]);
+    doc += "}";
+    _homeCalibNVS.setJsonDoc(doc.c_str());
+    LOG_I(MODULE_PREFIX, "persistHomeOffsetsToNVS %s", doc.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

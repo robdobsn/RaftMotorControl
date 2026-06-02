@@ -8,10 +8,12 @@
 
 #pragma once
 
+#include <vector>
 #include "RaftRetCode.h"
 #include "RaftDevice.h"
 #include "MotionController.h"
 #include "RaftBus.h"
+#include "RaftJsonNVS.h"
 
 class MotorControl : public RaftDevice
 {
@@ -169,6 +171,11 @@ private:
 
     // Motor serial bus
     RaftBus* _pMotorSerialBus = nullptr;
+
+    // NVS-backed home-offset calibration (per-axis offsets in steps; overrides SysTypes)
+    RaftJsonNVS _homeCalibNVS;
+    void loadHomeOffsetsFromNVS();
+    void persistHomeOffsetsToNVS(const std::vector<AxisStepsDataType>& offsets);
 
     // Debug
     static constexpr const char* MODULE_PREFIX = "MotorControl";    

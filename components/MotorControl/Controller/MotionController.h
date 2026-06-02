@@ -8,6 +8,8 @@
 
 #pragma once
 
+#include <vector>
+#include <functional>
 #include "AxesParams.h"
 #include "RaftBus.h"
 #include "MotionPlanner.h"
@@ -83,6 +85,16 @@ public:
     virtual AxesParams getAxesParams() const override
     {
         return _axesParams;
+    }
+
+    /// @brief Apply (and optionally persist) per-axis home offsets in steps (calibration)
+    virtual void applyHomeOffsetsSteps(const std::vector<AxisStepsDataType>& offsetStepsPerAxis, bool persist) override;
+
+    /// @brief Register a callback used to persist home offsets (steps) to non-volatile storage
+    /// @param cb Callback invoked with the full per-axis offset vector
+    void setHomeOffsetPersistCallback(std::function<void(const std::vector<AxisStepsDataType>&)> cb)
+    {
+        _homeOffsetPersistCb = cb;
     }
 
     // Go to previously set origin position
@@ -181,6 +193,9 @@ private:
 
     // Axes parameters
     AxesParams _axesParams;
+
+    // Callback to persist per-axis home offsets (steps) to NVS (registered by the device)
+    std::function<void(const std::vector<AxisStepsDataType>&)> _homeOffsetPersistCb;
 
     // Ramp generator
     RampGenerator _rampGenerator;

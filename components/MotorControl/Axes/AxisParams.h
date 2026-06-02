@@ -50,6 +50,11 @@ public:
     // Homing degrees per second for this axis (used for homing)
     AxisDegreesPerSecondType _homingDegreesPerSec;
 
+    // Home position offset in STEPS: from the endstop-trigger midpoint to the true
+    // home/centre. Mechanical calibration applied at the end of homing (0 = none).
+    // Effective value = NVS calibration (if set) else SysTypes "homeOffsetSteps".
+    AxisStepsDataType _homeOffsetSteps;
+
     // Min and max values for the axis in units
     AxisPosDataType _minUnits;
     AxisPosDataType _maxUnits;
@@ -78,7 +83,8 @@ public:
         _stepsPerRot = stepsPerRot_default;
         _unitsPerRot = posUnitsPerRot_default;
         _maxDegreesPerSec = maxDegreesPerSecond_default;
-        _homingDegreesPerSec = homingDegreesPerSecond_default; 
+        _homingDegreesPerSec = homingDegreesPerSecond_default;
+        _homeOffsetSteps = 0;
         _minUnits = 0;
         _maxUnits = 0;
         _minUnitsSet = false;
@@ -123,7 +129,8 @@ public:
         _unitsPerRot = AxisPosFactorDataType(config.getDouble("unitsPerRot", AxisParams::posUnitsPerRot_default));
         _maxDegreesPerSec = AxisDegreesPerSecondType(config.getDouble("maxDegPerSec", AxisParams::maxDegreesPerSecond_default));
         _homingDegreesPerSec = AxisDegreesPerSecondType(config.getDouble("homingDegPerSec", AxisParams::homingDegreesPerSecond_default));
-        
+        _homeOffsetSteps = AxisStepsDataType(config.getLong("homeOffsetSteps", 0));
+
         // Check if bounds were explicitly set and parse them
         _minUnitsSet = config.contains("minUnits");
         _maxUnitsSet = config.contains("maxUnits");
@@ -142,7 +149,7 @@ public:
         static const char* MODULE_PREFIX = "AxisParams";
         LOG_I(MODULE_PREFIX, "Axis%d params maxSpeed %0.2f acceleration %0.2f stepsPerRot %0.2f unitsPerRot %0.2f maxDegreesPerSec %0.2f homingDegreesPerSec %0.2f",
                    axisIdx, _maxSpeedUps, _maxAccelUps2, _stepsPerRot, _unitsPerRot, _maxDegreesPerSec, _homingDegreesPerSec);
-        LOG_I(MODULE_PREFIX, "Axis%d params minVal %0.2f maxVal %0.2f isDominant %d isServo %d",
-                   axisIdx, _minUnits, _maxUnits, _isDominantAxis, _isServoAxis);
+        LOG_I(MODULE_PREFIX, "Axis%d params minVal %0.2f maxVal %0.2f isDominant %d isServo %d homeOffsetSteps %d",
+                   axisIdx, _minUnits, _maxUnits, _isDominantAxis, _isServoAxis, (int)_homeOffsetSteps);
     }
 };

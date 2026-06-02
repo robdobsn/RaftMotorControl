@@ -425,6 +425,19 @@ void MotionController::setAxisOrigin(uint32_t axisIdx)
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Apply (and optionally persist) per-axis home offsets in steps (calibration)
+/// @param offsetStepsPerAxis One entry per axis
+/// @param persist If true, invoke the device-registered persist callback (NVS write)
+void MotionController::applyHomeOffsetsSteps(const std::vector<AxisStepsDataType>& offsetStepsPerAxis, bool persist)
+{
+    for (uint32_t i = 0; i < offsetStepsPerAxis.size(); i++)
+        _axesParams.setHomeOffsetSteps(i, offsetStepsPerAxis[i]);
+    LOG_I(MODULE_PREFIX, "applyHomeOffsetsSteps numAxes %d persist %d", (int)offsetStepsPerAxis.size(), persist);
+    if (persist && _homeOffsetPersistCb)
+        _homeOffsetPersistCb(offsetStepsPerAxis);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Go to previously set origin position
 void MotionController::goToOrigin(const MotionArgs &args)
 {

@@ -79,13 +79,23 @@ private:
 
     // Configuration parameters
     std::vector<uint32_t> _stepsPerSecPerAxis; // Steps per second for seeking for each axis
-    uint32_t _timeoutMs = 60000;    // 60 second timeout per axis
+    std::vector<AxisStepsDataType> _homeOffsetStepsPerAxis; // Per-axis home offset (steps) applied after the sensor midpoint
+
+    // setHomeHere calibration mode (motors?cmd=home&setHomeHere=1): user places the ball
+    // at the table centre; homing measures the offset from each sensor midpoint to that
+    // captured centre, sets home there, and persists the offsets (Option A).
+    bool _setHomeHereMode = false;
+    bool _persistOffset = true;
+    std::vector<AxisStepsDataType> _centreStartPos;     // captured centre position (steps) per axis
+    std::vector<AxisStepsDataType> _setHomeHereOffsets; // computed offset (steps) per axis
+    uint32_t _timeoutMs = 180000;   // timeout per axis (raised for slow-homing test)
     int _fullRotationSteps = 9600;
     int _maxRotations = 3;          // Number of full rotations to command for seeking
     int _seekOffDir = 1;            // Direction to seek off trigger region (CW = +1)
     int _seekEdgeDir = -1;          // Direction to seek edges (CCW = -1)
     uint32_t _settleDelayMs = 50;   // Delay after stop to let motor settle
     int _positionTolerance = 10;    // Tolerance for position comparison
+    AxisStepsDataType _detectPos = 0; // Position captured at the instant an edge is detected (logs overshoot)
 
     // Timing
     uint32_t _timeoutStartMs = 0;
@@ -101,12 +111,13 @@ private:
         _stateEntryTimeMs = millis();
     }
     bool readEndStop(int axis, bool& isFresh);
+    void logHomingCompletionState();
     AxisStepsDataType readAxisPosition(int axis, bool& isFresh);
     void stopMotion();
     void setAxisHome(int axis);
     void setError(const String& errStr);
     void resetState();
-    void sendRotate(int axis, int dir);
+    void sendRotate(int axis, int dir, uint32_t stepsPerSec = 0);
     void sendMoveTo(int axis, AxisStepsDataType targetPos, AxisStepsDataType currentPos);
 
     // Debug

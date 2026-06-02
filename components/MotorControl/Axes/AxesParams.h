@@ -130,6 +130,25 @@ public:
         return _axisParams[axisIdx]._homingDegreesPerSec * _axisParams[axisIdx]._stepsPerRot / 360;
     }
 
+    /// @brief Get the home position offset for an axis in STEPS (converted from configured degrees)
+    /// @param axisIdx Axis index
+    /// @return Home offset in steps (0 if none or out of range)
+    AxisStepsDataType getHomeOffsetSteps(uint32_t axisIdx) const
+    {
+        if (axisIdx >= _axisParams.size())
+            return 0;
+        return _axisParams[axisIdx]._homeOffsetSteps;
+    }
+
+    /// @brief Set the effective home offset (steps) for an axis (NVS calibration override)
+    /// @param axisIdx Axis index
+    /// @param steps Offset in steps
+    void setHomeOffsetSteps(uint32_t axisIdx, AxisStepsDataType steps)
+    {
+        if (axisIdx < _axisParams.size())
+            _axisParams[axisIdx]._homeOffsetSteps = steps;
+    }
+
     /// @brief Get max acceleration for an axis in units per second squared
     /// @param axisIdx Axis index
     /// @return Max acceleration for the axis in units per second squared

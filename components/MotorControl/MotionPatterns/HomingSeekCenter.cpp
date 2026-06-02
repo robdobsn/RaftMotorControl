@@ -66,7 +66,10 @@ void HomingSeekCenter::setup(const char* pParamsJson)
     {
         RaftJson config(pParamsJson);
         _numAxes = config.getInt("numAxes", _numAxes);
-        _startAxis = config.getInt("startAxis", _numAxes - 1);
+        // Home base axis (0) first, most-distal axis last (ascending). On a coupled
+        // arm the distal axis MUST be homed last so nothing disturbs it afterwards -
+        // see SET_HOME. Override "startAxis" only for testing a single axis.
+        _startAxis = config.getInt("startAxis", 0);
         _fullRotationSteps = config.getInt("fullRotationSteps", _fullRotationSteps);
         stepsPerSecOverride = config.getInt("stepsPerSec", stepsPerSecOverride);
         _timeoutMs = config.getInt("timeoutMs", _timeoutMs);
@@ -74,16 +77,39 @@ void HomingSeekCenter::setup(const char* pParamsJson)
         _seekEdgeDir = config.getInt("seekEdgeDir", _seekEdgeDir);
         _settleDelayMs = config.getInt("settleDelayMs", _settleDelayMs);
         _positionTolerance = config.getInt("positionTolerance", _positionTolerance);
+        _setHomeHereMode = config.getBool("setHomeHere", false);
+        _persistOffset = config.getBool("persist", true);
     }
 
-    // Get max steps per second for homing
+    // Get max steps per second for homing, and the per-axis home offset (steps)
     uint32_t maxStepsPerSec = 0;
+    _stepsPerSecPerAxis.clear();
+    _homeOffsetStepsPerAxis.clear();
     for (int axisIdx = 0; axisIdx < axesParams.getNumAxes(); axisIdx++)
     {
         uint32_t stepsPerSec = stepsPerSecOverride > 0 ? stepsPerSecOverride : axesParams.getHomingStepRatePerSec(axisIdx);
         _stepsPerSecPerAxis.push_back(stepsPerSec);
+        _homeOffsetStepsPerAxis.push_back(axesParams.getHomeOffsetSteps(axisIdx));
         if (maxStepsPerSec == 0 || stepsPerSec < maxStepsPerSec)
             maxStepsPerSec = stepsPerSec;
+    }
+
+    // The arms may have been moved by hand between homing actions, so step counts are
+    // NOT assumed valid here. Zero the position frame at the start; homing then works
+    // purely from freshly-measured switch positions with no stale-count dependence.
+    _motionControl.setCurPositionAsOrigin();
+
+    // setHomeHere calibration: capture the current (user-placed-centre) position NOW,
+    // before any homing motion. Per-axis offset will be (centreStart - sensorMidpoint).
+    _centreStartPos.assign(_numAxes, 0);
+    _setHomeHereOffsets.assign(_numAxes, 0);
+    if (_setHomeHereMode)
+    {
+        AxesValues<AxisStepsDataType> curSteps = _motionControl.getAxisTotalSteps();
+        for (int i = 0; i < _numAxes; i++)
+            _centreStartPos[i] = curSteps.getVal(i);
+        LOG_I(MODULE_PREFIX, "setHomeHere ENABLED (persist=%d) centreStart[0]=%d centreStart[1]=%d - will calibrate home offsets from this position",
+              _persistOffset, _numAxes > 0 ? (int)_centreStartPos[0] : 0, _numAxes > 1 ? (int)_centreStartPos[1] : 0);
     }
 
     // Start homing
@@ -116,7 +142,12 @@ void HomingSeekCenter::loop()
                 setError("End-stop not fresh at start");
                 return;
             }
-            
+            bool startPosFresh = false;
+            AxisStepsDataType startPos = readAxisPosition(_currentAxis, startPosFresh);
+            LOG_I(MODULE_PREFIX, "Axis %d: START pos=%d endstop=%s seekSps=%u seekOffDir=%d seekEdgeDir=%d (t=%u)",
+                  _currentAxis, startPos, endStopTriggered ? "TRIGGERED" : "off",
+                  (unsigned)_stepsPerSecPerAxis[_currentAxis], _seekOffDir, _seekEdgeDir, now);
+
             if (endStopTriggered) {
                 // Currently in trigger region, need to exit first
                 sendRotate(_currentAxis, _seekOffDir);
@@ -145,10 +176,12 @@ void HomingSeekCenter::loop()
             
             if (!endStopTriggered) {
                 // Exited trigger region, now seek edge A in opposite direction
+                bool pf = false;
+                AxisStepsDataType p = readAxisPosition(_currentAxis, pf);
                 stopMotion();
                 sendRotate(_currentAxis, _seekEdgeDir);
-                LOG_I(MODULE_PREFIX, "Axis %d: Exited trigger region, now seeking edge A with dir=%d",
-                      _currentAxis, _seekEdgeDir);
+                LOG_I(MODULE_PREFIX, "Axis %d: exited region at pos=%d, now seeking edge A dir=%d",
+                      _currentAxis, p, _seekEdgeDir);
                 setState(State::SEEK_EDGE_A);
             }
             break;
@@ -164,12 +197,13 @@ void HomingSeekCenter::loop()
             }
             
             if (endStopTriggered) {
-                // Found edge A (entering trigger region)
+                // Found edge A (entering) - capture position AT DETECTION before stopping
+                _detectPos = readAxisPosition(_currentAxis, isFresh);
                 stopMotion();
                 _settleStartMs = now;
                 setState(State::SETTLING_A);
-                LOG_I(MODULE_PREFIX, "Axis %d: Found edge A (entering trigger), settling for %ums",
-                      _currentAxis, _settleDelayMs);
+                LOG_I(MODULE_PREFIX, "Axis %d: edge A ENTER detected at pos=%d (t=%u), settling %ums",
+                      _currentAxis, _detectPos, now, _settleDelayMs);
             }
             break;
         }
@@ -183,8 +217,9 @@ void HomingSeekCenter::loop()
                     setError("Position not fresh during SETTLING_A");
                     return;
                 }
-                LOG_I(MODULE_PREFIX, "Axis %d: Edge A position recorded: %d", _currentAxis, _edgeAPos);
-                
+                LOG_I(MODULE_PREFIX, "Axis %d: edge A settled pos=%d (detect=%d settleDrift=%d)",
+                      _currentAxis, _edgeAPos, _detectPos, _edgeAPos - _detectPos);
+
                 // Continue in same direction to find edge B
                 sendRotate(_currentAxis, _seekEdgeDir);
                 setState(State::SEEK_EDGE_B);
@@ -202,33 +237,53 @@ void HomingSeekCenter::loop()
             }
             
             if (!endStopTriggered) {
-                // Found edge B (leaving trigger region)
+                // Found edge B (leaving) - capture position AT DETECTION before stopping
+                _detectPos = readAxisPosition(_currentAxis, isFresh);
                 stopMotion();
                 _settleStartMs = now;
                 setState(State::SETTLING_B);
-                LOG_I(MODULE_PREFIX, "Axis %d: Found edge B (leaving trigger), settling for %ums",
-                      _currentAxis, _settleDelayMs);
+                LOG_I(MODULE_PREFIX, "Axis %d: edge B LEAVE detected at pos=%d (t=%u), settling %ums",
+                      _currentAxis, _detectPos, now, _settleDelayMs);
             }
             break;
         }
 
         case State::SETTLING_B:
         {
-            // Wait for motor to settle, then record position and calculate midpoint
+            // Wait for motor to settle, then record edge B and compute the midpoint
             if (now - _settleStartMs >= _settleDelayMs) {
                 _edgeBPos = readAxisPosition(_currentAxis, isFresh);
                 if (!isFresh) {
                     setError("Position not fresh during SETTLING_B");
                     return;
                 }
-                LOG_I(MODULE_PREFIX, "Axis %d: Edge B position recorded: %d", _currentAxis, _edgeBPos);
-                
-                // Calculate midpoint
-                _midPoint = (_edgeAPos + _edgeBPos) / 2;
-                LOG_I(MODULE_PREFIX, "Axis %d: Calculated midpoint: %d (A=%d, B=%d)",
-                      _currentAxis, _midPoint, _edgeAPos, _edgeBPos);
-                
-                // Move to midpoint (from current position at edge B)
+                LOG_I(MODULE_PREFIX, "Axis %d: edge B settled pos=%d (detect=%d settleDrift=%d)",
+                      _currentAxis, _edgeBPos, _detectPos, _edgeBPos - _detectPos);
+
+                AxisStepsDataType sensorMid = (_edgeAPos + _edgeBPos) / 2;
+                if (_setHomeHereMode)
+                {
+                    // Calibration: home = the user-placed centre captured at start; record
+                    // the offset (centre - sensorMid) for persistence and future homes.
+                    AxisStepsDataType centre = (_currentAxis < (int)_centreStartPos.size())
+                                                   ? _centreStartPos[_currentAxis] : sensorMid;
+                    AxisStepsDataType offset = centre - sensorMid;
+                    if (_currentAxis < (int)_setHomeHereOffsets.size())
+                        _setHomeHereOffsets[_currentAxis] = offset;
+                    _midPoint = centre;
+                    LOG_I(MODULE_PREFIX, "Axis %d: setHomeHere A=%d B=%d sensorMid=%d centreStart=%d -> offset=%d (home target=centre)",
+                          _currentAxis, _edgeAPos, _edgeBPos, sensorMid, centre, offset);
+                }
+                else
+                {
+                    // Normal: home = sensor-region midpoint + configured/effective offset.
+                    AxisStepsDataType homeOffset = (_currentAxis < (int)_homeOffsetStepsPerAxis.size())
+                                                       ? _homeOffsetStepsPerAxis[_currentAxis] : 0;
+                    _midPoint = sensorMid + homeOffset;
+                    LOG_I(MODULE_PREFIX, "Axis %d: edges A=%d B=%d width=%d sensorMid=%d homeOffset=%d -> home target=%d",
+                          _currentAxis, _edgeAPos, _edgeBPos, _edgeAPos - _edgeBPos, sensorMid, homeOffset, _midPoint);
+                }
+
                 sendMoveTo(_currentAxis, _midPoint, _edgeBPos);
                 setState(State::MOVE_TO_MIDPOINT);
             }
@@ -271,12 +326,32 @@ void HomingSeekCenter::loop()
 
         case State::SET_HOME:
         {
-            // Move to next axis or complete
-            if (_currentAxis != 0) {
-                _currentAxis = 0;
+            // Advance to the next axis (ascending: base -> tip) or complete.
+            //
+            // Base-first ordering is REQUIRED on mechanically-coupled arms (this
+            // single-arm SCARA rotates the elbow/axis-1 when the shoulder/axis-0
+            // turns). Homing the most-distal axis LAST guarantees no later axis move
+            // can drag it off the switch it was just homed to. The previous logic
+            // homed startAxis then forced axis 0 last, so on this arm the elbow was
+            // displaced by however far the shoulder had to travel to find its own
+            // switch - a non-repeatable home that drifted with shoulder travel.
+            if (_currentAxis < _numAxes - 1) {
+                _currentAxis++;
                 setState(State::START);
-                LOG_I(MODULE_PREFIX, "Switching to axis 0");
+                LOG_I(MODULE_PREFIX, "Switching to axis %d", _currentAxis);
             } else {
+                // setHomeHere calibration: apply & (optionally) persist the measured offsets
+                // so future normal homes land at the user-defined centre.
+                if (_setHomeHereMode)
+                {
+                    LOG_I(MODULE_PREFIX, "setHomeHere complete - applying offsets [%d,%d] persist=%d",
+                          _numAxes > 0 ? (int)_setHomeHereOffsets[0] : 0,
+                          _numAxes > 1 ? (int)_setHomeHereOffsets[1] : 0, _persistOffset);
+                    _motionControl.applyHomeOffsetsSteps(_setHomeHereOffsets, _persistOffset);
+                }
+                // Diagnostic: log where every axis ended up and whether it is still on
+                // its switch (advisory only during bring-up - does NOT abort).
+                logHomingCompletionState();
                 // All axes homed - each axis is now at its home position (step count 0)
                 // Set the current position as the origin (this updates both step and Cartesian tracking)
                 _motionControl.setCurPositionAsOrigin();
@@ -310,6 +385,27 @@ void HomingSeekCenter::loop()
 bool HomingSeekCenter::readEndStop(int axis, bool& isFresh)
 {
     return _motionControl.getEndStopState(axis, false, isFresh); // min endstop
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/// @brief Log where each axis came to rest and whether it is still on its endstop.
+/// @note Advisory diagnostic at homing completion. Each axis homes to the midpoint of
+///       its trigger region, so on a correct home every endstop reads triggered here.
+///       An axis reading not-triggered means it ended up off its switch (e.g. dragged
+///       by a later axis move on a coupled arm).
+void HomingSeekCenter::logHomingCompletionState()
+{
+    for (int axis = 0; axis < _numAxes; axis++)
+    {
+        bool esFresh = false;
+        bool triggered = readEndStop(axis, esFresh);
+        bool posFresh = false;
+        AxisStepsDataType pos = readAxisPosition(axis, posFresh);
+        LOG_I(MODULE_PREFIX, "Completion: axis %d pos=%d endstop=%s (esFresh=%d)",
+              axis, pos, triggered ? "TRIGGERED" : "off", esFresh ? 1 : 0);
+        if (esFresh && !triggered)
+            LOG_W(MODULE_PREFIX, "Completion: axis %d is NOT on its endstop (off-switch / disturbed)", axis);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -369,15 +465,16 @@ void HomingSeekCenter::resetState()
 
 ////////////////////////////////////////////////////////////////////////////////
 /// @brief Send a rotate command for a full rotation in the given direction
-void HomingSeekCenter::sendRotate(int axis, int dir)
+void HomingSeekCenter::sendRotate(int axis, int dir, uint32_t stepsPerSec)
 {
     // Command multiple rotations to allow time to find edge
     int steps = _fullRotationSteps * _maxRotations * dir;
+    uint32_t sps = (stepsPerSec > 0) ? stepsPerSec : _stepsPerSecPerAxis[axis];
 
     MotionArgs args;
     args.clear();
     args.setMode("pos-rel-steps");  // Relative steps (non-ramped, bypasses kinematics)
-    args.setSpeed(String(_stepsPerSecPerAxis[axis]) + "sps");  // Steps per second
+    args.setSpeed(String(sps) + "sps");  // Steps per second
     args.setDoNotSplitMove(true);
 
     AxesValues<AxisPosDataType>& axisVals = args.getAxesPos();
@@ -385,7 +482,7 @@ void HomingSeekCenter::sendRotate(int axis, int dir)
     args.getAxesSpecified().setVal(axis, true);
 
     _motionControl.moveTo(args);
-    LOG_I(MODULE_PREFIX, "sendRotate axis %d dir %d steps %d (maxRot=%d)", axis, dir, steps, _maxRotations);
+    LOG_I(MODULE_PREFIX, "sendRotate axis %d dir %d steps %d sps %u (maxRot=%d)", axis, dir, steps, (unsigned)sps, _maxRotations);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

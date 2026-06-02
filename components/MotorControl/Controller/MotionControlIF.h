@@ -9,6 +9,7 @@
 
 #pragma once
 
+#include <vector>
 #include "AxesValues.h"
 #include "AxesParams.h"
 #include "RaftRetCode.h"
@@ -87,4 +88,13 @@ public:
     /// @brief Check if all axes have been homed
     /// @return true if all axes have been homed since last reset
     virtual bool isAllAxesHomed() const = 0;
+
+    /// @brief Apply (and optionally persist) per-axis home offsets in steps (calibration)
+    /// @param offsetStepsPerAxis One entry per axis (extra entries ignored)
+    /// @param persist If true, also write the offsets to non-volatile storage
+    /// @note Default no-op so non-motion implementers are unaffected
+    virtual void applyHomeOffsetsSteps(const std::vector<AxisStepsDataType>& offsetStepsPerAxis, bool persist)
+    {
+        (void)offsetStepsPerAxis; (void)persist;
+    }
 };
