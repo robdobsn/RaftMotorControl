@@ -189,6 +189,16 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
             isFresh = true;
             return _motionController.isAllAxesHomed() ? 1.0 : 0.0;
         }
+        if (paramStr.equalsIgnoreCase("homingActive"))
+        {
+            // True while the homing motion pattern is running (busy alone is unreliable
+            // - it drops to 0 during homing settling phases)
+            isFresh = true;
+            return (_motionController.isMotionPatternActive() &&
+                    _motionController.getCurrentMotionPatternName().equalsIgnoreCase("homing-seek-center"))
+                       ? 1.0
+                       : 0.0;
+        }
         if (paramStr.length() > 5 && paramStr.startsWith("homed") && isdigit(paramStr[5]))
         {
             uint32_t axisIdx = paramStr[5] - '0';

@@ -257,10 +257,15 @@ private:
         // Calculate distance from origin to pt (forms one side of triangle where arm segments form other sides)
         AxisCalcDataType thirdSideL3MM = sqrt(pow(targetPt.getVal(0), 2) + pow(targetPt.getVal(1), 2));
 
-        // Check validity of position
-        bool posValid = thirdSideL3MM <= (_arm1LenMM + _arm2LenMM) && 
+        // Check validity of position. Allow a small reach tolerance: the arm physically
+        // reaches arm1+arm2, so rounding (or a THR rho==1.0 landing exactly on the boundary)
+        // must not spuriously reject a reachable rim point. AxisUtils::cosineRule clamps the
+        // law-of-cosines argument to [-1,1], so a marginally-over point resolves to the
+        // fully-extended (rim) pose rather than failing.
+        const AxisCalcDataType reachTolMM = 0.5;
+        bool posValid = thirdSideL3MM <= (_arm1LenMM + _arm2LenMM + reachTolMM) &&
                         (thirdSideL3MM >= fabs(_arm1LenMM - _arm2LenMM)) &&
-                        thirdSideL3MM <= _maxRadiusMM;
+                        thirdSideL3MM <= _maxRadiusMM + reachTolMM;
 
         // Calculate angle from x-axis to target point
         AxisCalcDataType targetAngleRads = atan2(targetPt.getVal(1), targetPt.getVal(0));
