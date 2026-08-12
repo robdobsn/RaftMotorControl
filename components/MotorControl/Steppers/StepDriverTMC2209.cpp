@@ -85,6 +85,10 @@ bool StepDriverTMC2209::setup(const String& stepperName, const StepDriverParams&
             _statusReadIntervalMs = stepperParams.statusIntvMs;
         }
 
+        // Stagger status polls of drivers sharing the bus (up to 4 addresses) so their
+        // reads don't systematically collide in the same servicing pass
+        _statusReadLastTimeMs = millis() - (stepperParams.address % 4) * (_statusReadIntervalMs / 4);
+
         // Set main registers
         setMainRegs();
     }
