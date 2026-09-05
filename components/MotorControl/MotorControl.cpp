@@ -11,6 +11,7 @@
 #include "RaftBusSystem.h"
 #include "Logger.h"
 #include "HomingSeekCenter.h"
+#include "EndStopScan.h"
 #include "DeviceManager.h"
 #include "DeviceTypeRecordDynamic.h"
 #include "DeviceTypeRecords.h"
@@ -61,7 +62,8 @@ void MotorControl::setup()
 
     // Register motion patterns
     _motionController.addMotionPattern("homing-seek-center", HomingSeekCenter::create);
-    LOG_I(MODULE_PREFIX, "setup registered homing-seek-center pattern");
+    _motionController.addMotionPattern("endstop-scan", EndStopScan::create);
+    LOG_I(MODULE_PREFIX, "setup registered homing-seek-center and endstop-scan patterns");
 
     // Debug
     LOG_I(MODULE_PREFIX, "setup type %s serialBusName %s%s",

@@ -215,6 +215,122 @@ bool RampGenerator::isEndStopReached() const
     return _endStopReached;
 }
 
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Arm step-rate capture of end-stop transitions for one axis
+/// @param axisIdx axis to watch
+/// @param isMax true for max end-stop, false for min
+void RampGenerator::armEndStopEdgeCapture(uint32_t axisIdx, bool isMax)
+{
+    // Disarm while mutating so the ISR cannot observe a half-updated setup
+    _edgeCapArmed = false;
+    if ((axisIdx >= _axisEndStops.size()) || (axisIdx >= AXIS_VALUES_MAX_AXES) || !_axisEndStops[axisIdx])
+        return;
+    _edgeCapAxisIdx = axisIdx;
+    _edgeCapIsMax = isMax;
+    _edgeCapSeq = 0;
+    _edgeCapPosSteps = 0;
+    _edgeCapNewState = false;
+    _edgeCapHead = 0;
+    _edgeCapTail = 0;
+    _edgeCapOverflow = 0;
+    // Not primed: the ISR takes the first sample as the reference state, so a
+    // transition is only reported after at least one tick has been observed.
+    _edgeCapPrimed = false;
+    _edgeCapArmed = true;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Disarm end-stop transition capture
+void RampGenerator::disarmEndStopEdgeCapture()
+{
+    _edgeCapArmed = false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the most recent captured end-stop transition
+/// @param seq (out) capture sequence number - increments on each transition
+/// @param posSteps (out) axis total step position at the transition
+/// @param newState (out) end-stop state after the transition
+/// @return true if at least one transition has been captured since arming
+bool RampGenerator::getEndStopEdgeCapture(uint32_t& seq, AxisStepsDataType& posSteps, bool& newState) const
+{
+    // Re-read the sequence after the payload; if it moved, the ISR wrote a new
+    // capture mid-read so the payload cannot be trusted. Cheaper and safer here
+    // than disabling interrupts.
+    for (int attempt = 0; attempt < 4; attempt++)
+    {
+        uint32_t seqBefore = _edgeCapSeq;
+        AxisStepsDataType pos = _edgeCapPosSteps;
+        bool state = _edgeCapNewState;
+        if (seqBefore == _edgeCapSeq)
+        {
+            seq = seqBefore;
+            posSteps = pos;
+            newState = state;
+            return seqBefore != 0;
+        }
+    }
+    return false;
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Sample the armed end-stop and latch the position on a state change
+/// @note Called every step-generator tick from generateMotionPulses
+void MOTOR_TICK_FN_DECORATOR RampGenerator::sampleEndStopEdge()
+{
+    if (!_edgeCapArmed)
+        return;
+    uint32_t axisIdx = _edgeCapAxisIdx;
+    EndStops* pEndStops = _axisEndStops[axisIdx];
+    if (!pEndStops)
+        return;
+    bool state = pEndStops->isAtEndStop(_edgeCapIsMax);
+    if (!_edgeCapPrimed)
+    {
+        _edgeCapLastState = state;
+        _edgeCapPrimed = true;
+        return;
+    }
+    if (state == _edgeCapLastState)
+        return;
+    // Transition - latch the position this ISR maintains, then publish by
+    // bumping the sequence last so a reader never sees a stale position paired
+    // with a new sequence.
+    _edgeCapLastState = state;
+    AxisStepsDataType pos = _axisTotalSteps[axisIdx];
+    _edgeCapPosSteps = pos;
+    _edgeCapNewState = state;
+    _edgeCapSeq = _edgeCapSeq + 1;
+
+    // Also push to the lossless queue (drop, and count, if the consumer is behind)
+    uint32_t head = _edgeCapHead;
+    uint32_t next = (head + 1) % EDGE_CAP_QUEUE_SIZE;
+    if (next == _edgeCapTail)
+    {
+        _edgeCapOverflow = _edgeCapOverflow + 1;
+        return;
+    }
+    _edgeCapQueue[head].posSteps = pos;
+    _edgeCapQueue[head].newState = state;
+    _edgeCapHead = next;    // publish last
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Pop the oldest unread end-stop transition from the capture queue
+/// @param posSteps (out) axis total step position at the transition
+/// @param newState (out) end-stop state after the transition
+/// @return true if a transition was available
+bool RampGenerator::popEndStopEdge(AxisStepsDataType& posSteps, bool& newState)
+{
+    uint32_t tail = _edgeCapTail;
+    if (tail == _edgeCapHead)
+        return false;
+    posSteps = _edgeCapQueue[tail].posSteps;
+    newState = _edgeCapQueue[tail].newState;
+    _edgeCapTail = (tail + 1) % EDGE_CAP_QUEUE_SIZE;
+    return true;
+}
+
 void RampGenerator::getEndStopStatus(AxisEndstopChecks& axisEndStopVals) const
 {
     // Iterate endstops
@@ -620,6 +736,11 @@ void MOTOR_TICK_FN_DECORATOR RampGenerator::generateMotionPulses()
     // Note: No early return here - we continue to increment accumulators to maintain timing accuracy
     handleStepEnd();
 
+    // Sample the armed end-stop (homing edge capture). Deliberately before the
+    // stop/pause/no-block early returns below so a transition is still caught
+    // while the pipeline is draining after a stop request.
+    sampleEndStopEdge();
+
     // Check stop pending
     if (_stopPending)
     {
@@ -629,13 +750,16 @@ void MOTOR_TICK_FN_DECORATOR RampGenerator::generateMotionPulses()
             LOG_I(MODULE_PREFIX, "generateMotionPulses stopPending clearing pipeline");
         }
 #endif
-        // Check if a block is executing
+        // Cancel the currently executing block (if any) so endMotion bookkeeping runs
         MotionBlock *pBlock = _motionPipeline.peekGet();
         if (pBlock && pBlock->_isExecuting)
         {
-            // Cancel motion (by removing the block)
             endMotion(pBlock);
         }
+        // Drop every remaining queued block. Prior code only cancelled the executing block,
+        // which let the rest of the queue continue to drain after a stop request — this is
+        // the "arm crawls after kill" symptom (queued short blocks stepping out one at a time).
+        _motionPipeline.clear();
         _stopPending = false;
         return;
     }

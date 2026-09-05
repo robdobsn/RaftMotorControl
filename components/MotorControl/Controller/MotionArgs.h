@@ -190,7 +190,7 @@ public:
         }
     }
 
-    /// @brief Set motion speed as a string (e.g. "10mmps", "500upm", "80pc", etc.)
+    /// @brief Set motion speed as a string (e.g. "10ups", "500upm", "80pc", etc.)
     /// @param speed Speed string - parsed and stored as value + unit type
     void setSpeed(const String& speed) 
     { 
@@ -358,25 +358,13 @@ private:
         }
         else if (speed.endsWith("ups") || speed.endsWith("unitsps"))
         {
-            // Units per second (degrees per second, etc.)
+            // Units per second (native axis unit — mm for Cartesian, degrees for SCARA, etc.)
             _speedValue = value;
             _speedUnitType = SpeedUnitType::UNITS_PER_SEC;
         }
         else if (speed.endsWith("upm") || speed.endsWith("unitspm"))
         {
             // Units per minute -> convert to per second
-            _speedValue = value / 60.0;
-            _speedUnitType = SpeedUnitType::UNITS_PER_SEC;
-        }
-        else if (speed.endsWith("mmps"))
-        {
-            // mm per second (units per second)
-            _speedValue = value;
-            _speedUnitType = SpeedUnitType::UNITS_PER_SEC;
-        }
-        else if (speed.endsWith("mmpm"))
-        {
-            // mm per minute -> convert to per second
             _speedValue = value / 60.0;
             _speedUnitType = SpeedUnitType::UNITS_PER_SEC;
         }
@@ -388,7 +376,10 @@ private:
         }
         else
         {
-            // Unknown suffix, treat as percentage
+            // Unknown suffix (including the removed "mmps"/"mmpm" aliases — they were
+            // misleading on non-Cartesian geometries where the axis unit isn't mm).
+            // Treat as percentage so callers see the "too slow" symptom rather than
+            // silently getting deg/s interpreted as mm/s.
             _speedValue = value;
             _speedUnitType = SpeedUnitType::PERCENTAGE;
         }

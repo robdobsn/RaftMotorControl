@@ -55,6 +55,13 @@ public:
     // Effective value = NVS calibration (if set) else SysTypes "homeOffsetSteps".
     AxisStepsDataType _homeOffsetSteps;
 
+    // Extra steps to travel past the endstop trigger region after SEEK_OFF exits,
+    // BEFORE starting SEEK_EDGE_A. Guards against the axis starting near `edge_high`:
+    // in that case SEEK_OFF exits after a tiny travel and SEEK_EDGE_A re-triggers
+    // almost immediately, letting mechanical settling noise dominate the measured
+    // sensor width. 0 = disabled (backwards compatible).
+    AxisStepsDataType _seekOffClearSteps;
+
     // Min and max values for the axis in units
     AxisPosDataType _minUnits;
     AxisPosDataType _maxUnits;
@@ -85,6 +92,7 @@ public:
         _maxDegreesPerSec = maxDegreesPerSecond_default;
         _homingDegreesPerSec = homingDegreesPerSecond_default;
         _homeOffsetSteps = 0;
+        _seekOffClearSteps = 0;
         _minUnits = 0;
         _maxUnits = 0;
         _minUnitsSet = false;
@@ -130,6 +138,7 @@ public:
         _maxDegreesPerSec = AxisDegreesPerSecondType(config.getDouble("maxDegPerSec", AxisParams::maxDegreesPerSecond_default));
         _homingDegreesPerSec = AxisDegreesPerSecondType(config.getDouble("homingDegPerSec", AxisParams::homingDegreesPerSecond_default));
         _homeOffsetSteps = AxisStepsDataType(config.getLong("homeOffsetSteps", 0));
+        _seekOffClearSteps = AxisStepsDataType(config.getLong("seekOffClearSteps", 0));
 
         // Check if bounds were explicitly set and parse them
         _minUnitsSet = config.contains("minUnits");

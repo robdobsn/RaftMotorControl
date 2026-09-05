@@ -50,6 +50,42 @@ public:
     void getEndStopStatus(AxisEndstopChecks& axisEndStopVals) const;
     bool isEndStopReached() const;
 
+    /// @brief Arm step-rate capture of end-stop transitions for one axis
+    /// @param axisIdx axis to watch
+    /// @param isMax true for max end-stop, false for min
+    /// @note Homing needs the axis position at the *instant* an end-stop changes
+    ///       state. Sampling from the pattern service loop quantises that
+    ///       position to the loop interval (measured: ~27 steps at 400 steps/sec,
+    ///       ~1.0 deg), which propagates directly into the sensor midpoint and
+    ///       therefore the home position. Sampling here — in the same ISR that
+    ///       maintains `_axisTotalSteps` — makes the captured position exact to
+    ///       one step generator tick and independent of seek rate.
+    ///       Costs one `digitalRead` per tick and only while armed.
+    void armEndStopEdgeCapture(uint32_t axisIdx, bool isMax);
+
+    /// @brief Disarm end-stop transition capture
+    void disarmEndStopEdgeCapture();
+
+    /// @brief Get the most recent captured end-stop transition
+    /// @param seq (out) capture sequence number - increments on each transition
+    /// @param posSteps (out) axis total step position at the transition
+    /// @param newState (out) end-stop state *after* the transition
+    /// @return true if at least one transition has been captured since arming
+    bool getEndStopEdgeCapture(uint32_t& seq, AxisStepsDataType& posSteps, bool& newState) const;
+
+    /// @brief Pop the oldest unread end-stop transition from the capture queue
+    /// @param posSteps (out) axis total step position at the transition
+    /// @param newState (out) end-stop state after the transition
+    /// @return true if a transition was available
+    /// @note The single-slot latch above only keeps the most recent transition,
+    ///       which is fine for homing (one edge per seek leg) but loses data in a
+    ///       continuous scan where crossings arrive faster than the service loop
+    ///       reads them. This queue keeps them all.
+    bool popEndStopEdge(AxisStepsDataType& posSteps, bool& newState);
+
+    /// @brief Number of transitions dropped because the capture queue was full
+    uint32_t getEndStopEdgeOverflowCount() const { return _edgeCapOverflow; }
+
     // Get ramp gen timer period us
     uint64_t getPeriodUs() const
     {
@@ -168,11 +204,34 @@ private:
     };
     volatile EndStopChecks _endStopChecks[AXIS_VALUES_MAX_AXES];
 
+    // End-stop transition capture (see armEndStopEdgeCapture)
+    volatile bool _edgeCapArmed = false;
+    volatile uint8_t _edgeCapAxisIdx = 0;
+    volatile bool _edgeCapIsMax = false;
+    volatile bool _edgeCapLastState = false;
+    volatile bool _edgeCapPrimed = false;      // last state valid (first sample taken)
+    volatile uint32_t _edgeCapSeq = 0;
+    volatile int32_t _edgeCapPosSteps = 0;
+    volatile bool _edgeCapNewState = false;
+
+    // Lossless transition queue (single producer: ISR, single consumer: loop)
+    static const uint32_t EDGE_CAP_QUEUE_SIZE = 32;
+    struct EdgeCapEntry
+    {
+        int32_t posSteps;
+        bool newState;
+    };
+    volatile EdgeCapEntry _edgeCapQueue[EDGE_CAP_QUEUE_SIZE];
+    volatile uint32_t _edgeCapHead = 0;      // written by ISR
+    volatile uint32_t _edgeCapTail = 0;      // written by consumer
+    volatile uint32_t _edgeCapOverflow = 0;
+
     // Stats
     RampGenStats _stats;
 
     // Helpers
     void generateMotionPulses();
+    void sampleEndStopEdge();
     bool handleStepEnd();
     void setupNewBlock(MotionBlock *pBlock);
     void updateMSAccumulator(MotionBlock *pBlock);

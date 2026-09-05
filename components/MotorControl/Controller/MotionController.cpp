@@ -226,13 +226,28 @@ RaftRetCode MotionController::moveTo(MotionArgs &args, String* respMsg)
     // Check motion type
     if (args.isRamped())
     {
-        // Check if homing is required before position moves
-        if (_homingNeededBeforeAnyMove && !isAllAxesHomed() && !args.isSkipHomingCheck())
+        if (!args.isSkipHomingCheck())
         {
+            // Uncertain-after-stop takes precedence over the config gate: even a system
+            // configured with `homeBeforeMove: 0` must not silently accept a ramped move
+            // whose start position is unknown. Cleared by a successful home (via
+            // `setCurPositionAsOrigin`).
+            if (_positionUncertain)
+            {
 #ifdef DEBUG_MOTION_CONTROLLER
-            LOG_I(MODULE_PREFIX, "moveTo rejected - homing required before position moves");
+                LOG_I(MODULE_PREFIX, "moveTo rejected - position uncertain after mid-motion stop, home required");
 #endif
-            return RAFT_MOTION_HOMING_REQUIRED;
+                return RAFT_MOTION_HOMING_REQUIRED;
+            }
+
+            // Check if homing is required before position moves
+            if (_homingNeededBeforeAnyMove && !isAllAxesHomed())
+            {
+#ifdef DEBUG_MOTION_CONTROLLER
+                LOG_I(MODULE_PREFIX, "moveTo rejected - homing required before position moves");
+#endif
+                return RAFT_MOTION_HOMING_REQUIRED;
+            }
         }
 
         // Ramped (variable speed) motion with cartesian coordinates
@@ -266,21 +281,42 @@ void MotionController::pause(bool pauseIt)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Stop all motion immediately (clears queue and stops ramp generator)
 /// @param disableMotors If true, disable motors after stopping
+/// @note User-initiated stop: if the arm was actually in motion, drop the homed flags
+///       so the next ramped move is refused with RAFT_MOTION_HOMING_REQUIRED. Callers
+///       that just want to flush the queue without invalidating homing (motion patterns
+///       stopping between seek phases) should call `stopAndClear()` instead.
 void MotionController::stopAll(bool disableMotors)
 {
-    // Stop the ramp generator (halts current step generation)
+    // Snapshot motion state before halting — a stop while nothing is queued is a
+    // no-op and must not touch homed flags (otherwise the belt-and-braces stop
+    // the WebUI now issues would drop the homed state every time the user hits
+    // Stop with the arm already idle).
+    bool wasMoving = _blockManager.isBusy() || _rampGenerator.getMotionPipeline().canGet();
+
+    // Stop the ramp generator (halts current step generation and — since the fix
+    // that goes with this one — clears the entire pipeline in the ISR).
     _rampGenerator.stop();
-    
-    // Clear the motion queue (removes all pending motion blocks)
+
+    // Clear the block manager's pending sub-block state.
     _blockManager.clear();
-    
+
     // Optionally disable motors
     if (disableMotors)
     {
         _motorEnabler.enableMotors(false, false);
     }
-    
-    _isPaused = false;  // Not paused, fully stopped
+
+    _isPaused = false;
+
+    if (wasMoving)
+    {
+        // Physical position no longer matches the planner's step counters (blocks
+        // were cancelled mid-flight). Force a rehome before any further ramped move.
+        for (uint32_t i = 0; i < _axisHomed.size(); i++)
+            _axisHomed[i] = false;
+        _positionUncertain = true;
+        LOG_I(MODULE_PREFIX, "stopAll: motion was in progress — homed flags cleared, rehome required");
+    }
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -409,10 +445,16 @@ RaftRetCode MotionController::moveToVelocity(MotionArgs& args, String* respMsg)
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set current position of the axes as the origin
-void MotionController::setCurPositionAsOrigin()
+/// @param markPositionCertain If true (default), also clear the position-uncertain
+///        flag set by a previous mid-motion stop. Homing patterns pass false at
+///        the START of the pattern (they're just resetting step counters) and true
+///        at completion.
+void MotionController::setCurPositionAsOrigin(bool markPositionCertain)
 {
     _rampGenerator.resetTotalStepPosition();
     _blockManager.setCurPositionAsOrigin();
+    if (markPositionCertain)
+        _positionUncertain = false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -762,6 +804,47 @@ bool MotionController::getEndStopState(uint32_t axisIdx, bool max, bool& isFresh
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Arm step-rate capture of end-stop transitions for one axis
+/// @param axisIdx axis index
+/// @param isMax true for max end-stop, false for min end-stop
+void MotionController::armEndStopEdgeCapture(uint32_t axisIdx, bool isMax)
+{
+    _rampGenerator.armEndStopEdgeCapture(axisIdx, isMax);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Disarm end-stop transition capture
+void MotionController::disarmEndStopEdgeCapture()
+{
+    _rampGenerator.disarmEndStopEdgeCapture();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Get the most recent captured end-stop transition
+/// @param seq (out) capture sequence number - increments on each transition
+/// @param posSteps (out) axis total step position at the transition
+/// @param newState (out) end-stop state after the transition
+/// @return true if a transition has been captured since arming
+bool MotionController::getEndStopEdgeCapture(uint32_t& seq, AxisStepsDataType& posSteps, bool& newState) const
+{
+    return _rampGenerator.getEndStopEdgeCapture(seq, posSteps, newState);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Pop the oldest unread end-stop transition from the capture queue
+bool MotionController::popEndStopEdge(AxisStepsDataType& posSteps, bool& newState)
+{
+    return _rampGenerator.popEndStopEdge(posSteps, newState);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Number of transitions dropped because the capture queue was full
+uint32_t MotionController::getEndStopEdgeOverflowCount() const
+{
+    return _rampGenerator.getEndStopEdgeOverflowCount();
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Stop current motion pattern
 void MotionController::stopPattern()
 {
@@ -769,10 +852,17 @@ void MotionController::stopPattern()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-/// @brief Stop all motion and clear the queue
+/// @brief Stop all motion and clear the queue (internal, pattern-facing)
+/// @note Motion-pattern-internal stop: flushes the pipeline but does NOT invalidate the
+///       per-axis homed flags. `HomingSeekCenter` calls this at every seek edge; if it
+///       cleared homed state, the previously-homed base axis would be un-homed by the
+///       distal axis's own edge stops. External `cmd:stop` uses `stopAll` instead.
 void MotionController::stopAndClear()
 {
-    stopAll(false);
+    // Match stopAll's queue-flush semantics but skip the homed-flag invalidation.
+    _rampGenerator.stop();
+    _blockManager.clear();
+    _isPaused = false;
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

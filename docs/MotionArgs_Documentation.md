@@ -154,7 +154,7 @@ Unified speed control field that accepts either numeric percentages or strings w
 
 #### String Format with Units
 ```json
-{"speed": "10mmps"}    // 10 millimeters per second
+{"speed": "10ups"}     // 10 units per second (axis-native unit)
 {"speed": "500upm"}    // 500 units per minute
 {"speed": "80pc"}      // 80 percent of maximum
 {"speed": "1000sps"}   // 1000 steps per second
@@ -164,11 +164,13 @@ Unified speed control field that accepts either numeric percentages or strings w
 | Suffix | Meaning | Conversion |
 |--------|---------|------------|
 | `pc`, `percent` | Percentage of max | Direct percentage |
-| `ups`, `unitsps` | Units per second | Direct rate |
+| `ups`, `unitsps` | Units per second in the axis-native unit (mm for Cartesian, deg for SCARA, ...) | Direct rate |
 | `upm`, `unitspm` | Units per minute | Divided by 60 |
-| `mmps` | Millimeters per second | Assumes axis units are mm |
-| `mmpm` | Millimeters per minute | Divided by 60 |
 | `sps` | Steps per second | Direct step rate |
+
+> **Note:** The `mmps` / `mmpm` suffixes were removed — they silently meant "deg/s" on
+> geometries whose axis unit isn't mm (e.g. SCARA arms), which produced hard-to-diagnose
+> Cartesian-speed errors. Use `ups` / `unitsps` (geometry-neutral) or `sps` explicitly.
 
 **Speed Calculation Method:**
 ```cpp
@@ -181,7 +183,7 @@ double getSpeedUps(double configMaxSpeedUps) const
 
 **Examples:**
 ```json
-{"cmd":"motion", "mode":"abs", "pos":[100,50], "speed":"10mmps"}
+{"cmd":"motion", "mode":"abs", "pos":[100,50], "speed":"10ups"}
 {"cmd":"motion", "mode":"rel", "pos":[5], "speed":50}
 {"cmd":"motion", "mode":"pos-rel-steps-noramp", "pos":[200], "speed":"100upm"}
 ```
@@ -451,10 +453,10 @@ Moves axis 0 to 100mm, axis 1 to 50mm at 80% of maximum speed.
   "cmd": "motion",
   "mode": "rel",
   "pos": [10],
-  "speed": "10mmps"
+  "speed": "10ups"
 }
 ```
-Moves axis 0 by 10mm relative to current position at 10mm/sec.
+Moves axis 0 by 10 units relative to current position at 10 units/sec.
 
 ### Stop Command
 ```json
@@ -501,11 +503,11 @@ Emergency return to origin - stops current motion, clears queue, executes immedi
   "cmd": "motion",
   "mode": "abs",
   "pos": [100, 50, null, 25],
-  "speed": "15mmps",
+  "speed": "15ups",
   "constrain": true
 }
 ```
-Moves axes 0, 1, 3 (skips 2) at 15mm/sec, constrains to workspace bounds.
+Moves axes 0, 1, 3 (skips 2) at 15 units/sec, constrains to workspace bounds.
 
 ### Velocity Mode
 ```json

@@ -149,6 +149,16 @@ public:
             _axisParams[axisIdx]._homeOffsetSteps = steps;
     }
 
+    /// @brief Get the extra "clear-off" travel (steps) after SEEK_OFF exits
+    /// @param axisIdx Axis index
+    /// @return Steps to travel past the release edge before starting SEEK_EDGE_A (0 = disabled)
+    AxisStepsDataType getSeekOffClearSteps(uint32_t axisIdx) const
+    {
+        if (axisIdx >= _axisParams.size())
+            return 0;
+        return _axisParams[axisIdx]._seekOffClearSteps;
+    }
+
     /// @brief Get max acceleration for an axis in units per second squared
     /// @param axisIdx Axis index
     /// @return Max acceleration for the axis in units per second squared

@@ -60,6 +60,11 @@ public:
 
     /// @brief Stop all motion immediately (clears queue and stops ramp generator)
     /// @param disableMotors If true, disable motors after stopping
+    /// @note This is the user-initiated stop path (external API `cmd:stop`). If motion
+    ///       was actually in progress the arm's physical position is now uncertain, so
+    ///       the per-axis homed flags are cleared to force a rehome before the next
+    ///       ramped move. For pattern-internal stops that shouldn't invalidate homing
+    ///       (e.g. `HomingSeekCenter` stopping at each edge) use `stopAndClear()`.
     void stopAll(bool disableMotors = false);
 
     /// @brief Check if the motion controller is paused
@@ -74,7 +79,7 @@ public:
     virtual bool isBusy() const override;
 
     // Set current position as origin
-    virtual void setCurPositionAsOrigin() override;
+    virtual void setCurPositionAsOrigin(bool markPositionCertain = true) override;
 
     /// @brief Set a single axis to origin (zero) without affecting other axes
     /// @param axisIdx Axis index to set as origin
@@ -137,6 +142,21 @@ public:
     // Get end-stop state for an axis (min or max)
     // Returns true if triggered, false otherwise. Sets isFresh to true if valid, false if not configured.
     virtual bool getEndStopState(uint32_t axisIdx, bool max, bool& isFresh) const override;
+
+    /// @brief Arm step-rate capture of end-stop transitions for one axis
+    virtual void armEndStopEdgeCapture(uint32_t axisIdx, bool isMax) override;
+
+    /// @brief Disarm end-stop transition capture
+    virtual void disarmEndStopEdgeCapture() override;
+
+    /// @brief Get the most recent captured end-stop transition
+    virtual bool getEndStopEdgeCapture(uint32_t& seq, AxisStepsDataType& posSteps, bool& newState) const override;
+
+    /// @brief Pop the oldest unread end-stop transition from the capture queue
+    virtual bool popEndStopEdge(AxisStepsDataType& posSteps, bool& newState) override;
+
+    /// @brief Number of transitions dropped because the capture queue was full
+    virtual uint32_t getEndStopEdgeOverflowCount() const override;
 
     /// @brief Stop current motion pattern
     virtual void stopPattern() override;
@@ -214,6 +234,15 @@ private:
 
     // Per-axis homing status (cleared on reset, set when homing completes)
     std::vector<bool> _axisHomed;
+
+    // True when the physical arm position is uncertain (e.g. after a user stop
+    // that halted motion mid-block). Independent of `_homingNeededBeforeAnyMove`
+    // because the config only speaks to the initial power-on state — a mid-motion
+    // stop leaves the arm in an unknown place regardless of that setting.
+    // Cleared by `setCurPositionAsOrigin(markPositionCertain=true)` — called at
+    // homing completion, on explicit `setOrigin`, and at boot when homing isn't
+    // required by config.
+    bool _positionUncertain = false;
 
     // Pause status
     bool _isPaused = false;

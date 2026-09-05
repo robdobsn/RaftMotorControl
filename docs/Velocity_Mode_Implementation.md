@@ -93,7 +93,7 @@ The block terminates when all axes reach their target step counts.
   "cmd": "motion",
   "mode": "vel",
   "vel": [10.0, -5.0],
-  "speed": "10mmps"
+  "speed": "10ups"
 }
 ```
 
