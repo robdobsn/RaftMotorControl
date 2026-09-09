@@ -13,8 +13,20 @@
 #include "AxisEndstopChecks.h"
 #include "MotorControlConsts.h"
 
-// Single split-block optimization
-#define USE_SINGLE_SPLIT_BLOCK 1
+// Single split-block optimization.
+//
+// When 1, a whole Cartesian move becomes ONE block carrying only the start and
+// end ACTUATOR coordinates, and the ISR interpolates linearly between them
+// (MotionBlock::configureSplitBlock). That is a straight line in joint space,
+// which on a SCARA is a CURVE in Cartesian space: a 50 mm line measured 15.4 mm
+// off true, and `blockDistMM` could not help because it only subdivides the same
+// joint-space line. See docs/PATH_AND_SPEED_PLAN.md §2A.
+//
+// 0 selects the multi-block path, which subdivides in Cartesian space and runs
+// IK per waypoint. NOTE: that path has its own joint-space shortcut —
+// `_useActuatorInterpolation` in MotionBlockManager::addToPlanner — which must
+// also be off for the geometry to be correct.
+#define USE_SINGLE_SPLIT_BLOCK 0
 
 class MotionBlock
 {

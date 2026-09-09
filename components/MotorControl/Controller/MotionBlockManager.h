@@ -231,6 +231,10 @@ private:
     uint32_t _nextBlockIdx = 0;
     
     // Actuator space interpolation for split blocks (avoids repeated IK)
+    // Master switch for the joint-space interpolation shortcut in addToPlanner.
+    // Default FALSE: intermediate waypoints get real IK so the Cartesian path is
+    // followed. Set via motion config key `actuatorInterpolation`.
+    bool _allowActuatorInterpolation = false;
     bool _useActuatorInterpolation = false;
     AxesValues<AxisStepsDataType> _startActuatorCoords;
     AxesValues<AxisStepsDataType> _endActuatorCoords;

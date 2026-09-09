@@ -513,8 +513,26 @@ void HomingSeekCenter::loop()
                 // All axes homed - each axis is now at its home position (step count 0)
                 // Set the current position as the origin (this updates both step and Cartesian tracking)
                 _motionControl.setCurPositionAsOrigin();
+
+                // Re-assert the homed flags for every axis this run completed.
+                //
+                // `setAxisHomed(true)` is asserted per axis at SET_HOME, but
+                // `MotionController::stopAll()` clears the flags for ALL axes
+                // whenever it fires with motion in progress. A `motors/cmd?cmd=stop`
+                // or `pattern?cmd=stop` arriving mid-sequence therefore wipes an
+                // earlier axis's flag, so a *fully successful* home could still end
+                // with `Motors.homed == false` - after which PatternManager inserts a
+                // redundant ~60 s home between READY and PLAYING. Observed in the
+                // 2026-09-04/05 suite runs as:
+                //   stopAll: motion was in progress - homed flags cleared
+                //   Axis 0: Set as home (origin), marked homed      <- 0.4 s later
+                // Only reached on genuine completion, so an aborted home still
+                // correctly leaves the axes un-homed.
+                for (int axisIdx = _startAxis; axisIdx < _numAxes; axisIdx++)
+                    _motionControl.setAxisHomed(axisIdx, true);
+
                 setState(State::COMPLETE);
-                LOG_I(MODULE_PREFIX, "Homing complete - all axes at origin");
+                LOG_I(MODULE_PREFIX, "Homing complete - all axes at origin (homed flags re-asserted)");
                 _motionControl.stopPattern();
             }
             break;

@@ -61,6 +61,12 @@ void MotionBlockManager::setup(uint32_t stepGenPeriodUs, const RaftJsonIF& motio
     if (_pRaftKinematics)
         delete _pRaftKinematics;
     _pRaftKinematics = RaftKinematicsSystem::createKinematics(motionConfig);
+
+    // Joint-space interpolation shortcut for intermediate waypoints. Default OFF
+    // — it is fast but geometrically wrong on non-linear kinematics.
+    _allowActuatorInterpolation = motionConfig.getBool("actuatorInterpolation", false);
+    LOG_I(MODULE_PREFIX, "setup actuatorInterpolation %s (off = IK per Cartesian waypoint)",
+          _allowActuatorInterpolation ? "ON" : "OFF");
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -103,7 +109,12 @@ bool MotionBlockManager::addRampedBlock(const MotionArgs& args, uint32_t numBloc
     // With USE_SINGLE_SPLIT_BLOCK, ISR interpolates using coords from addRampedBlockSingle,
     // and alternate IK retry is handled there. Skipping saves 2-6 IK calls per move.
     _useActuatorInterpolation = false;
-    if (_numBlocks > 1 && _pRaftKinematics)
+    // Config-gated: `motion/actuatorInterpolation` (default FALSE). When on, the
+    // Cartesian waypoints computed below are thrown away in addToPlanner and the
+    // path is interpolated in joint space instead — fast, but geometrically
+    // wrong (docs/PATH_AND_SPEED_PLAN.md §2A). Kept switchable so the IK cost of
+    // doing it correctly can be measured against the old behaviour.
+    if (_allowActuatorInterpolation && _numBlocks > 1 && _pRaftKinematics)
     {
         // Calculate start actuator coordinates (from current position)
         bool startValid = _pRaftKinematics->ptToActuator(_axesState.getUnitsFromOrigin(), 
@@ -331,9 +342,14 @@ RaftRetCode MotionBlockManager::pumpBlockSplitter(MotionPipelineIF& motionPipeli
     return RAFT_OK;
 #else
     // Original multi-block path (Phase 1-4 compatibility)
+    // NOTE: blocksProcessed is used functionally below (motors are enabled once,
+    // on the first block), so it must exist in non-debug builds too. It was
+    // previously declared only under DEBUG_MOTION_BLOCK_MANAGER_TIMINGS, which
+    // made this whole path fail to compile — it had not been built since
+    // USE_SINGLE_SPLIT_BLOCK was set to 1.
+    uint32_t blocksProcessed = 0;
 #ifdef DEBUG_MOTION_BLOCK_MANAGER_TIMINGS
     uint64_t startTimeUs = micros();
-    uint32_t blocksProcessed = 0;
     uint64_t totalPlannerTimeUs = 0;
 #endif
 
@@ -480,7 +496,15 @@ RaftRetCode MotionBlockManager::addToPlanner(const MotionArgs &args, MotionPipel
     AxesValues<AxisStepsDataType> actuatorCoords;
     bool coordsValid = false;
     
-    // Use interpolation for intermediate split blocks to avoid expensive IK
+    // Use interpolation for intermediate split blocks to avoid expensive IK.
+    //
+    // WARNING: this discards the Cartesian waypoint computed by
+    // pumpBlockSplitter and substitutes a linear interpolation in JOINT space,
+    // so the delivered path bows away from the commanded one exactly as the
+    // single-split-block path does. Enabling it defeats the purpose of
+    // subdividing in Cartesian space. Left in place (default off, see
+    // _useActuatorInterpolation) so the IK cost can be compared directly.
+    // docs/PATH_AND_SPEED_PLAN.md §2A.
     if (_useActuatorInterpolation && _nextBlockIdx > 0 && _numBlocks > 0)
     {
         // Linearly interpolate actuator coordinates

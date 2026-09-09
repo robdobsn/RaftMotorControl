@@ -306,6 +306,23 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
             return _motionController.isBusy();
             break;
         }
+        case 'q':
+        {
+            // "qd" - motion pipeline queue depth (number of blocks queued).
+            // Callers (PatternManager status, SandBot publish) have queried
+            // `Motors.qd` since before this existed; with no case here it
+            // silently returned isFresh=false and 0, which read as "pipeline
+            // empty" and made feed-complete fire regardless of pipeline state.
+            // PatternManager works around it by calling getQueueCount()
+            // through a direct pointer; this makes the named value work too.
+            if ((tolower(param[1]) == 'd') && (param[2] == '\0'))
+            {
+                isFresh = true;
+                return (double)_motionController.getQueueCount();
+            }
+            isFresh = false;
+            return 0;
+        }
         default: { isFresh = false; return 0; }
     }
 }
