@@ -36,7 +36,8 @@ enum class SpeedUnitType
     NONE,            // Speed not specified
     PERCENTAGE,      // 0-100 percentage of max speed
     UNITS_PER_SEC,   // Absolute speed in axis units/sec (degrees, mm, etc.)
-    STEPS_PER_SEC    // Absolute speed in steps/sec
+    STEPS_PER_SEC,   // Absolute speed in steps/sec
+    CARTESIAN_MM_PER_SEC  // Absolute speed of the END EFFECTOR in mm/sec (D2)
 };
 
 // This must be packed as it is used for binary communication
@@ -231,6 +232,8 @@ public:
                 return String(_speedValue) + "ups";
             case SpeedUnitType::STEPS_PER_SEC:
                 return String(_speedValue) + "sps";
+            case SpeedUnitType::CARTESIAN_MM_PER_SEC:
+                return String(_speedValue) + "mmps";
             case SpeedUnitType::PERCENTAGE:
             default:
                 return String(_speedValue);
@@ -240,6 +243,21 @@ public:
     /// @brief Get speed unit type
     /// @return Speed unit type enum
     SpeedUnitType getSpeedUnitType() const { return _speedUnitType; }
+
+    /// @brief True if the speed is a Cartesian end-effector rate (mm/sec)
+    /// @return true when the planner should hold mm/sec rather than a joint rate
+    bool isCartesianSpeed() const
+    {
+        return _speedUnitType == SpeedUnitType::CARTESIAN_MM_PER_SEC;
+    }
+
+    /// @brief Set speed as a Cartesian end-effector rate
+    /// @param mmPerSec Speed in mm/sec at the end effector
+    void setSpeedCartesianMMps(double mmPerSec)
+    {
+        _speedValue = mmPerSec;
+        _speedUnitType = SpeedUnitType::CARTESIAN_MM_PER_SEC;
+    }
     
     /// @brief Get raw speed value (without conversion)
     /// @return Speed value in its native units
@@ -368,6 +386,22 @@ private:
             _speedValue = value / 60.0;
             _speedUnitType = SpeedUnitType::UNITS_PER_SEC;
         }
+        else if (speed.endsWith("mmps"))
+        {
+            // TRUE Cartesian speed: mm/sec measured at the end effector,
+            // independent of pose. The planner converts this to a per-block
+            // joint rate and clamps it against each axis's max (D2). Previously
+            // removed as misleading because nothing honoured it; it is now
+            // implemented, so the suffix means what it says.
+            _speedValue = value;
+            _speedUnitType = SpeedUnitType::CARTESIAN_MM_PER_SEC;
+        }
+        else if (speed.endsWith("mmpm"))
+        {
+            // Cartesian mm per minute -> per second (G-code F-word convention)
+            _speedValue = value / 60.0;
+            _speedUnitType = SpeedUnitType::CARTESIAN_MM_PER_SEC;
+        }
         else if (speed.endsWith("sps"))
         {
             // Steps per second
@@ -376,10 +410,8 @@ private:
         }
         else
         {
-            // Unknown suffix (including the removed "mmps"/"mmpm" aliases — they were
-            // misleading on non-Cartesian geometries where the axis unit isn't mm).
-            // Treat as percentage so callers see the "too slow" symptom rather than
-            // silently getting deg/s interpreted as mm/s.
+            // Unknown suffix. Treat as percentage so callers see the "too slow"
+            // symptom rather than silently getting deg/s interpreted as mm/s.
             _speedValue = value;
             _speedUnitType = SpeedUnitType::PERCENTAGE;
         }

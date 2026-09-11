@@ -196,6 +196,11 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
     // Distance being moved
     float moveDist = sqrt(squareSum);
 
+    // Keep the CARTESIAN distance: below, non-linear kinematics overwrite
+    // moveDist with a joint-space effort distance, but D2 needs the real
+    // end-effector chord length to hold a mm/sec feedrate.
+    const float cartesianDistMM = moveDist;
+
     // Ignore if there is no real movement
     if (!isAMove || moveDist < MotionBlock::MINIMUM_MOVE_DIST_MM)
     {
@@ -240,6 +245,14 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
         }
     }
 
+    // D3: the junction angle must be measured in CARTESIAN space even though the
+    // ramp/effort model stays in joint space, so keep a copy before the swap.
+    // Two Cartesian-collinear segments are generally NOT collinear in joint space
+    // on a SCARA, so a joint-space cosTheta reports a corner where the path is
+    // straight and the planner decelerates for it — the mechanism behind the
+    // measured v_cmd_ratio of ~0.71. docs/PATH_AND_SPEED_PLAN.md D3.
+    AxesValues<AxisUnitVectorDataType> junctionUnitVectors = unitVectors;
+
     // For non-linear kinematics (e.g. SCARA), replace the Cartesian distance and unit vectors
     // with values that reflect actual motor effort in joint space
     if (pKinematics && pKinematics->requiresGeometryAwareRamps())
@@ -249,6 +262,68 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
             startActuator, destActuatorCoords, moveDist, axesParams);
         pKinematics->getEffectiveUnitVectors(
             startActuator, destActuatorCoords, unitVectors, axesParams, unitVectors);
+        // Only the junction angle moves to Cartesian; moveDist and
+        // _unitVecAxisWithMaxDist below stay joint-space, because ramp scaling
+        // and step generation genuinely are about motor effort.
+        if (!axesParams.getCartesianJunctions())
+            junctionUnitVectors = unitVectors;
+    }
+    else
+    {
+        // Linear kinematics: the two spaces coincide.
+        junctionUnitVectors = unitVectors;
+    }
+
+    // D2 — hold a TRUE Cartesian speed.
+    //
+    // Everything downstream (ramp profile, step generation) works in the joint
+    // "units" space where the block covers `moveDist` at `requestedVelocity`,
+    // so block duration is moveDist / requestedVelocity. Rather than rework
+    // that machinery, pick the equivalent joint velocity that makes the
+    // duration come out Cartesian-correct:
+    //
+    //     t_target  = cartesianDistMM / v_cartesian
+    //     v_joint   = moveDist / t_target
+    //
+    // then lengthen t if any single joint would exceed its own max rate. That
+    // clamp is what makes the behaviour degrade gracefully instead of failing:
+    // approaching the centre, the joint travel per mm of Cartesian motion grows
+    // without bound, so the clamp engages and speed falls off smoothly rather
+    // than the planner demanding an impossible rate. Same for radial moves near
+    // the rim, where the elbow is the expensive joint.
+    if (args.isCartesianSpeed())
+    {
+        double vCart = args.getSpeedValue();
+        if ((vCart > 0) && (cartesianDistMM > MotionBlock::MINIMUM_MOVE_DIST_MM))
+        {
+            double tTarget = cartesianDistMM / vCart;
+
+            // Respect each joint's configured maximum rate (units/sec).
+            for (int axisIdx = 0; axisIdx < AXIS_VALUES_MAX_AXES; axisIdx++)
+            {
+                double stepsPerUnit = axesParams.getStepsPerUnit(axisIdx);
+                double axisMaxUps = axesParams.getMaxSpeedUps(axisIdx);
+                if ((stepsPerUnit <= 0) || (axisMaxUps <= 0))
+                    continue;
+                double unitsDelta = fabs(double(destActuatorCoords.getVal(axisIdx) -
+                                                axesState.getStepsFromOrigin(axisIdx))) / stepsPerUnit;
+                if (unitsDelta <= 0)
+                    continue;
+                double tAxisMin = unitsDelta / axisMaxUps;
+                if (tAxisMin > tTarget)
+                    tTarget = tAxisMin;
+            }
+
+            if (tTarget > 0)
+            {
+                requestedVelocity = AxisSpeedDataType(moveDist / tTarget);
+                // Still bounded by the master-axis cap, which the ramp
+                // generator assumes has already been applied.
+                double maxUps = axesParams.getMaxSpeedUps(firstPrimaryAxis);
+                if ((maxUps > 0) && (requestedVelocity > maxUps))
+                    requestedVelocity = AxisSpeedDataType(maxUps);
+            }
+        }
     }
 
     // Store values in the block
@@ -305,12 +380,12 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
         {
             // Compute cosine of angle between previous and current path. (prev_unit_vec is negative)
             // NOTE: Max junction speed is computed without sin() or acos() by trig half angle identity.
-            float cosTheta = - unitVectors.vectorMultSum(_prevMotionBlock._unitVectors);
+            float cosTheta = - junctionUnitVectors.vectorMultSum(_prevMotionBlock._unitVectors);
 
 #ifdef DEBUG_ANGLE_CALCULATIONS
             LOG_I(MODULE_PREFIX, " moveToRamped prevMotion %s newMotion %s cosTheta %0.2f",
                         _prevMotionBlock._unitVectors.toJSON().c_str(), 
-                        unitVectors.toJSON().c_str(),
+                        junctionUnitVectors.toJSON().c_str(),
                         cosTheta);
 #endif
 
@@ -356,6 +431,7 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
     }
     block._maxEntrySpeedMMps = vmaxJunctionMMps;
 
+
 #ifdef DEBUG_MOTIONPLANNER_DETAILED_INFO
     LOG_I(MODULE_PREFIX, "PrevMoveInQueue %d, maxJunctionDeviationMM %0.2f, blockMaxEntrySpeedMMps %0.2f",
                 motionPipeline.canGet(), maxJunctionDeviationMM, block._maxEntrySpeedMMps);
@@ -374,7 +450,8 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
 #endif
     MotionBlockSequentialData prevBlockInfo;
     prevBlockInfo._maxParamSpeedMMps = block._requestedSpeed;
-    prevBlockInfo._unitVectors = unitVectors;
+    // Must be the SAME space cosTheta is computed in (see D3 above).
+    prevBlockInfo._unitVectors = junctionUnitVectors;
     _prevMotionBlock = prevBlockInfo;
     _prevMotionBlockValid = true;
 
@@ -457,8 +534,26 @@ void MotionPlanner::recalculatePipeline(MotionPipelineIF& motionPipeline, const 
         }
 
         // If entry speed is already at the maximum entry speed then we can stop here as no further changes are
-        // going to be made by going back further
-        if ((pBlock->_entrySpeedMMps == pBlock->_maxEntrySpeedMMps) && (reverseBlockIdx > 1))
+        // going to be made by going back further.
+        //
+        // ONLY if the block has already been finalised (_canExecute). The test
+        // is an optimisation that assumes this block was prepared by an earlier
+        // recalculation, but blocks are added with deferRecalc and recalculated
+        // once at the end of a split, so the OLDEST block of a fresh batch is
+        // untouched and satisfies entry == maxEntry trivially (both 0, it has no
+        // predecessor). Breaking there left it out of the two forward passes, so
+        // it was never prepared, never got _canExecute, and the whole pipeline
+        // stalled behind it - observed as "RECALC earliest=3 count=5" with the
+        // arm frozen and the queue filling to its limit.
+        //
+        // This only bites for >= 3 new blocks (below that the loop reaches the
+        // end anyway) AND when the uniform-split fast path is skipped, which is
+        // why it lay dormant: percentage speeds make every split block uniform,
+        // so the fast path always handled them. A true Cartesian feedrate (D2)
+        // gives each sub-block its own speed, trips the 1 % uniformity check,
+        // and routes the batch through here for the first time.
+        if ((pBlock->_entrySpeedMMps == pBlock->_maxEntrySpeedMMps) && (reverseBlockIdx > 1) &&
+            pBlock->_canExecute)
         {
 #ifdef DEBUG_MOTIONPLANNER_DETAILED_INFO
             LOG_I(MODULE_PREFIX, "+++++ Optimizing block %d, prevSpeed %f", reverseBlockIdx, pBlock->_exitSpeedMMps);

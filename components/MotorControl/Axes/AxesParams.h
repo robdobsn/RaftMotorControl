@@ -235,6 +235,13 @@ public:
 
     /// @brief Set up axes parameters from JSON configuration
     /// @param config 
+    /// @brief Use Cartesian unit vectors for junction angle computation
+    /// @return true when junction angles are measured in Cartesian space
+    bool getCartesianJunctions() const
+    {
+        return _cartesianJunctions;
+    }
+
     /// @return True if setup was successful, false otherwise
     bool setupAxes(const RaftJsonIF& config)
     {
@@ -246,6 +253,12 @@ public:
         _maxBlockDistMM = config.getDouble("motion/blockDistMM", _maxBlockDistanceMM_default);
         _maxJunctionDeviationMM = config.getDouble("motion/maxJunctionDeviationMM", maxJunctionDeviationMM_default);
         _homingNeededBeforeAnyMove = config.getBool("motion/homeBeforeMove", true);
+        // Junction angles from CARTESIAN unit vectors (default) rather than joint-space
+        // ones. On non-linear kinematics two Cartesian-collinear segments are generally
+        // not collinear in joint space, so the planner sees a corner that does not exist
+        // and decelerates at it. Set false to restore the old joint-space behaviour.
+        // docs/PATH_AND_SPEED_PLAN.md D3.
+        _cartesianJunctions = config.getBool("motion/cartesianJunctions", true);
         
         // Parse outOfBounds string
         String oobStr = config.getString("motion/outOfBounds", "discard");
@@ -258,10 +271,11 @@ public:
 
 #ifdef DEBUG_AXES_PARAMS
         // Debug
-        LOG_I(MODULE_PREFIX, "setupAxes geom %s blockDistMM %0.2f (0=no-max) homeBefMove %s jnDev %0.2fmm outOfBounds %s",
+        LOG_I(MODULE_PREFIX, "setupAxes geom %s blockDistMM %0.2f (0=no-max) homeBefMove %s jnDev %0.2fmm cartesianJn %s outOfBounds %s",
                _geometry.c_str(), _maxBlockDistMM,
                _homingNeededBeforeAnyMove ? "Y" : "N",
                _maxJunctionDeviationMM,
+               _cartesianJunctions ? "Y" : "N",
                 _outOfBoundsDefault == OutOfBoundsAction::ALLOW ? "allow" :
                 _outOfBoundsDefault == OutOfBoundsAction::CLAMP ? "clamp" : "discard");
 #endif
@@ -364,6 +378,9 @@ public:
 
     // Defaults
     static constexpr double _maxBlockDistanceMM_default = 10.0f;
+
+    // Junction angles computed in Cartesian space (see setupAxes)
+    bool _cartesianJunctions = true;
     static constexpr double maxJunctionDeviationMM_default = 0.05f;
 
     /// @brief Check if homing is needed before any move
