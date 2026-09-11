@@ -102,6 +102,11 @@ public:
     // Minimum move distance
     static constexpr double MINIMUM_MOVE_DIST_MM = 0.0001;
 
+    // Floor on the commanded path speed (mm/sec). Near a singularity the joint
+    // travel per mm of path grows without bound, so the per-block limit tends to
+    // zero; without a floor the planner would command a rate that never steps.
+    static constexpr double MIN_PATH_SPEED_MM_PER_SEC = 0.05;
+
     // Number of ticks to accumulate for rate actuation
     static constexpr uint32_t TTICKS_VALUE = 1000000000l;
 
@@ -144,6 +149,14 @@ public:
     AxisUnitVectorDataType _unitVecAxisWithMaxDist = 0;
     // Computed max entry speed for a block based on max junction deviation calculation
     AxisSpeedDataType _maxEntrySpeedMMps = 0;
+    // Per-block CAPABILITY limits along the Cartesian path (C2).
+    // The commanded speed is uniform for a move; what varies with pose is what
+    // the mechanism can actually do, which is captured here rather than by
+    // varying the target. Derived as min over joints of (axisLimit * ds/|dTheta|),
+    // so on a Cartesian machine they equal the axis limits exactly.
+    // docs/PATH_AND_SPEED_PLAN.md §7.4.
+    AxisSpeedDataType _maxSpeedBlockMMps = 0;
+    AxisSpeedDataType _maxAccelBlockMMps2 = 0;
     // Computed entry speed for this block
     AxisSpeedDataType _entrySpeedMMps = 0;
     // Computed exit speed for this block

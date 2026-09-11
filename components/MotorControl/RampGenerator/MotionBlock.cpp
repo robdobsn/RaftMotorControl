@@ -226,7 +226,13 @@ bool MotionBlock::prepareForStepping(const AxesParams &axesParams, bool isLinear
         finalStepRatePerSec = fabs(_exitSpeedMMps / stepDistMM);
         if (finalStepRatePerSec > axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps))
             finalStepRatePerSec = axesParams.getMaxStepRatePerSec(_axisIdxWithMaxSteps);
-        maxAccStepsPerSec2 = fabs(axesParams.getMaxAccelUps2(_axisIdxWithMaxSteps) / stepDistMM);
+        // Per-block acceleration along the path (C2). Was the dominant AXIS's
+        // accel, which is only dimensionally right when the path scalar is that
+        // axis's own unit; the scalar is now Cartesian mm for every geometry.
+        double blockAccel = (_maxAccelBlockMMps2 > 0)
+                                ? double(_maxAccelBlockMMps2)
+                                : double(axesParams.getMaxAccelUps2(_axisIdxWithMaxSteps));
+        maxAccStepsPerSec2 = fabs(blockAccel / stepDistMM);
 
         // Calculate the distance decelerating and ensure within bounds
         // Using the facts for the block ... (assuming max accleration followed by max deceleration):
