@@ -33,10 +33,17 @@ public:
 
     /// @brief Set a single axis to origin (zero) without affecting other axes
     /// @param axisIdx Axis index to set as origin
-    void setAxisOrigin(uint32_t axisIdx)
+    /// @param offsetSteps Position to report AT the origin point. Normally 0,
+    ///        but homing parks at the end-stop MIDPOINT while the arm's
+    ///        geometric zero is a fixed calibration distance away
+    ///        (homeOffsetSteps). Reporting that offset here keeps the parked
+    ///        position on the most repeatable point of the sensor while making
+    ///        the reported angle agree with forward kinematics.
+    void setAxisOrigin(uint32_t axisIdx, AxisStepsDataType offsetSteps = 0,
+                       AxisPosDataType offsetUnits = 0)
     {
-        unitsFromOrigin.setVal(axisIdx, 0);
-        stepsFromOrigin.setVal(axisIdx, 0);
+        unitsFromOrigin.setVal(axisIdx, offsetUnits);
+        stepsFromOrigin.setVal(axisIdx, offsetSteps);
         _unitsFromOriginValid = true;
     }
 

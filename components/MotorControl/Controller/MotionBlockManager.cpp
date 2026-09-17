@@ -604,9 +604,10 @@ void MotionBlockManager::setCurPositionAsOrigin()
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // @brief Set a single axis to origin (zero) without affecting other axes
 // @param axisIdx Axis index to set as origin
-void MotionBlockManager::setAxisOrigin(uint32_t axisIdx)
+void MotionBlockManager::setAxisOrigin(uint32_t axisIdx, AxisStepsDataType offsetSteps,
+                                      AxisPosDataType offsetUnits)
 {
-    _axesState.setAxisOrigin(axisIdx);
+    _axesState.setAxisOrigin(axisIdx, offsetSteps, offsetUnits);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

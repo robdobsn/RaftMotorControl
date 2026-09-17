@@ -230,6 +230,10 @@ private:
     // and software pulse optimization (which is the default in any case)
     static const uint32_t TMC_2209_GCONF_EXT_VREF_BIT = 0;
     static const uint32_t TMC_2209_GCONF_EXT_SENSE_RES_BIT = 1;
+    // en_spreadCycle: 0 = StealthChop (quiet, but weak and unstable torque at
+    // low speed - stick-slip judder), 1 = SpreadCycle (louder chopper hiss,
+    // far better low-speed torque). Config key "spreadCycle".
+    static const uint32_t TMC_2209_GCONF_SPREAD_CYCLE_BIT = 2;
     static const uint32_t TMC_2209_GCONF_INV_DIRN_BIT = 3;
     static const uint32_t TMC_2209_GCONF_PDN_UART_BIT = 6;
     static const uint32_t TMC_2209_GCONF_MSTEP_REG_SELECT_BIT = 7;

@@ -185,11 +185,11 @@ void RampGenerator::resetTotalStepPosition()
     }
 }
 
-void RampGenerator::resetAxisStepPosition(uint32_t axisIdx)
+void RampGenerator::resetAxisStepPosition(uint32_t axisIdx, AxisStepsDataType posSteps)
 {
     if (axisIdx < AXIS_VALUES_MAX_AXES)
     {
-        _axisTotalSteps[axisIdx] = 0;
+        _axisTotalSteps[axisIdx] = posSteps;
         _totalStepsInc[axisIdx] = 0;
     }
 }

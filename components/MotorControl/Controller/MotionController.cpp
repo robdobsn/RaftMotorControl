@@ -460,10 +460,18 @@ void MotionController::setCurPositionAsOrigin(bool markPositionCertain)
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Set a single axis to origin (zero) without affecting other axes
 /// @param axisIdx Axis index to set as origin
-void MotionController::setAxisOrigin(uint32_t axisIdx)
+void MotionController::setAxisOrigin(uint32_t axisIdx, AxisStepsDataType offsetSteps)
 {
-    _rampGenerator.resetAxisStepPosition(axisIdx);
-    _blockManager.setAxisOrigin(axisIdx);
+    // offsetSteps is the position REPORTED at the point the axis is sitting on.
+    // Homing parks on the end-stop midpoint (the most repeatable point on the
+    // sensor) while the arm's geometric zero is homeOffsetSteps away; reporting
+    // that offset keeps forward kinematics honest without moving the park point.
+    _rampGenerator.resetAxisStepPosition(axisIdx, offsetSteps);
+    AxisPosDataType offsetUnits = 0;
+    AxisPosDataType stepsPerUnit = _axesParams.getStepsPerUnit(axisIdx);
+    if (stepsPerUnit != 0)
+        offsetUnits = (AxisPosDataType)offsetSteps / stepsPerUnit;
+    _blockManager.setAxisOrigin(axisIdx, offsetSteps, offsetUnits);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

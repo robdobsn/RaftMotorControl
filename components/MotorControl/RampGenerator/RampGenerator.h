@@ -42,7 +42,7 @@ public:
 
     // Access to current state
     void resetTotalStepPosition();
-    void resetAxisStepPosition(uint32_t axisIdx);
+    void resetAxisStepPosition(uint32_t axisIdx, AxisStepsDataType posSteps = 0);
     void getTotalStepPosition(AxesValues<AxisStepsDataType>& actuatorPos) const;
 
     // End stop handling

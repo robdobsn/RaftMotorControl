@@ -345,24 +345,41 @@ void StepDriverTMC2209::convertRMSCurrentToRegs(double reqCurrentAmps, double ho
         return;
     }
 
-    // Determine the best vsense value based on the required current
+    // The TMC2209 current relation, in RMS terms, is
+    //     I_rms = ((IRUN + 1) / 32) * Vref / (R_sense * sqrt(2))
+    // so the maximum RMS current for a given Vref (at IRUN = 31) is
+    //     I_rms_max = Vref / (R_sense * sqrt(2))
+    // Prefer the lower Vref (vsense = 1) whenever the request fits inside it,
+    // because that spreads the same 32 steps over a smaller range and so gives
+    // finer resolution.
+    //
+    // NOTE both lines below used to be missing the sqrt(2) that getMaxRMSAmps()
+    // applies when reading the value back. The requested RMS current was
+    // therefore programmed as a PEAK current, and the motors ran at
+    // I/sqrt(2): 0.57 A for a requested 0.8 A, a 30 % torque shortfall, which
+    // matters because low-speed stick-slip judder is torque-limited. The
+    // vsense threshold was wrong by a further factor of 32.
+    constexpr double SQRT2 = 1.41421356237;
     double Vref = VREF_LOW_SENSE;
     vsenseOut = false;
-    if (reqCurrentAmps <= (VREF_HIGH_SENSE / (32 * R_sense))) {
+    if (reqCurrentAmps <= (VREF_HIGH_SENSE / (R_sense * SQRT2)))
+    {
         Vref = VREF_HIGH_SENSE;
-        // Use vsense = 1 if the required current is achievable with lower Vref
         vsenseOut = true;
     }
 
-    // Calculate IRUN using the formula I_RMS = (Vref * (IRUN + 1)) / (32 * R_sense)
-    uint32_t irunVal = static_cast<uint32_t>(ceil((reqCurrentAmps * 32 * R_sense) / Vref)) - 1;
+    // Invert the relation above for IRUN. Signed arithmetic: the old code did
+    // static_cast<uint32_t>(...) - 1, which underflows to ~4e9 when the ceil()
+    // is 0 and then clamps to 31 - i.e. a tiny current request produced MAXIMUM
+    // current.
+    int32_t irunVal = static_cast<int32_t>(ceil((reqCurrentAmps * SQRT2 * 32 * R_sense) / Vref)) - 1;
 
     // Clamp IRUN value between 8 and 31 (TMC2209 StealthChop requires IRUN >= 8)
     if (irunVal < 8)
         irunVal = 8;
     else if (irunVal > 31)
         irunVal = 31;
-    irunOut = irunVal;
+    irunOut = static_cast<uint32_t>(irunVal);
 
     // Calculate IHOLD based on the hold mode
     iholdOut = 0;
@@ -556,6 +573,7 @@ void StepDriverTMC2209::setMainRegs()
     _driverRegisters[DRIVER_REGISTER_CODE_GCONF].regWriteVal =
                 (1 << TMC_2209_GCONF_MULTISTEP_FILT_BIT) |
                 (1 << TMC_2209_GCONF_PDN_UART_BIT) |
+                (_requestedParams.spreadCycle ? (1 << TMC_2209_GCONF_SPREAD_CYCLE_BIT) : 0) |
                 (_useBusForDirectionReversal && _requestedParams.invDirn ? (1 << TMC_2209_GCONF_INV_DIRN_BIT) : 0) |
                 ((_requestedParams.extSenseOhms < 0.01) ? (1 << TMC_2209_GCONF_EXT_SENSE_RES_BIT) : 0) |
                 (_requestedParams.extVRef ? (1 << TMC_2209_GCONF_EXT_VREF_BIT) : 0) |
@@ -659,6 +677,7 @@ String StepDriverTMC2209::getStatusJSON(bool includeBraces, bool detailed) const
         retStr += ",\"hldF\":" + String(_requestedParams.holdFactor, 2) + ",";
         retStr += "\"hldM\":" + String(_requestedParams.holdMode) + ",";
         retStr += "\"dly\":" + String(_requestedParams.holdDelay) + ",";
+        retStr += "\"spdCyc\":" + String(_requestedParams.spreadCycle ? 1 : 0) + ",";
         retStr += "\"inv\":" + String(_requestedParams.invDirn) + ",";
         retStr += "\"ohms\":" + String(_requestedParams.extSenseOhms, 2) + ",";
         retStr += "\"xVRf\":" + String(_requestedParams.extVRef) + ",";

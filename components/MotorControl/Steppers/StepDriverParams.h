@@ -47,6 +47,10 @@ public:
     HoldModeEnum holdMode = HOLD_MODE_DEFAULT;
     uint32_t holdDelay = IHOLD_DELAY_DEFAULT;
     float pwmFreqKHz = PWM_FREQ_KHZ_DEFAULT;
+    // SpreadCycle vs StealthChop. Default false preserves existing behaviour.
+    // StealthChop is quiet but its low-speed torque regulation is poor, which
+    // shows up as stick-slip judder below roughly 50-70 deg/s on this arm.
+    bool spreadCycle = false;
     uint8_t address = 0;
     uint32_t statusIntvMs = STATUS_INTERVAL_MS_DEFAULT;
 
@@ -75,6 +79,7 @@ public:
         rmsAmps = config.getDouble("rmsAmps", StepDriverParams::RMS_AMPS_DEFAULT);
         holdDelay = config.getLong("holdDelay", StepDriverParams::IHOLD_DELAY_DEFAULT);
         pwmFreqKHz = config.getDouble("pwmFreqKHz", StepDriverParams::PWM_FREQ_KHZ_DEFAULT);
+        spreadCycle = config.getBool("spreadCycle", false);
         address = config.getLong("addr", 0);
 
         // Get status read frequency

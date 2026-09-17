@@ -307,6 +307,34 @@ private:
                 const AxesParams& axesParams) const
     {
         // All angles returned are in degrees anticlockwise from the x-axis
+        //
+        // NOTE: adding homeOffsetSteps here (to correct the end-stop-midpoint
+        // vs geometric-zero difference) was tried and REVERTED 2026-09-17.
+        //
+        // It measured WELL on static poses - 0.84 mm residual over a 32-pose
+        // grid against a 1.44 mm baseline, every pose settling - but in the
+        // full regression the arm drove continuously and every L1 pose failed
+        // with "settle timeout".
+        //
+        // CAUSE UNKNOWN. Two explanations were proposed and both are wrong:
+        //   1. "the forward/inverse round trip is not self-consistent" - it is;
+        //      calculateAngles() feeds ptToActuator, and the relative-angle
+        //      arithmetic cancels the offset exactly.
+        //   2. "the split path tracks units while the offset is in steps, so
+        //      they diverge" - simulated on the host replicating this
+        //      arithmetic (blockMotionVector, per-block ptToActuator, step
+        //      accumulation, setPosition): final error 0.025 mm independent of
+        //      block count, and 0.02-0.04 mm over five chained moves. No drift.
+        //
+        // Candidates not yet excluded: the CLOSE_TO_ORIGIN branch in
+        // ptToActuator (home moves from exactly (0,0) to r~8.6 mm under the
+        // offset, so that branch may fire differently), out-of-bounds
+        // handling, and alternate-solution selection.
+        //
+        // Do NOT re-apply without first instrumenting ptToActuator to log
+        // target/current/relative angles during a failing move. Static
+        // positioning accuracy is NOT a sufficient acceptance test - it passed
+        // while motion was broken.
         AxisCalcDataType theta1Degrees = AxisUtils::wrapDegrees(stepValues.getVal(0) * 360 / axesParams.getStepsPerRot(0));
         AxisCalcDataType theta2Degrees = AxisUtils::wrapDegrees(stepValues.getVal(1) * 360 / axesParams.getStepsPerRot(1) + _originTheta2OffsetDegrees);
         anglesDegrees = { theta1Degrees, theta2Degrees };

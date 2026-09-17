@@ -167,7 +167,8 @@ public:
 
     /// @brief Set a single axis to origin (zero) without affecting other axes
     /// @param axisIdx Axis index to set as origin
-    void setAxisOrigin(uint32_t axisIdx);
+    void setAxisOrigin(uint32_t axisIdx, AxisStepsDataType offsetSteps = 0,
+                       AxisPosDataType offsetUnits = 0);
 
     /// @brief Check if homing needed before any move
     /// @return true if homing is needed
