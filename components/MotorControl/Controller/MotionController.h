@@ -83,7 +83,8 @@ public:
 
     /// @brief Set a single axis to origin (zero) without affecting other axes
     /// @param axisIdx Axis index to set as origin
-    virtual void setAxisOrigin(uint32_t axisIdx, AxisStepsDataType offsetSteps = 0) override;
+    virtual void setAxisOrigin(uint32_t axisIdx) override;
+    virtual void syncUnitsFromSteps() override;
 
     /// @brief Get axes parameters
     /// @return AxesParams structure

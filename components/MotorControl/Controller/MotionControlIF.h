@@ -50,11 +50,13 @@ public:
 
     /// @brief Set the current position of a specific axis as its origin (zero)
     /// @param axisIdx Axis index to set as origin
-    /// @param offsetSteps Position to REPORT at the axis's current location.
-    ///        Defaults to 0 (the location becomes zero). Homing passes the
-    ///        axis's homeOffsetSteps so it can park on the end-stop midpoint
-    ///        while reported angles still agree with forward kinematics.
-    virtual void setAxisOrigin(uint32_t axisIdx, AxisStepsDataType offsetSteps = 0) = 0;
+    virtual void setAxisOrigin(uint32_t axisIdx) = 0;
+
+    /// @brief Recompute the tracked Cartesian position from the current step counts
+    /// @note Call after homing when a homeOffsetSteps is in use - zeroing the
+    ///       steps does not put the arm at the Cartesian origin, and the split
+    ///       path plans from the tracked position.
+    virtual void syncUnitsFromSteps() {}
 
     /// @brief Get axes parameters
     /// @return AxesParams structure

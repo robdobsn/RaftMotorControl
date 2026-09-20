@@ -165,10 +165,13 @@ public:
     /// @brief Set current position as origin
     void setCurPositionAsOrigin();
 
+    /// @brief Recompute unitsFromOrigin from the current step counts
+    /// @param curSteps Current step position
+    void syncUnitsFromSteps(const AxesValues<AxisStepsDataType>& curSteps);
+
     /// @brief Set a single axis to origin (zero) without affecting other axes
     /// @param axisIdx Axis index to set as origin
-    void setAxisOrigin(uint32_t axisIdx, AxisStepsDataType offsetSteps = 0,
-                       AxisPosDataType offsetUnits = 0);
+    void setAxisOrigin(uint32_t axisIdx);
 
     /// @brief Check if homing needed before any move
     /// @return true if homing is needed

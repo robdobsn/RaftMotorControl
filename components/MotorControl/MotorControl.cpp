@@ -87,23 +87,13 @@ void MotorControl::loadHomeOffsetsFromNVS()
     offs.reserve(n);
     for (int i = 0; i < n; i++)
         offs.push_back((AxisStepsDataType)_homeCalibNVS.getLong(("o" + String(i)).c_str(), 0));
-    // DO NOT apply. These values were written by the `setHomeHere` calibration
-    // mode, which was removed when HomingSeekCenter was rewritten (2026-09-16)
-    // and which measured the offset against a DIFFERENT park convention - the
-    // old homing parked elsewhere, so a saved value is not the distance from
-    // today's park point (the end-stop midpoint) to the geometric zero.
-    //
-    // Silently overriding SysTypes with them meant the repo config did not
-    // describe the running machine: axis 0 had -192 saved against a config 0,
-    // edits to `homeOffsetSteps` had no effect, and the old behaviour could not
-    // be reproduced from source. They are logged and ignored; SysTypes is
-    // authoritative. Re-instate this only alongside a calibration routine that
-    // measures against the current park convention.
-    String ignored;
-    for (int i = 0; i < n; i++)
-        ignored += (i ? ", " : "") + String((int)offs[i]);
-    LOG_W(MODULE_PREFIX, "loadHomeOffsetsFromNVS IGNORING %d stale NVS offset(s) [%s] - "
-          "SysTypes homeOffsetSteps is authoritative", n, ignored.c_str());
+    // Apply but do not re-persist. These are the `setHomeHere` calibration:
+    // the distance from each axis's end-stop MIDPOINT to the position at which
+    // the end effector sits at the CENTRE OF THE BED, measured with the ball
+    // physically placed at the centre. They override SysTypes deliberately -
+    // the value is a property of this machine's assembly, not of the repo.
+    _motionController.applyHomeOffsetsSteps(offs, false);
+    LOG_I(MODULE_PREFIX, "loadHomeOffsetsFromNVS applied %d axis offset(s) from NVS (override SysTypes)", n);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -194,6 +184,20 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
         {
             isFresh = true;
             return deviceConfig.getDouble("motion/originTheta2OffsetDegrees", 180.0);
+        }
+        // Cartesian position of the end effector, from the ACTUAL kinematics
+        // (getLastMonitoredPos -> actuatorToPt). Published so that nothing
+        // downstream has to re-derive it from step counts: SandBot.cpp used to
+        // convert steps->angles with its own hardcoded copy of stepsPerRot and
+        // originTheta2Offset, and the vision harness then did FK on that. Any
+        // correction applied inside the kinematics - notably homeOffsetSteps -
+        // was invisible to both, so the reported position disagreed with where
+        // the arm physically was (measured ~10 mm out at r=30).
+        if (paramStr.equalsIgnoreCase("posX") || paramStr.equalsIgnoreCase("posY"))
+        {
+            AxesValues<AxisPosDataType> pos = _motionController.getLastMonitoredPos();
+            isFresh = true;
+            return paramStr.equalsIgnoreCase("posX") ? pos.getVal(0) : pos.getVal(1);
         }
         if (paramStr.equalsIgnoreCase("homeBeforeMove"))
         {

@@ -602,12 +602,37 @@ void MotionBlockManager::setCurPositionAsOrigin()
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
+/// @brief Recompute unitsFromOrigin from the current step counts
+/// @note `setOrigin()` and `setAxisOrigin()` zero BOTH the step count and the
+///       units. That is only correct when step 0 really is the Cartesian
+///       origin. With a per-axis homeOffsetSteps applied in the kinematics it
+///       is NOT: homing parks on the end-stop midpoint, steps read 0, but the
+///       arm is physically at the FK of the offset angles - measured (-1.2,
+///       -8.1) mm rather than (0, 0).
+///
+///       That disagreement is destructive rather than cosmetic. The split
+///       path computes blockMotionVector = (target - unitsFromOrigin)/n, so
+///       the FIRST sub-block is computed from a position the arm is not at.
+///       Near the origin the arm is folded and the IK is extremely sensitive,
+///       so a ~8 mm error became a 45 deg / 56 deg joint slam on block one
+///       (captured in ptToActuator logs 2026-09-17) before the remaining
+///       blocks settled to ~2.8 deg. That is the "arm drives continuously,
+///       settle timeout" failure.
+void MotionBlockManager::syncUnitsFromSteps(const AxesValues<AxisStepsDataType>& curSteps)
+{
+    if (!_pRaftKinematics)
+        return;
+    AxesValues<AxisPosDataType> truePt;
+    _pRaftKinematics->actuatorToPt(curSteps, truePt, _axesState, _axesParams);
+    _axesState.setPosition(truePt, curSteps, false);
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 // @brief Set a single axis to origin (zero) without affecting other axes
 // @param axisIdx Axis index to set as origin
-void MotionBlockManager::setAxisOrigin(uint32_t axisIdx, AxisStepsDataType offsetSteps,
-                                      AxisPosDataType offsetUnits)
+void MotionBlockManager::setAxisOrigin(uint32_t axisIdx)
 {
-    _axesState.setAxisOrigin(axisIdx, offsetSteps, offsetUnits);
+    _axesState.setAxisOrigin(axisIdx);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////

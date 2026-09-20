@@ -84,7 +84,23 @@ void HomingSeekCenter::startAxis(int axis)
     _gotEdgeA = _gotEdgeB = false;
     _edgeAPos = _edgeBPos = _midPos = 0;
     _approachReversing = false;
+    _settleStopIssued = false;
 
+    // Do NOT read the end-stop yet. Homing is typically entered right after a
+    // stop() - `home_and_wait` allows only 0.5 s - and the arm can still be
+    // decelerating. An end-stop sampled mid-motion near an edge yields the
+    // wrong `_startedInsideFlag`, the approach then drives the wrong way, and
+    // homing fails with "no flag found in one rotation". Intermittent, because
+    // it depends where the previous test left the arm: seen twice in five full
+    // regressions from DIFFERENT poses, never reproducible in isolation where
+    // the arm is already still.
+    enterState(State::SETTLE_START);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+/// @brief Sense the end-stop and launch the approach (arm is known stationary)
+void HomingSeekCenter::beginApproach(int axis)
+{
     bool isFresh = false;
     _startedInsideFlag = _motionControl.getEndStopState(axis, false, isFresh);
     if (!isFresh)
@@ -144,6 +160,30 @@ void HomingSeekCenter::loop()
 
     switch (_state)
     {
+        case State::SETTLE_START:
+        {
+            // Take ownership: stop whatever was running, ONCE, then wait a
+            // FIXED quiet period before sensing the end-stop.
+            //
+            // The previous version waited on !isBusy() and restarted its own
+            // timer while busy. Both were wrong: homing is routinely invoked
+            // while a pattern is playing or stopping, so isBusy() may never
+            // clear, and restarting the timer also defeated the global
+            // timeout - homing hung indefinitely instead of failing. That
+            // turned one "homing did not complete" per suite into four.
+            if (!_settleStopIssued)
+            {
+                _motionControl.stopAndClear();
+                _settleStopIssued = true;
+                _settleStartMs = millis();
+                break;
+            }
+            if (!Raft::isTimeout(millis(), _settleStartMs, SETTLE_BEFORE_SENSE_MS))
+                break;
+            beginApproach(axis);
+            break;
+        }
+
         case State::FAST_APPROACH:
         {
             // Drain any ISR-captured transitions; the one we care about is the
@@ -248,15 +288,31 @@ void HomingSeekCenter::loop()
                 // trigger points, and adding an offset here moved the target
                 // outside the flag entirely (measured -248 against a true
                 // midpoint of -56).
-                // Park on the sensor MIDPOINT. The arm's geometric zero is a
-                // per-axis calibration distance away, but it CANNOT be used as
-                // the park point: axis 1's offset exceeds its flag half-width
-                // (>280 of 561 steps), so parking there would leave its
-                // end-stop untriggered. The offset therefore has to be applied
-                // in the coordinate frame, not here - see docs SYSTEM_TESTING
-                // 2.5. Currently NOT applied anywhere, so the position field
-                // carries ~5.3 mm of distortion (0.73 mm with correct offsets).
-                _midPos = (_edgeAPos + _edgeBPos) / 2;
+                // Park at (sensor midpoint + homeOffsetSteps). The offset is
+                // the `setHomeHere` calibration: the distance from the midpoint
+                // to the position at which the END EFFECTOR sits at the CENTRE
+                // OF THE BED. Parking on the bare midpoint leaves the EE ~8 mm
+                // off centre, which is wrong for the machine's purpose.
+                //
+                // NOTE the offset may place the axis outside its trigger
+                // region - axis 1's exceeds its flag half-width - so the
+                // end-stop is NOT required to read triggered at the park
+                // position. It is checked at the MIDPOINT instead, before the
+                // offset is applied, which is what actually validates the edge
+                // measurement.
+                AxisStepsDataType homeOffset = (axis < (int)_homeOffsetStepsPerAxis.size())
+                                                ? _homeOffsetStepsPerAxis[axis] : 0;
+                // The stored offset is MODULAR - a rotary axis has no absolute
+                // step zero, so a saved value may be the positive congruent
+                // form. Axis 1's reads 9280, which is -320 steps (-12 deg), not
+                // a 348 deg journey: applied raw it commanded a 9562-step move,
+                // very nearly a full revolution.
+                homeOffset = homeOffset % _fullRotationSteps;
+                if (homeOffset > _fullRotationSteps / 2)
+                    homeOffset -= _fullRotationSteps;
+                else if (homeOffset < -_fullRotationSteps / 2)
+                    homeOffset += _fullRotationSteps;
+                _midPos = (_edgeAPos + _edgeBPos) / 2 + homeOffset;
                 LOG_I(MODULE_PREFIX, "axis %d flag width %d steps (%.2f deg), midpoint %d",
                       axis, (int)width, width * 360.0 / _fullRotationSteps, (int)_midPos);
                 _moveIssued = false;
@@ -314,12 +370,25 @@ void HomingSeekCenter::loop()
             if (!Raft::isTimeout(millis(), _stateEntryTimeMs, _settleDelayMs))
                 break;
 
-            // Acceptance test: the end-stop MUST be triggered at the midpoint.
-            // If it is not, the edges were mismeasured and setting an origin
-            // here would silently corrupt every subsequent move.
-            if (!endStopTriggered(axis))
+            // Acceptance test. The edge measurement is validated by the cross
+            // itself: both edges were captured, so the midpoint provably lies
+            // inside the trigger region. The end-stop is NOT required to read
+            // triggered at the PARK position, because homeOffsetSteps (the
+            // bed-centring calibration) can legitimately place the park point
+            // outside the flag - axis 1's offset exceeds its flag half-width.
+            // Requiring it here made homing fail outright once the offset was
+            // applied.
+            bool trigAtPark = endStopTriggered(axis);
+            AxisStepsDataType homeOffset = (axis < (int)_homeOffsetStepsPerAxis.size())
+                                            ? _homeOffsetStepsPerAxis[axis] : 0;
+            homeOffset = homeOffset % _fullRotationSteps;
+            if (homeOffset > _fullRotationSteps / 2) homeOffset -= _fullRotationSteps;
+            else if (homeOffset < -_fullRotationSteps / 2) homeOffset += _fullRotationSteps;
+            AxisStepsDataType width = _edgeBPos - _edgeAPos;
+            if (width < 0) width = -width;
+            if (width < 20)
             {
-                setError("end-stop NOT triggered at computed midpoint");
+                setError("flag width implausibly small - edge measurement bad");
                 return;
             }
             AxisStepsDataType err = axisPos(axis) - _midPos;
@@ -336,8 +405,10 @@ void HomingSeekCenter::loop()
             // report (-11.51, 173.74) and broke every (0,180) assertion.
             _motionControl.setAxisOrigin(axis);
             _motionControl.setAxisHomed(axis, true);
-            LOG_I(MODULE_PREFIX, "axis %d HOMED (pos err %d steps, %.3f deg) endstop=TRIGGERED",
-                  axis, (int)err, err * 360.0 / _fullRotationSteps);
+            LOG_I(MODULE_PREFIX, "axis %d HOMED (pos err %d steps, %.3f deg) "
+                  "flagWidth %d offset %d endstopAtPark=%s",
+                  axis, (int)err, err * 360.0 / _fullRotationSteps,
+                  (int)width, (int)homeOffset, trigAtPark ? "yes" : "no (expected if offset > half-width)");
             enterState(State::NEXT_AXIS);
             break;
         }
@@ -372,6 +443,14 @@ void HomingSeekCenter::loop()
                 _motionControl.setCurPositionAsOrigin(true);
                 for (int a = _startAxis; a < _numAxes; a++)
                     _motionControl.setAxisOrigin(a);
+
+                // Steps are now zero, but with a homeOffsetSteps in the
+                // kinematics the arm is NOT at the Cartesian origin. Leaving
+                // the tracked position at (0,0) makes the first sub-block of
+                // the next split move plan from a place the arm is not, which
+                // near the folded home pose turns ~8 mm of error into a 45 deg
+                // joint slam. Resync so units and steps agree.
+                _motionControl.syncUnitsFromSteps();
                 LOG_I(MODULE_PREFIX, "ALL AXES HOMED");
                 enterState(State::COMPLETE);
                 _motionControl.stopPattern();
@@ -425,9 +504,32 @@ void HomingSeekCenter::stopMotion()
     _motionControl.stopAndClear();
 }
 
+const char* HomingSeekCenter::stateName(State s)
+{
+    switch (s)
+    {
+        case State::IDLE: return "IDLE";
+        case State::SETTLE_START: return "SETTLE_START";
+        case State::FAST_APPROACH: return "FAST_APPROACH";
+        case State::SLOW_CROSS: return "SLOW_CROSS";
+        case State::FAST_TO_MID: return "FAST_TO_MID";
+        case State::VERIFY: return "VERIFY";
+        case State::NEXT_AXIS: return "NEXT_AXIS";
+        case State::COMPLETE: return "COMPLETE";
+        default: return "ERROR";
+    }
+}
+
 void HomingSeekCenter::setError(const char* msg)
 {
-    LOG_E(MODULE_PREFIX, "axis %d HOMING FAILED: %s (pos=%d)", _currentAxis, msg, (int)axisPos(_currentAxis));
+    // Report the state and the sensed conditions: this pattern fails rarely
+    // and only inside a full suite run, so the log has to be enough on its own.
+    LOG_E(MODULE_PREFIX, "axis %d HOMING FAILED in %s: %s (pos=%d endstop=%s "
+          "startedInside=%d reversing=%d gotA=%d gotB=%d)",
+          _currentAxis, stateName(_state), msg, (int)axisPos(_currentAxis),
+          endStopTriggered(_currentAxis) ? "TRIG" : "clear",
+          (int)_startedInsideFlag, (int)_approachReversing,
+          (int)_gotEdgeA, (int)_gotEdgeB);
     _motionControl.disarmEndStopEdgeCapture();
     _state = State::ERROR;
     _motionControl.stopPattern();

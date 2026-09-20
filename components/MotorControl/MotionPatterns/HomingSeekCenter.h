@@ -84,6 +84,7 @@ public:
 private:
     enum class State {
         IDLE,
+        SETTLE_START,       // wait for the arm to actually stop before sensing
         FAST_APPROACH,      // get just outside one edge of the flag, quickly
         SLOW_CROSS,         // one slow pass capturing both edges
         FAST_TO_MID,        // move to the measured midpoint
@@ -105,11 +106,17 @@ private:
     bool _startedInsideFlag = false;
     bool _moveIssued = false;
     uint32_t _moveIssuedMs = 0;
+    bool _settleStopIssued = false;
+    uint32_t _settleStartMs = 0;
 
     // A move that has just been queued does not report isBusy() straight away.
     // Wait at least this long after issuing before treating !isBusy() as "the
     // move finished", or the state machine races ahead of the machine.
     static constexpr uint32_t MOVE_PICKUP_MS = 250;
+
+    // Quiet period required before the end-stop is sampled at the start of an
+    // axis. Must cover deceleration from the fastest preceding move.
+    static constexpr uint32_t SETTLE_BEFORE_SENSE_MS = 400;
 
     // ---- measured edges (steps, ISR-latched) ----
     bool _gotEdgeA = false;
@@ -145,6 +152,8 @@ private:
     void stopMotion();
     void setError(const char* msg);
     void startAxis(int axis);
+    void beginApproach(int axis);
+    static const char* stateName(State s);
 
     static constexpr const char* MODULE_PREFIX = "HomingSeekCenter";
 };

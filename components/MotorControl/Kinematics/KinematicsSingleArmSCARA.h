@@ -335,6 +335,31 @@ private:
         // target/current/relative angles during a failing move. Static
         // positioning accuracy is NOT a sufficient acceptance test - it passed
         // while motion was broken.
+        // STATUS 2026-09-18: the offset fixes large-radius accuracy (0.773 mm
+        // over a 32-pose grid at r=60..150, 32/32 split moves settling, vs
+        // 3.08 mm without) but the arm THRASHES at small radius: L1 sweeps
+        // r=30 and every pose there failed with "settle timeout". Near the
+        // folded pose the two IK solutions converge
+        // (ptToActuator logged "CHOSEN (338.83, 83.10) ALTERNATIVE (83.10,
+        // 338.83)"), so successive split blocks may be flipping between
+        // elbow-up and elbow-down - SUSPECTED, not confirmed. Verify with an
+        // instrumented small-radius move before re-enabling.
+        //
+        // homeOffsetSteps: homing parks on the end-stop MIDPOINT, which is a
+        // per-axis calibration distance from the arm's geometric zero. Applied
+        // here so reported position stays 0 at home while the kinematics uses
+        // true angles. REQUIRES MotionControlIF::syncUnitsFromSteps() after
+        // homing - without it the tracked Cartesian position and the step
+        // count describe different places and split moves slam on block one.
+        // OFFSET DISABLED pending the telemetry fix (see below). Re-enable by
+        // restoring the getHomeOffsetSteps() terms - but SandBot.cpp's
+        // getPublishJSON must apply the same offset first, or the host sees a
+        // position the arm will never report reaching.
+        // homeOffsetSteps is NOT applied here. It means "distance from the
+        // end-stop midpoint to the park position that puts the EE at bed
+        // centre", and is applied by HomingSeekCenter when choosing where to
+        // park. Applying it here as an angle correction as well would
+        // double-count it.
         AxisCalcDataType theta1Degrees = AxisUtils::wrapDegrees(stepValues.getVal(0) * 360 / axesParams.getStepsPerRot(0));
         AxisCalcDataType theta2Degrees = AxisUtils::wrapDegrees(stepValues.getVal(1) * 360 / axesParams.getStepsPerRot(1) + _originTheta2OffsetDegrees);
         anglesDegrees = { theta1Degrees, theta2Degrees };
