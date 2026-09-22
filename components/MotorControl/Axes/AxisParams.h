@@ -7,6 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #pragma once
+#include <math.h>
 
 #include "RaftCore.h"
 #include "AxesValues.h"
@@ -137,7 +138,14 @@ public:
         _unitsPerRot = AxisPosFactorDataType(config.getDouble("unitsPerRot", AxisParams::posUnitsPerRot_default));
         _maxDegreesPerSec = AxisDegreesPerSecondType(config.getDouble("maxDegPerSec", AxisParams::maxDegreesPerSecond_default));
         _homingDegreesPerSec = AxisDegreesPerSecondType(config.getDouble("homingDegPerSec", AxisParams::homingDegreesPerSecond_default));
+        // Prefer `homeOffsetDegrees` - it survives a microstepping change.
+        // `homeOffsetSteps` is retained for compatibility but is resolution
+        // DEPENDENT: it silently becomes wrong the moment stepsPerRot changes,
+        // which is exactly what broke homing when microstepping was raised.
         _homeOffsetSteps = AxisStepsDataType(config.getLong("homeOffsetSteps", 0));
+        double offsetDeg = config.getDouble("homeOffsetDegrees", 0.0);
+        if (offsetDeg != 0.0)
+            _homeOffsetSteps = AxisStepsDataType(lround(offsetDeg * _stepsPerRot / _unitsPerRot));
         _seekOffClearSteps = AxisStepsDataType(config.getLong("seekOffClearSteps", 0));
 
         // Check if bounds were explicitly set and parse them

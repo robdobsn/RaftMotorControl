@@ -138,11 +138,11 @@ private:
     // Distance to stand clear of an edge before the slow cross. Must exceed the
     // stopping distance of the fast approach or the cross would start inside
     // the flag and miss edge A.
-    AxisStepsDataType _clearMarginSteps = 600;
+    AxisStepsDataType _clearMarginSteps = 2400;   // 22.5 deg at 38400 steps/rev
 
     // Upper bound on flag width; the slow cross is commanded this far and is
     // expected to capture edge B well before the end.
-    AxisStepsDataType _maxFlagWidthSteps = 2000;
+    AxisStepsDataType _maxFlagWidthSteps = 8000;  // 75 deg; flags measure ~21-29 deg
 
     // ---- helpers ----
     void enterState(State s);

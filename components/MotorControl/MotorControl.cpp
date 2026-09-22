@@ -87,13 +87,23 @@ void MotorControl::loadHomeOffsetsFromNVS()
     offs.reserve(n);
     for (int i = 0; i < n; i++)
         offs.push_back((AxisStepsDataType)_homeCalibNVS.getLong(("o" + String(i)).c_str(), 0));
-    // Apply but do not re-persist. These are the `setHomeHere` calibration:
-    // the distance from each axis's end-stop MIDPOINT to the position at which
-    // the end effector sits at the CENTRE OF THE BED, measured with the ball
-    // physically placed at the centre. They override SysTypes deliberately -
-    // the value is a property of this machine's assembly, not of the repo.
-    _motionController.applyHomeOffsetsSteps(offs, false);
-    LOG_I(MODULE_PREFIX, "loadHomeOffsetsFromNVS applied %d axis offset(s) from NVS (override SysTypes)", n);
+    // These are the `setHomeHere` calibration - the distance from each axis's
+    // end-stop MIDPOINT to the position where the end effector sits at the
+    // CENTRE OF THE BED. They are stored in STEPS, which makes them resolution
+    // dependent: captured at 16x microstepping (9600 steps/rev), they are
+    // wrong by 4x now the machine runs 64x (38400 steps/rev).
+    //
+    // The same calibration is expressed resolution-independently in SysTypes
+    // as `homeOffsetDegrees` (-7.2 and -12.0 deg, converted from the -192 and
+    // -320 step values these hold). That is now authoritative. These are
+    // logged and ignored rather than deleted, so the original measurement is
+    // still recoverable.
+    String stale;
+    for (int i = 0; i < n; i++)
+        stale += (i ? ", " : "") + String((int)offs[i]);
+    LOG_W(MODULE_PREFIX, "loadHomeOffsetsFromNVS IGNORING %d NVS offset(s) [%s] - "
+          "captured in steps at a different microstepping; SysTypes "
+          "homeOffsetDegrees is authoritative", n, stale.c_str());
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -198,6 +208,44 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
             AxesValues<AxisPosDataType> pos = _motionController.getLastMonitoredPos();
             isFresh = true;
             return paramStr.equalsIgnoreCase("posX") ? pos.getVal(0) : pos.getVal(1);
+        }
+        // Joint angles in degrees, derived from the CONFIGURED steps/rot and
+        // units/rot rather than a copy of them.
+        //
+        // SandBot.cpp computed these itself with `const double stepsPerRotation
+        // = 9600.0` hardcoded and a TODO to read it from config. When
+        // stepsPerRot went 9600 -> 38400 for 64x microstepping, every published
+        // theta silently became 4x the true angle. It went unnoticed because
+        // posX/posY come from the real kinematics and stayed correct, so
+        // position-based tests passed while the L1 telemetry cross-check
+        // measured tel = 4 x cam + 40 deg with a circular std of only 2 deg.
+        //
+        // Any duplicate of a config value is a latent version of this bug, so
+        // derive it here, next to the axes params, and let callers read it.
+        if (paramStr.equalsIgnoreCase("theta1") || paramStr.equalsIgnoreCase("theta2"))
+        {
+            uint32_t axisIdx = paramStr.equalsIgnoreCase("theta1") ? 0 : 1;
+            if (axisIdx >= axesParams.getNumAxes())
+            {
+                isFresh = false;
+                return 0.0;
+            }
+            AxisStepsDataType stepsPerRot = axesParams.getStepsPerRot(axisIdx);
+            AxisPosDataType unitsPerRot = axesParams.getunitsPerRot(axisIdx);
+            if (stepsPerRot == 0)
+            {
+                isFresh = false;
+                return 0.0;
+            }
+            double steps = _motionController.getAxisTotalSteps().getVal(axisIdx);
+            double angle = steps * double(unitsPerRot) / double(stepsPerRot);
+            if (axisIdx == 1)
+                angle += deviceConfig.getDouble("motion/originTheta2OffsetDegrees", 180.0);
+            angle = fmod(angle, 360.0);
+            if (angle > 180.0) angle -= 360.0;
+            else if (angle < -180.0) angle += 360.0;
+            isFresh = true;
+            return angle;
         }
         if (paramStr.equalsIgnoreCase("homeBeforeMove"))
         {
