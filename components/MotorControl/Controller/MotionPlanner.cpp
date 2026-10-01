@@ -19,6 +19,41 @@
 // #define DEBUG_MOTIONPLANNER_BEFORE
 // #define DEBUG_MOTIONPLANNER_AFTER
 #define DEBUG_JUNCTION_PERIODIC
+// #define DEBUG_MOTION_EVENT_CAPTURE
+
+// Event capture SUPERSEDES the periodic junction sample rather than adding to
+// it. The periodic form reports aggregates every 200 junctions, which samples
+// the aftermath of a transient but never the transition - during a real fault
+// (2026-09-29) it showed nothing wrong at onset. Running both would waste
+// flash and flood the console, so enabling one disables the other.
+#if defined(DEBUG_MOTION_EVENT_CAPTURE) && defined(DEBUG_JUNCTION_PERIODIC)
+#undef DEBUG_JUNCTION_PERIODIC
+#endif
+
+#ifdef DEBUG_MOTION_EVENT_CAPTURE
+// Ring buffer of recently admitted blocks, dumped when one looks wrong.
+// A single bad block says little; the GOOD->BAD transition says everything,
+// which is why the preceding blocks are kept.
+//
+// Cost: 24 bytes x 16 = 384 bytes of RAM and a few hundred bytes of flash,
+// and exactly nothing when the define is commented out.
+//
+// THE KEY DISCRIMINATOR is jointDeg against cartMM:
+//   large joint move, SMALL cartesian move -> kinematics produced a huge
+//       joint swing for a tiny tool move (IK branch flip / near-singular)
+//   large joint move, LARGE cartesian move -> the commanded target itself
+//       jumped, so the bad point arrived from upstream (evaluator/pattern)
+// Those need different fixes, and one line of output separates them.
+namespace
+{
+    constexpr uint32_t MOTION_EVT_RING = 16;
+    constexpr float MOTION_EVT_JOINT_DEG = 20.0f;      // trigger threshold
+    constexpr uint32_t MOTION_EVT_HOLDOFF_MS = 5000;   // don't flood on a sustained fault
+    struct MotionEvtRec { uint32_t seq; float jointDeg, cartMM, reqVel, x, y; };
+    MotionEvtRec s_evtRing[MOTION_EVT_RING] = {};
+    uint32_t s_evtSeq = 0, s_evtHead = 0, s_evtLastDumpMs = 0;
+}
+#endif
 
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 /// @brief Constructor
@@ -335,6 +370,34 @@ RaftRetCode MotionPlanner::moveToRamped(const MotionArgs& args,
         requestedVelocity = AxisSpeedDataType(blockMaxSpeed);
     if (requestedVelocity < MotionBlock::MIN_PATH_SPEED_MM_PER_SEC)
         requestedVelocity = AxisSpeedDataType(MotionBlock::MIN_PATH_SPEED_MM_PER_SEC);  // never command zero (would stall)
+
+#ifdef DEBUG_MOTION_EVENT_CAPTURE
+    {
+        MotionEvtRec& rec = s_evtRing[s_evtHead];
+        rec.seq = s_evtSeq++;
+        rec.jointDeg = float(jointDistRSS);
+        rec.cartMM = float(cartesianDistMM);
+        rec.reqVel = float(requestedVelocity);
+        rec.x = float(targetAxesPos.getVal(0));
+        rec.y = float(targetAxesPos.getVal(1));
+        s_evtHead = (s_evtHead + 1) % MOTION_EVT_RING;
+        // Unsigned subtraction so millis() wrap is handled correctly
+        if ((jointDistRSS > MOTION_EVT_JOINT_DEG) &&
+            ((uint32_t)(millis() - s_evtLastDumpMs) > MOTION_EVT_HOLDOFF_MS))
+        {
+            s_evtLastDumpMs = millis();
+            LOG_W(MODULE_PREFIX, "MEVT TRIGGER jointDeg=%.1f cartMM=%.2f (ring oldest first)",
+                        (double)rec.jointDeg, (double)rec.cartMM);
+            for (uint32_t i = 0; i < MOTION_EVT_RING; i++)
+            {
+                const MotionEvtRec& q = s_evtRing[(s_evtHead + i) % MOTION_EVT_RING];
+                LOG_W(MODULE_PREFIX, "MEVT %u j=%.1f c=%.2f v=%.1f xy=%.1f,%.1f",
+                        (unsigned)q.seq, (double)q.jointDeg, (double)q.cartMM,
+                        (double)q.reqVel, (double)q.x, (double)q.y);
+            }
+        }
+    }
+#endif
 
     block._maxSpeedBlockMMps = AxisSpeedDataType(blockMaxSpeed);
     block._maxAccelBlockMMps2 = AxisSpeedDataType(blockMaxAccel > 0 ? blockMaxAccel

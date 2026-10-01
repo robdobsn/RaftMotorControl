@@ -262,14 +262,30 @@ RaftRetCode MotionBlockManager::addRampedBlockSingle(const MotionArgs& args, uin
             endActuatorCoords, _axesState, _axesParams, args.getEffectiveOutOfBoundsAction(_axesParams.getOutOfBoundsDefault()));
     
     // If primary IK solution invalid, try alternate (handles SCARA boundary cases)
+    //
+    // The flag MUST be restored whether or not the retry succeeded. It is a
+    // per-call hint, not machine state, and leaking it is what caused the
+    // violent elbow chatter diagnosed on 2026-09-30.
+    //
+    // Previously it was restored only on FAILURE, so a single boundary point
+    // that succeeded via the alternate left the preference stuck ON. Because
+    // the flag INVERTS the solution choice in KinematicsSingleArmSCARA, every
+    // subsequent point - all of them perfectly ordinary, mid-workspace - was
+    // then handed the FARTHER of the two solutions. As the nearer solution
+    // alternates from step to step, the elbow slams between branches: measured
+    // as single blocks demanding 107-184 deg of joint motion for 2-9 mm of tool
+    // motion, audible as rapid clunking, and on one occasion it cost the
+    // machine its homing.
+    //
+    // The endpoint coordinates computed under the alternate are already stored
+    // in endActuatorCoords, so restoring the flag afterwards costs nothing.
     if (!endValid && _pRaftKinematics->supportsAlternateSolutions())
     {
         bool wasAlternate = _pRaftKinematics->getPreferAlternateSolution();
         _pRaftKinematics->setPreferAlternateSolution(!wasAlternate);
         endValid = _pRaftKinematics->ptToActuator(args.getAxesPosConst(), 
                 endActuatorCoords, _axesState, _axesParams, args.getEffectiveOutOfBoundsAction(_axesParams.getOutOfBoundsDefault()));
-        if (!endValid)
-            _pRaftKinematics->setPreferAlternateSolution(wasAlternate);  // Restore on failure
+        _pRaftKinematics->setPreferAlternateSolution(wasAlternate);  // ALWAYS restore
     }
 
     if (!endValid)

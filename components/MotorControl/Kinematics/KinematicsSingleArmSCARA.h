@@ -111,24 +111,45 @@ public:
                 return false;
             }
 
-            // Choose the solution whose theta1 is closest to the current theta1
-            // Unless alternate solution is preferred (for path planning)
-            double diff1 = fabs(computeRelativeAngle(soln1.getVal(0), curAngles.getVal(0)));
-            double diff2 = fabs(computeRelativeAngle(soln2.getVal(0), curAngles.getVal(0)));
-            
-            bool useSoln1 = (diff1 < diff2);
+            // Choose the solution needing the least TOTAL joint movement.
+            //
+            // This previously compared theta1 ONLY, which caused violent elbow
+            // slams. The two SCARA solutions are mirrored about the line to the
+            // target, so their theta1 values are often nearly equidistant from
+            // the current pose - and when they are, floating-point noise decides
+            // the winner while the two theta2 values sit up to 180 deg apart.
+            // theta1 stayed smooth precisely because it was the quantity being
+            // minimised, so the fault presented as the elbow alone banging
+            // between branches.
+            //
+            // Measured on 2026-09-30 with event-triggered capture in
+            // MotionPlanner: fifteen consecutive blocks at ~4 deg of joint
+            // motion for ~8 mm of tool motion, then a single block demanding
+            // 109-184 deg for the same ~8 mm, repeatedly, mid-workspace
+            // (r = 27-134 mm, nowhere near a singularity). Audible as rapid
+            // clunking; on one occasion it cost the machine its homing.
+            //
+            // Summing both axes makes the comparison reflect what the arm
+            // actually has to do. Each relative angle is computed once here and
+            // reused, so this is no more expensive than the version it replaces.
+            double rel1Axis0 = computeRelativeAngle(soln1.getVal(0), curAngles.getVal(0));
+            double rel1Axis1 = computeRelativeAngle(soln1.getVal(1), curAngles.getVal(1));
+            double rel2Axis0 = computeRelativeAngle(soln2.getVal(0), curAngles.getVal(0));
+            double rel2Axis1 = computeRelativeAngle(soln2.getVal(1), curAngles.getVal(1));
+            double cost1 = fabs(rel1Axis0) + fabs(rel1Axis1);
+            double cost2 = fabs(rel2Axis0) + fabs(rel2Axis1);
+
+            bool useSoln1 = (cost1 <= cost2);
             if (_preferAlternateSolution)
                 useSoln1 = !useSoln1;  // Swap to alternate solution
-                
+
             if (useSoln1) {
                 relativeAngleSolution = {
-                    computeRelativeAngle(soln1.getVal(0), curAngles.getVal(0)),
-                    computeRelativeAngle(soln1.getVal(1), curAngles.getVal(1))
+                    AxisCalcDataType(rel1Axis0), AxisCalcDataType(rel1Axis1)
                 };
             } else {
                 relativeAngleSolution = {
-                    computeRelativeAngle(soln2.getVal(0), curAngles.getVal(0)),
-                    computeRelativeAngle(soln2.getVal(1), curAngles.getVal(1))
+                    AxisCalcDataType(rel2Axis0), AxisCalcDataType(rel2Axis1)
                 };
             }
 
