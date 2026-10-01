@@ -20,6 +20,7 @@
 // #define DEBUG_KINEMATICS_SA_SCARA
 // #define DEBUG_KINEMATICS_SA_SCARA_SETUP
 // #define DEBUG_KINEMATICS_SA_SCARA_RELATIVE_ANGLE
+// #define DEBUG_KINEMATICS_IK_FLIP
 
 class KinematicsSingleArmSCARA : public RaftKinematics
 {
@@ -142,6 +143,43 @@ public:
             bool useSoln1 = (cost1 <= cost2);
             if (_preferAlternateSolution)
                 useSoln1 = !useSoln1;  // Swap to alternate solution
+
+#ifdef DEBUG_KINEMATICS_IK_FLIP
+            // Log the DECISION, not its aftermath, whenever the chosen solution
+            // demands a large joint move. Everything needed to apportion blame
+            // is in scope here and nowhere else:
+            //
+            //   chosen cost >  rejected cost  -> the _preferAlternateSolution
+            //       inversion overrode a good choice; blame the caller that
+            //       set the flag
+            //   chosen cost <= rejected cost  -> both solutions are far from
+            //       curAngles, so the REFERENCE is wrong, not the choice
+            //
+            // Earlier attempts guessed between those two and were wrong twice.
+            // Rate-limited because a sustained fault would otherwise flood the
+            // console; the logger is non-blocking so excess output is dropped
+            // rather than stalling motion.
+            {
+                double chosenCost = useSoln1 ? cost1 : cost2;
+                double rejectCost = useSoln1 ? cost2 : cost1;
+                static uint32_t s_ikFlipLastMs = 0;
+                if ((chosenCost > 40.0) &&
+                    ((uint32_t)(millis() - s_ikFlipLastMs) > 2000))
+                {
+                    s_ikFlipLastMs = millis();
+                    LOG_W(MODULE_PREFIX,
+                        "IKFLIP tgt=%.1f,%.1f cur=(%.1f,%.1f) s1=(%.1f,%.1f)c=%.1f "
+                        "s2=(%.1f,%.1f)c=%.1f chose=%d prefAlt=%d chosenCost=%.1f rejCost=%.1f %s",
+                        targetPt.getVal(0), targetPt.getVal(1),
+                        curAngles.getVal(0), curAngles.getVal(1),
+                        soln1.getVal(0), soln1.getVal(1), cost1,
+                        soln2.getVal(0), soln2.getVal(1), cost2,
+                        useSoln1 ? 1 : 2, _preferAlternateSolution ? 1 : 0,
+                        chosenCost, rejectCost,
+                        (chosenCost > rejectCost) ? "INVERTED" : "BOTH-FAR");
+                }
+            }
+#endif
 
             if (useSoln1) {
                 relativeAngleSolution = {
@@ -381,8 +419,32 @@ private:
         // centre", and is applied by HomingSeekCenter when choosing where to
         // park. Applying it here as an angle correction as well would
         // double-count it.
-        AxisCalcDataType theta1Degrees = AxisUtils::wrapDegrees(stepValues.getVal(0) * 360 / axesParams.getStepsPerRot(0));
-        AxisCalcDataType theta2Degrees = AxisUtils::wrapDegrees(stepValues.getVal(1) * 360 / axesParams.getStepsPerRot(1) + _originTheta2OffsetDegrees);
+        // FLOATING POINT, deliberately. Both operands were int32_t
+        // (AxisStepsDataType), so `steps * 360 / stepsPerRot` was INTEGER
+        // division with two distinct failure modes, diagnosed 2026-10-01:
+        //
+        // 1. TRUNCATION. The reference angle was rounded to whole degrees -
+        //    every logged value ended .0 - against a true step resolution of
+        //    0.009 deg. These angles pick the IK elbow branch by comparing
+        //    which solution is nearer the current pose, and at 1 deg
+        //    granularity that comparison TIES: captured with both candidate
+        //    solutions costing exactly 111.0 deg. A tie makes the choice
+        //    arbitrary, and choosing wrongly flips the elbow ~110-180 deg.
+        //
+        // 2. OVERFLOW. steps * 360 exceeds int32 above 5,965,232 steps =
+        //    155 revolutions. A single bed_wipe winds the shoulder 63.4
+        //    revolutions, so two wipes plus patterns reach that threshold -
+        //    which is why the fault only ever appeared deep into long runs
+        //    and never in short reproducers.
+        //
+        // Symptom: single motion blocks demanding 107-184 deg of joint travel
+        // for 2-9 mm of tool travel, audible as violent clunking, and on one
+        // occasion the machine lost homing.
+        AxisCalcDataType theta1Degrees = AxisUtils::wrapDegrees(
+                    double(stepValues.getVal(0)) * 360.0 / double(axesParams.getStepsPerRot(0)));
+        AxisCalcDataType theta2Degrees = AxisUtils::wrapDegrees(
+                    double(stepValues.getVal(1)) * 360.0 / double(axesParams.getStepsPerRot(1))
+                    + _originTheta2OffsetDegrees);
         anglesDegrees = { theta1Degrees, theta2Degrees };
 #ifdef DEBUG_KINEMATICS_SA_SCARA
         LOG_I(MODULE_PREFIX, "calculateAnglesFromSteps steps (%d, %d) angles (%.2f°, %.2f°)",
