@@ -375,7 +375,21 @@ private:
         // full regression the arm drove continuously and every L1 pose failed
         // with "settle timeout".
         //
-        // CAUSE UNKNOWN. Two explanations were proposed and both are wrong:
+        // CAUSE NOW KNOWN - see the floating-point note below and 2026-10-01.
+        // The thrashing described here was the SAME fault: this function
+        // returned reference angles truncated to whole degrees (integer
+        // division), which made the IK branch-selection costs tie and the
+        // elbow choice arbitrary. With that fixed, chatter over an identical
+        // 55-minute sequence fell from 228 samples to 2, and the survivors are
+        // at r=1.3-3.1mm where the two solutions genuinely converge.
+        //
+        // THEREFORE: re-testing homeOffsetSteps is now worthwhile. It was
+        // abandoned because of thrashing that is no longer present. Re-enable
+        // behind the instrumentation (DEBUG_KINEMATICS_IK_FLIP) and watch for
+        // ties rather than relying on static pose accuracy, which passed while
+        // motion was broken.
+        //
+        // The two explanations proposed at the time were both wrong:
         //   1. "the forward/inverse round trip is not self-consistent" - it is;
         //      calculateAngles() feeds ptToActuator, and the relative-angle
         //      arithmetic cancels the offset exactly.
@@ -385,10 +399,13 @@ private:
         //      accumulation, setPosition): final error 0.025 mm independent of
         //      block count, and 0.02-0.04 mm over five chained moves. No drift.
         //
-        // Candidates not yet excluded: the CLOSE_TO_ORIGIN branch in
-        // ptToActuator (home moves from exactly (0,0) to r~8.6 mm under the
-        // offset, so that branch may fire differently), out-of-bounds
-        // handling, and alternate-solution selection.
+        // Candidates listed at the time: the CLOSE_TO_ORIGIN branch, out-of-
+        // bounds handling, and alternate-solution selection. The last of these
+        // was closest - the elbow WAS flipping between solutions - but the
+        // trigger was not the selection logic itself. Instrumentation showed
+        // _preferAlternateSolution was 0 in all 16 captured events, so the
+        // alternate-solution path never participated; the reference angles fed
+        // into the comparison were simply too coarse to discriminate.
         //
         // Do NOT re-apply without first instrumenting ptToActuator to log
         // target/current/relative angles during a failing move. Static
@@ -401,8 +418,13 @@ private:
         // folded pose the two IK solutions converge
         // (ptToActuator logged "CHOSEN (338.83, 83.10) ALTERNATIVE (83.10,
         // 338.83)"), so successive split blocks may be flipping between
-        // elbow-up and elbow-down - SUSPECTED, not confirmed. Verify with an
-        // instrumented small-radius move before re-enabling.
+        // elbow-up and elbow-down - SUSPECTED, not confirmed.
+        //
+        // CONFIRMED 2026-10-01: they were flipping. Note the logged pair is
+        // (a,b) and (b,a) - that is correct for equal-length links, where
+        // theta1 = phi +/- acos(r/2L) and theta2 mirrors it, NOT a sign of a
+        // bad alternate solution. The flipping was caused by truncated
+        // reference angles, since fixed.
         //
         // homeOffsetSteps: homing parks on the end-stop MIDPOINT, which is a
         // per-axis calibration distance from the arm's geometric zero. Applied
