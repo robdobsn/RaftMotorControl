@@ -137,6 +137,7 @@ void HomingSeekCenter::beginApproach(int axis)
     // the commanded distance is bounded - a full rotation is the most that can
     // ever be needed to find a flag on a rotary axis.
     int dir = _startedInsideFlag ? -_seekDir : _seekDir;
+    _approachStartPos = axisPos(axis);
     moveSteps(axis, dir * _fullRotationSteps, _fastStepsPerSec[axis]);
     enterState(State::FAST_APPROACH);
 }
@@ -233,8 +234,24 @@ void HomingSeekCenter::loop()
                 }
                 if (!_motionControl.isBusy() && !_approachReversing)
                 {
-                    setError(_startedInsideFlag ? "never left flag in one rotation"
-                                                : "no flag found in one rotation");
+                    // The approach is a single full-rotation move, so motion
+                    // ending well short of that means it was halted from
+                    // outside (a stop or another stopAll), not that the flag
+                    // is missing. Reporting it as "no flag found" sent earlier
+                    // investigations after a sensor fault that did not exist.
+                    AxisStepsDataType travelled = axisPos(axis) - _approachStartPos;
+                    if (travelled < 0) travelled = -travelled;
+                    if (travelled < (_fullRotationSteps * 9) / 10)
+                    {
+                        LOG_W(MODULE_PREFIX, "axis %d approach halted after %d of %d steps",
+                              axis, (int)travelled, (int)_fullRotationSteps);
+                        setError("approach halted early - motion stopped externally");
+                    }
+                    else
+                    {
+                        setError(_startedInsideFlag ? "never left flag in one rotation"
+                                                    : "no flag found in one rotation");
+                    }
                 }
             }
             else if (!_motionControl.isBusy())

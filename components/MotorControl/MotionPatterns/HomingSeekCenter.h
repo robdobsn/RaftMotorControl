@@ -104,6 +104,9 @@ private:
     // Sub-phase of FAST_APPROACH: true once we are driving back out of the flag
     bool _approachReversing = false;
     bool _startedInsideFlag = false;
+    // Where the fast approach began, so an approach that ends early (motion
+    // halted from outside) is not misreported as "no flag found"
+    AxisStepsDataType _approachStartPos = 0;
     bool _moveIssued = false;
     uint32_t _moveIssuedMs = 0;
     bool _settleStopIssued = false;
