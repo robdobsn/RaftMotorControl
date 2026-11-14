@@ -499,6 +499,15 @@ RaftRetCode MotorControl::sendCmdJSON(const char* cmdJSON, String* respMsg)
         // Stop motion: halt ramp generator and clear motion queue
         // Optional: disable motors if "disableMotors" is true
         bool disableMotors = jsonInfo.getBool("disableMotors", false);
+        // Cancel any active motion pattern (homing, end-stop scan) FIRST.
+        // stopAll() only halts the current move and clears the queue; a pattern
+        // left running simply queues its next move on its next service call, so
+        // "stop" during homing did not stop the arm - measured 2026-11-11: in 2
+        // of 5 trials the arm carried on for 7-10 s and completed homing after
+        // pattern?cmd=stop had reported success. Patterns stop motion through
+        // MotionControlIF directly, never through this command, so this cannot
+        // cancel a pattern's own internal stops.
+        _motionController.stopPattern();
         _motionController.stopAll(disableMotors);
     }
     else if (cmd.equalsIgnoreCase("setOrigin"))
