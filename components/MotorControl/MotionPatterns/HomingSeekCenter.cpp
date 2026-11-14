@@ -44,6 +44,9 @@ void HomingSeekCenter::setup(const char* pParamsJson)
         _settleDelayMs = config.getInt("settleDelayMs", _settleDelayMs);
         _clearMarginSteps = config.getInt("clearMarginSteps", _clearMarginSteps);
         _maxFlagWidthSteps = config.getInt("maxFlagWidthSteps", _maxFlagWidthSteps);
+        _parkApproachSteps = config.getInt("parkApproachSteps", _parkApproachSteps);
+        if (_parkApproachSteps < 0)
+            _parkApproachSteps = 0;
         fastOverride = config.getInt("fastStepsPerSec", 0);
         slowOverride = config.getInt("slowStepsPerSec", 0);
     }
@@ -69,10 +72,10 @@ void HomingSeekCenter::setup(const char* pParamsJson)
     // as absolute positions - but they ARE a consistent relative frame, which
     // is all the edge arithmetic needs.
     _currentAxis = _startAxis;
-    LOG_I(MODULE_PREFIX, "setup numAxes=%d startAxis=%d fullRot=%d fast=%u slow=%u sps seekDir=%d clearMargin=%d maxFlag=%d",
+    LOG_I(MODULE_PREFIX, "setup numAxes=%d startAxis=%d fullRot=%d fast=%u slow=%u sps seekDir=%d clearMargin=%d maxFlag=%d parkApproach=%d",
           _numAxes, _startAxis, _fullRotationSteps,
           (unsigned)_fastStepsPerSec[0], (unsigned)_slowStepsPerSec[0],
-          _seekDir, (int)_clearMarginSteps, (int)_maxFlagWidthSteps);
+          _seekDir, (int)_clearMarginSteps, (int)_maxFlagWidthSteps, (int)_parkApproachSteps);
 
     startAxis(_currentAxis);
 }
@@ -85,6 +88,7 @@ void HomingSeekCenter::startAxis(int axis)
     _edgeAPos = _edgeBPos = _midPos = 0;
     _approachReversing = false;
     _settleStopIssued = false;
+    _parkStagingDone = false;
 
     // Do NOT read the end-stop yet. Homing is typically entered right after a
     // stop() - `home_and_wait` allows only 0.5 s - and the arm can still be
@@ -355,9 +359,19 @@ void HomingSeekCenter::loop()
                     break;
                 if (!Raft::isTimeout(millis(), _stateEntryTimeMs, _settleDelayMs))
                     break;
-                AxisStepsDataType delta = _midPos - axisPos(axis);
-                LOG_I(MODULE_PREFIX, "axis %d at %d, moving %d steps to midpoint %d",
-                      axis, (int)axisPos(axis), (int)delta, (int)_midPos);
+                // Two legs unless parkApproachSteps is 0: first to a staging
+                // point beyond the midpoint on the side OPPOSITE the cross
+                // direction, then back onto the midpoint moving WITH the
+                // cross direction. The cross ended past edge B (on the
+                // _seekDir side), so the first leg moves -_seekDir and the
+                // final leg +_seekDir - the same direction the edges were
+                // latched in.
+                bool staging = !_parkStagingDone && (_parkApproachSteps > 0);
+                AxisStepsDataType target = staging ? _midPos - _seekDir * _parkApproachSteps : _midPos;
+                AxisStepsDataType delta = target - axisPos(axis);
+                LOG_I(MODULE_PREFIX, "axis %d at %d, moving %d steps to %s %d",
+                      axis, (int)axisPos(axis), (int)delta,
+                      staging ? "park staging point" : "midpoint", (int)target);
                 // At the fast rate this short move overshoots the midpoint -
                 // there is not enough distance to decelerate cleanly. It is a
                 // few hundred steps, so the seek rate costs well under a second
@@ -376,6 +390,15 @@ void HomingSeekCenter::loop()
                 break;
             if (_motionControl.isBusy())
                 break;
+            if (!_parkStagingDone && (_parkApproachSteps > 0))
+            {
+                // Staging leg done - issue the final, same-direction leg after
+                // the usual settle delay (measured from now)
+                _parkStagingDone = true;
+                _moveIssued = false;
+                _stateEntryTimeMs = millis();
+                break;
+            }
             enterState(State::VERIFY);
             break;
         }

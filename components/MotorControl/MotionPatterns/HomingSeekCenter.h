@@ -23,7 +23,12 @@
 //   3. FAST_TO_MID    seek speed. Move to (A+B)/2, a known distance, no
 //                     sensing. Deliberately NOT the fast rate: the move is only
 //                     a few hundred steps and overshot the midpoint when run
-//                     fast.
+//                     fast. The FINAL approach is made in the same direction
+//                     as the cross (stage parkApproachSteps beyond the
+//                     midpoint, then come back), so backlash is taken up the
+//                     same way when parking as when the edges were measured.
+//                     Reversing straight onto the midpoint left the park on
+//                     the far side of a variable backlash take-up.
 // `homeOffsetSteps` is the distance from the end-stop midpoint to the arm's
 // GEOMETRIC zero. It is applied as the position REPORTED at the parked
 // midpoint, never as somewhere to drive to: the arm stays on the midpoint (the
@@ -109,6 +114,9 @@ private:
     AxisStepsDataType _approachStartPos = 0;
     bool _moveIssued = false;
     uint32_t _moveIssuedMs = 0;
+    // FAST_TO_MID sub-phase: true once the staging move (beyond the midpoint,
+    // on the side opposite the cross direction) has completed
+    bool _parkStagingDone = false;
     bool _settleStopIssued = false;
     uint32_t _settleStartMs = 0;
 
@@ -146,6 +154,13 @@ private:
     // Upper bound on flag width; the slow cross is commanded this far and is
     // expected to capture edge B well before the end.
     AxisStepsDataType _maxFlagWidthSteps = 8000;  // 75 deg; flags measure ~21-29 deg
+
+    // Final approach to the midpoint is made in the CROSS direction (_seekDir)
+    // from this far beyond it, so the drivetrain's lost motion is taken up the
+    // same way at park as when the edges were latched. Must exceed the joint
+    // backlash (measured 0.45 deg shoulder / 1.37 deg elbow = 48 / 146 steps
+    // at 38400 steps/rev). 0 restores the old direct (reversing) move.
+    AxisStepsDataType _parkApproachSteps = 400;   // 3.75 deg
 
     // ---- helpers ----
     void enterState(State s);
