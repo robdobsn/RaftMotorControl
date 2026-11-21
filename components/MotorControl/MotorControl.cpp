@@ -158,35 +158,42 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
     if (!isdigit(param[0]))
     {
         String paramStr(param);
-        String geom = deviceConfig.getString("motion/geom", "");
-        String geomLower = geom;
-        geomLower.toLowerCase();
-        bool isScara = geomLower.indexOf("scara") >= 0;
 
-        const AxesParams axesParams = _motionController.getAxesParams();
-        double arm1Len = deviceConfig.getDouble("motion/arm1LenMM", 0.0);
-        double arm2Len = deviceConfig.getDouble("motion/arm2LenMM", 0.0);
-        double maxRadius = deviceConfig.getDouble("motion/maxRadiusMM", 0.0);
-        if (maxRadius <= 0.0 && arm1Len > 0.0 && arm2Len > 0.0)
-            maxRadius = arm1Len + arm2Len;
+        // Config and axes params are read only by the values that use them.
+        // They used to be read up front for every name: four JSON config
+        // lookups plus a copy of AxesParams on each call, so a caller polling
+        // posX/theta/homingActive for a status message (~10 values) spent
+        // ~30 ms per message on reads it discarded - enough, at a few messages
+        // per second per client, to starve a motion feeder in the main loop.
+        auto readMaxRadius = [this]() -> double {
+            double arm1Len = deviceConfig.getDouble("motion/arm1LenMM", 0.0);
+            double arm2Len = deviceConfig.getDouble("motion/arm2LenMM", 0.0);
+            double maxRadius = deviceConfig.getDouble("motion/maxRadiusMM", 0.0);
+            if (maxRadius <= 0.0 && arm1Len > 0.0 && arm2Len > 0.0)
+                maxRadius = arm1Len + arm2Len;
+            return maxRadius;
+        };
 
         if (paramStr.equalsIgnoreCase("axesCount"))
         {
             isFresh = true;
-            return axesParams.getNumAxes();
+            return _motionController.getAxesParams().getNumAxes();
         }
         if (paramStr.equalsIgnoreCase("arm1LenMM"))
         {
+            double arm1Len = deviceConfig.getDouble("motion/arm1LenMM", 0.0);
             isFresh = arm1Len > 0.0;
             return arm1Len;
         }
         if (paramStr.equalsIgnoreCase("arm2LenMM"))
         {
+            double arm2Len = deviceConfig.getDouble("motion/arm2LenMM", 0.0);
             isFresh = arm2Len > 0.0;
             return arm2Len;
         }
         if (paramStr.equalsIgnoreCase("maxRadiusMM"))
         {
+            double maxRadius = readMaxRadius();
             isFresh = maxRadius > 0.0;
             return maxRadius;
         }
@@ -225,6 +232,7 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
         if (paramStr.equalsIgnoreCase("theta1") || paramStr.equalsIgnoreCase("theta2"))
         {
             uint32_t axisIdx = paramStr.equalsIgnoreCase("theta1") ? 0 : 1;
+            const AxesParams axesParams = _motionController.getAxesParams();
             if (axisIdx >= axesParams.getNumAxes())
             {
                 isFresh = false;
@@ -276,7 +284,7 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
         if (paramStr.equalsIgnoreCase("outOfBoundsDefault"))
         {
             isFresh = true;
-            return static_cast<double>(axesParams.getOutOfBoundsDefault());
+            return static_cast<double>(_motionController.getAxesParams().getOutOfBoundsDefault());
         }
         if (paramStr.equalsIgnoreCase("workspaceMinX") || paramStr.equalsIgnoreCase("workspaceMaxX") ||
             paramStr.equalsIgnoreCase("workspaceMinY") || paramStr.equalsIgnoreCase("workspaceMaxY"))
@@ -285,8 +293,12 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
             double maxX = 0.0;
             double minY = 0.0;
             double maxY = 0.0;
+            String geomLower = deviceConfig.getString("motion/geom", "");
+            geomLower.toLowerCase();
+            bool isScara = geomLower.indexOf("scara") >= 0;
             if (isScara)
             {
+                double maxRadius = readMaxRadius();
                 if (maxRadius <= 0.0)
                 {
                     isFresh = false;
@@ -300,6 +312,7 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
             }
             else
             {
+                const AxesParams axesParams = _motionController.getAxesParams();
                 minX = axesParams.getMinUnits(0);
                 maxX = axesParams.getMaxUnits(0);
                 minY = axesParams.getMinUnits(1);
