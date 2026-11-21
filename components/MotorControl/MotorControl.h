@@ -166,6 +166,14 @@ private:
     // Motion controller
     MotionController _motionController;
 
+    // Cached for getNamedValue (filled in setup(); see there)
+    std::vector<double> _namedUnitsPerStep;
+    double _namedTheta2OffsetDegs = 180.0;
+    static constexpr uint32_t NAMED_POS_CACHE_US = 1000;
+    mutable AxesValues<AxisPosDataType> _namedPosCache;
+    mutable uint32_t _namedPosCacheUs = 0;
+    mutable bool _namedPosCacheValid = false;
+
     // Homing pattern name (if specified in config)
     String _homingPattern;
 
