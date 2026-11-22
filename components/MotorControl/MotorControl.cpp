@@ -7,6 +7,7 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 #include "MotorControl.h"
+#include <strings.h>
 #include "RaftJsonPrefixed.h"
 #include "RaftBusSystem.h"
 #include "Logger.h"
@@ -43,6 +44,20 @@ void MotorControl::setup()
 {
     // Setup motion controller
     _motionController.setup(deviceConfig);
+
+    // Values getNamedValue would otherwise re-derive on every call
+    {
+        const AxesParams axesParams = _motionController.getAxesParams();
+        _namedUnitsPerStep.assign(axesParams.getNumAxes(), 0.0);
+        for (uint32_t i = 0; i < axesParams.getNumAxes(); i++)
+        {
+            AxisStepsDataType stepsPerRot = axesParams.getStepsPerRot(i);
+            if (stepsPerRot != 0)
+                _namedUnitsPerStep[i] = double(axesParams.getunitsPerRot(i)) / double(stepsPerRot);
+        }
+        _namedTheta2OffsetDegs = deviceConfig.getDouble("motion/originTheta2OffsetDegrees", 180.0);
+        _namedPosCacheValid = false;
+    }
 
     // Home-offset calibration: register the NVS persist callback, then load any saved
     // per-axis offsets. Saved offsets override the SysTypes "homeOffsetSteps" values
@@ -157,40 +172,49 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
     // Named values for motion/geometry metadata
     if (!isdigit(param[0]))
     {
-        String paramStr(param);
-        String geom = deviceConfig.getString("motion/geom", "");
-        String geomLower = geom;
-        geomLower.toLowerCase();
-        bool isScara = geomLower.indexOf("scara") >= 0;
+        // Compare on the C string: String::equalsIgnoreCase(literal) built a
+        // temporary String (a heap allocation for names over 11 chars) per test
+        auto is = [param](const char* name) { return strcasecmp(param, name) == 0; };
 
-        const AxesParams axesParams = _motionController.getAxesParams();
-        double arm1Len = deviceConfig.getDouble("motion/arm1LenMM", 0.0);
-        double arm2Len = deviceConfig.getDouble("motion/arm2LenMM", 0.0);
-        double maxRadius = deviceConfig.getDouble("motion/maxRadiusMM", 0.0);
-        if (maxRadius <= 0.0 && arm1Len > 0.0 && arm2Len > 0.0)
-            maxRadius = arm1Len + arm2Len;
+        // Config and axes params are read only by the values that use them.
+        // They used to be read up front for every name: four JSON config
+        // lookups plus a copy of AxesParams on each call, so a caller polling
+        // posX/theta/homingActive for a status message (~10 values) spent
+        // ~30 ms per message on reads it discarded - enough, at a few messages
+        // per second per client, to starve a motion feeder in the main loop.
+        auto readMaxRadius = [this]() -> double {
+            double arm1Len = deviceConfig.getDouble("motion/arm1LenMM", 0.0);
+            double arm2Len = deviceConfig.getDouble("motion/arm2LenMM", 0.0);
+            double maxRadius = deviceConfig.getDouble("motion/maxRadiusMM", 0.0);
+            if (maxRadius <= 0.0 && arm1Len > 0.0 && arm2Len > 0.0)
+                maxRadius = arm1Len + arm2Len;
+            return maxRadius;
+        };
 
-        if (paramStr.equalsIgnoreCase("axesCount"))
+        if (is("axesCount"))
         {
             isFresh = true;
-            return axesParams.getNumAxes();
+            return _motionController.getAxesParams().getNumAxes();
         }
-        if (paramStr.equalsIgnoreCase("arm1LenMM"))
+        if (is("arm1LenMM"))
         {
+            double arm1Len = deviceConfig.getDouble("motion/arm1LenMM", 0.0);
             isFresh = arm1Len > 0.0;
             return arm1Len;
         }
-        if (paramStr.equalsIgnoreCase("arm2LenMM"))
+        if (is("arm2LenMM"))
         {
+            double arm2Len = deviceConfig.getDouble("motion/arm2LenMM", 0.0);
             isFresh = arm2Len > 0.0;
             return arm2Len;
         }
-        if (paramStr.equalsIgnoreCase("maxRadiusMM"))
+        if (is("maxRadiusMM"))
         {
+            double maxRadius = readMaxRadius();
             isFresh = maxRadius > 0.0;
             return maxRadius;
         }
-        if (paramStr.equalsIgnoreCase("originTheta2OffsetDegrees"))
+        if (is("originTheta2OffsetDegrees"))
         {
             isFresh = true;
             return deviceConfig.getDouble("motion/originTheta2OffsetDegrees", 180.0);
@@ -203,11 +227,19 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
         // correction applied inside the kinematics - notably homeOffsetSteps -
         // was invisible to both, so the reported position disagreed with where
         // the arm physically was (measured ~10 mm out at r=30).
-        if (paramStr.equalsIgnoreCase("posX") || paramStr.equalsIgnoreCase("posY"))
+        if (is("posX") || is("posY"))
         {
-            AxesValues<AxisPosDataType> pos = _motionController.getLastMonitoredPos();
+            // posX and posY are normally read back to back; reuse one forward-
+            // kinematics evaluation (double trig, ~80 us on an S3) for 1 ms
+            uint32_t nowUs = micros();
+            if (!_namedPosCacheValid || (nowUs - _namedPosCacheUs) > NAMED_POS_CACHE_US)
+            {
+                _namedPosCache = _motionController.getLastMonitoredPos();
+                _namedPosCacheUs = nowUs;
+                _namedPosCacheValid = true;
+            }
             isFresh = true;
-            return paramStr.equalsIgnoreCase("posX") ? pos.getVal(0) : pos.getVal(1);
+            return is("posX") ? _namedPosCache.getVal(0) : _namedPosCache.getVal(1);
         }
         // Joint angles in degrees, derived from the CONFIGURED steps/rot and
         // units/rot rather than a copy of them.
@@ -222,42 +254,38 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
         //
         // Any duplicate of a config value is a latent version of this bug, so
         // derive it here, next to the axes params, and let callers read it.
-        if (paramStr.equalsIgnoreCase("theta1") || paramStr.equalsIgnoreCase("theta2"))
+        if (is("theta1") || is("theta2"))
         {
-            uint32_t axisIdx = paramStr.equalsIgnoreCase("theta1") ? 0 : 1;
-            if (axisIdx >= axesParams.getNumAxes())
-            {
-                isFresh = false;
-                return 0.0;
-            }
-            AxisStepsDataType stepsPerRot = axesParams.getStepsPerRot(axisIdx);
-            AxisPosDataType unitsPerRot = axesParams.getunitsPerRot(axisIdx);
-            if (stepsPerRot == 0)
+            uint32_t axisIdx = is("theta1") ? 0 : 1;
+            // Units per step and the theta2 offset come from config, cached in
+            // setup() (copying AxesParams and reading the JSON config here cost
+            // ~100 us per call)
+            if (axisIdx >= _namedUnitsPerStep.size() || _namedUnitsPerStep[axisIdx] == 0.0)
             {
                 isFresh = false;
                 return 0.0;
             }
             double steps = _motionController.getAxisTotalSteps().getVal(axisIdx);
-            double angle = steps * double(unitsPerRot) / double(stepsPerRot);
+            double angle = steps * _namedUnitsPerStep[axisIdx];
             if (axisIdx == 1)
-                angle += deviceConfig.getDouble("motion/originTheta2OffsetDegrees", 180.0);
+                angle += _namedTheta2OffsetDegs;
             angle = fmod(angle, 360.0);
             if (angle > 180.0) angle -= 360.0;
             else if (angle < -180.0) angle += 360.0;
             isFresh = true;
             return angle;
         }
-        if (paramStr.equalsIgnoreCase("homeBeforeMove"))
+        if (is("homeBeforeMove"))
         {
             isFresh = true;
             return deviceConfig.getBool("motion/homeBeforeMove", true) ? 1.0 : 0.0;
         }
-        if (paramStr.equalsIgnoreCase("homed"))
+        if (is("homed"))
         {
             isFresh = true;
             return _motionController.isAllAxesHomed() ? 1.0 : 0.0;
         }
-        if (paramStr.equalsIgnoreCase("homingActive"))
+        if (is("homingActive"))
         {
             // True while the homing motion pattern is running (busy alone is unreliable
             // - it drops to 0 during homing settling phases)
@@ -267,26 +295,30 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
                        ? 1.0
                        : 0.0;
         }
-        if (paramStr.length() > 5 && paramStr.startsWith("homed") && isdigit(paramStr[5]))
+        if (strncasecmp(param, "homed", 5) == 0 && isdigit((unsigned char)param[5]))
         {
-            uint32_t axisIdx = paramStr[5] - '0';
+            uint32_t axisIdx = param[5] - '0';
             isFresh = true;
             return _motionController.isAxisHomed(axisIdx) ? 1.0 : 0.0;
         }
-        if (paramStr.equalsIgnoreCase("outOfBoundsDefault"))
+        if (is("outOfBoundsDefault"))
         {
             isFresh = true;
-            return static_cast<double>(axesParams.getOutOfBoundsDefault());
+            return static_cast<double>(_motionController.getAxesParams().getOutOfBoundsDefault());
         }
-        if (paramStr.equalsIgnoreCase("workspaceMinX") || paramStr.equalsIgnoreCase("workspaceMaxX") ||
-            paramStr.equalsIgnoreCase("workspaceMinY") || paramStr.equalsIgnoreCase("workspaceMaxY"))
+        if (is("workspaceMinX") || is("workspaceMaxX") ||
+            is("workspaceMinY") || is("workspaceMaxY"))
         {
             double minX = 0.0;
             double maxX = 0.0;
             double minY = 0.0;
             double maxY = 0.0;
+            String geomLower = deviceConfig.getString("motion/geom", "");
+            geomLower.toLowerCase();
+            bool isScara = geomLower.indexOf("scara") >= 0;
             if (isScara)
             {
+                double maxRadius = readMaxRadius();
                 if (maxRadius <= 0.0)
                 {
                     isFresh = false;
@@ -300,6 +332,7 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
             }
             else
             {
+                const AxesParams axesParams = _motionController.getAxesParams();
                 minX = axesParams.getMinUnits(0);
                 maxX = axesParams.getMaxUnits(0);
                 minY = axesParams.getMinUnits(1);
@@ -307,10 +340,10 @@ double MotorControl::getNamedValue(const char* param, bool& isFresh) const
                 isFresh = true;
             }
 
-            if (paramStr.equalsIgnoreCase("workspaceMinX")) return minX;
-            if (paramStr.equalsIgnoreCase("workspaceMaxX")) return maxX;
-            if (paramStr.equalsIgnoreCase("workspaceMinY")) return minY;
-            if (paramStr.equalsIgnoreCase("workspaceMaxY")) return maxY;
+            if (is("workspaceMinX")) return minX;
+            if (is("workspaceMaxX")) return maxX;
+            if (is("workspaceMinY")) return minY;
+            if (is("workspaceMaxY")) return maxY;
         }
     }
 
